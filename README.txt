@@ -1,1 +1,0 @@
-SIM+ Beta 1.2 completa. Subir el contenido de este ZIP a la raíz del repositorio, junto a las tres fuentes Canal+*.otf.
