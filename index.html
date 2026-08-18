@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>SIM+ Beta 3</title>
+<link rel="stylesheet" href="css/sim.css?v=3.0.0">
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="topline">
+      <div class="brand">SIM+</div>
+      <div id="clock" class="clock">--:--:--</div>
+    </div>
+
+    <nav class="tabs">
+      <button data-view="lit" class="tab">LIT</button>
+      <button data-view="puv" class="tab active">PUV</button>
+      <button data-view="ema" class="tab">EMA</button>
+    </nav>
+
+    <div class="oper">
+      <div><input id="circulationInput" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="B503" maxlength="4"></div>
+      <div id="utTop">---.--</div>
+      <div id="signalTop">■■■□</div>
+    </div>
+  </header>
+
+  <main>
+    <section id="view-lit" class="view">
+      <div class="lit-tools">
+        <button id="loadLit">CARREGAR</button>
+        <span id="litStatus">Introdueix circulació</span>
+      </div>
+      <div id="litRoute" class="lit-route"></div>
+    </section>
+
+    <section id="view-puv" class="view active">
+      <div class="filters">
+        <div id="lineFilters" class="filterrow"></div>
+        <div id="utFilters" class="filterrow"></div>
+      </div>
+      <div id="puvStatus" class="substatus">Esperant dades…</div>
+
+      <div class="directionTitle">ASCENDENTS</div>
+      <div id="ascList"></div>
+
+      <div class="directionGap"></div>
+
+      <div class="directionTitle">DESCENDENTS</div>
+      <div id="descList"></div>
+    </section>
+
+    <section id="view-ema" class="view">
+      <div class="essais">ESSAIS</div>
+      <div class="ema-note">Mòdul preparat per a la biblioteca d’àudios.</div>
+    </section>
+  </main>
+
+  <button id="diagHotspot" aria-label="Diagnòstic"></button>
+  <dialog id="diag">
+    <div class="diaghead"><b>SIM+ DIAGNÒSTIC</b><button id="closeDiag">×</button></div>
+    <pre id="diagText"></pre>
+  </dialog>
+</div>
+
+<script type="module" src="js/app.js?v=3.0.0"></script>
+</body>
+</html>

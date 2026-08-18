@@ -1,0 +1,295 @@
+{
+  "stations": {
+    "PC": "Barcelona - Plaça Catalunya",
+    "PR": "Provença",
+    "GR": "Gràcia",
+    "SG": "Sant Gervasi",
+    "MN": "Muntaner",
+    "BN": "La Bonanova",
+    "TT": "Les Tres Torres",
+    "SR": "Sarrià",
+    "RE": "Reina Elisenda",
+    "PM": "Pl. Molina",
+    "PD": "Pàdua",
+    "EP": "El Putxet",
+    "TB": "Av. Tibidabo",
+    "PF": "Peu del Funicular",
+    "VL": "Baixador de Vallvidrera",
+    "LP": "Les Planes",
+    "LF": "La Floresta",
+    "VD": "Valldoreix",
+    "SC": "Sant Cugat Centre",
+    "MS": "Mira-Sol",
+    "HG": "Hospital General",
+    "RB": "Rubí Centre",
+    "FN": "Les Fonts",
+    "TR": "Terrassa - Rambla",
+    "VP": "Vallparadís Universitat",
+    "EN": "Terrassa Estació del nord",
+    "NA": "Terrassa Nacions Unides",
+    "VO": "Volpelleres",
+    "SJ": "Sant Joan",
+    "BT": "Bellaterra",
+    "UN": "Universitat Autònoma",
+    "SQ": "Sant Quirze",
+    "CF": "Can Feu - Gràcia",
+    "PJ": "Sabadell Plaça Major",
+    "CT": "La Creu Alta",
+    "NO": "Sabadell Nord",
+    "PN": "Sabadell Parc del Nord"
+  },
+  "segments": [
+    {
+      "from": "PC",
+      "to": "PR",
+      "grade": "29‰",
+      "length": "1220 m",
+      "technical": []
+    },
+    {
+      "from": "PR",
+      "to": "GR",
+      "grade": "38‰",
+      "length": "830 m",
+      "technical": []
+    },
+    {
+      "from": "GR",
+      "to": "PM",
+      "grade": "39‰",
+      "length": "600 m",
+      "technical": []
+    },
+    {
+      "from": "PM",
+      "to": "PD",
+      "grade": "25‰",
+      "length": "410 m",
+      "technical": []
+    },
+    {
+      "from": "PD",
+      "to": "EP",
+      "grade": "46‰",
+      "length": "400 m",
+      "technical": []
+    },
+    {
+      "from": "EP",
+      "to": "TB",
+      "grade": "40‰",
+      "length": "450 m",
+      "technical": []
+    },
+    {
+      "from": "GR",
+      "to": "SG",
+      "grade": "24‰",
+      "length": "560 m",
+      "technical": []
+    },
+    {
+      "from": "SG",
+      "to": "MN",
+      "grade": "36‰",
+      "length": "470 m",
+      "technical": []
+    },
+    {
+      "from": "MN",
+      "to": "BN",
+      "grade": "11‰",
+      "length": "530 m",
+      "technical": []
+    },
+    {
+      "from": "BN",
+      "to": "TT",
+      "grade": "25‰",
+      "length": "470 m",
+      "technical": []
+    },
+    {
+      "from": "TT",
+      "to": "SR",
+      "grade": "40‰",
+      "length": "530 m",
+      "technical": []
+    },
+    {
+      "from": "SR",
+      "to": "RE",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "SR",
+      "to": "PF",
+      "grade": "44‰",
+      "length": "2090 m",
+      "technical": []
+    },
+    {
+      "from": "PF",
+      "to": "VL",
+      "grade": "37‰",
+      "length": "1670 m",
+      "technical": []
+    },
+    {
+      "from": "VL",
+      "to": "LP",
+      "grade": "18‰",
+      "length": "950 m",
+      "technical": []
+    },
+    {
+      "from": "LP",
+      "to": "LF",
+      "grade": "20‰",
+      "length": "2850 m",
+      "technical": []
+    },
+    {
+      "from": "LF",
+      "to": "VD",
+      "grade": "26‰",
+      "length": "1690 m",
+      "technical": []
+    },
+    {
+      "from": "VD",
+      "to": "SC",
+      "grade": "25‰",
+      "length": "1450 m",
+      "technical": []
+    },
+    {
+      "from": "SC",
+      "to": "MS",
+      "grade": "5‰",
+      "length": "1520 m",
+      "technical": []
+    },
+    {
+      "from": "MS",
+      "to": "HG",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "HG",
+      "to": "RB",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "RB",
+      "to": "FN",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "FN",
+      "to": "TR",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "TR",
+      "to": "VP",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "VP",
+      "to": "EN",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "EN",
+      "to": "NA",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "SC",
+      "to": "VO",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "VO",
+      "to": "SJ",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "SJ",
+      "to": "BT",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "BT",
+      "to": "UN",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "UN",
+      "to": "SQ",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "SQ",
+      "to": "CF",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "CF",
+      "to": "PJ",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "PJ",
+      "to": "CT",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "CT",
+      "to": "NO",
+      "grade": null,
+      "length": null,
+      "technical": []
+    },
+    {
+      "from": "NO",
+      "to": "PN",
+      "grade": null,
+      "length": null,
+      "technical": []
+    }
+  ]
+}

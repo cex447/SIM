@@ -1,0 +1,20 @@
+{
+  "positioningUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=100",
+  "gtfsZipIndexUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/gtfs_zip/records?limit=20",
+  "refreshMs": 10000,
+  "allowedLines": [
+    "S1",
+    "S2",
+    "L6",
+    "L7",
+    "L12"
+  ],
+  "allowedUnitSeries": [
+    "112",
+    "113",
+    "114",
+    "115"
+  ],
+  "idPrefix": "6c4bdae",
+  "udPrefix": "1f2cc"
+}
