@@ -1,0 +1,74 @@
+{
+  "PC>PR": {
+    "grade": "29‰",
+    "length": "1220 m"
+  },
+  "PR>GR": {
+    "grade": "38‰",
+    "length": "830 m"
+  },
+  "GR>PM": {
+    "grade": "39‰",
+    "length": "600 m"
+  },
+  "PM>PD": {
+    "grade": "25‰",
+    "length": "410 m"
+  },
+  "PD>EP": {
+    "grade": "46‰",
+    "length": "400 m"
+  },
+  "EP>TB": {
+    "grade": "40‰",
+    "length": "450 m"
+  },
+  "GR>SG": {
+    "grade": "24‰",
+    "length": "560 m"
+  },
+  "SG>MN": {
+    "grade": "36‰",
+    "length": "470 m"
+  },
+  "MN>BN": {
+    "grade": "11‰",
+    "length": "530 m"
+  },
+  "BN>TT": {
+    "grade": "25‰",
+    "length": "470 m"
+  },
+  "TT>SR": {
+    "grade": "40‰",
+    "length": "530 m"
+  },
+  "SR>PF": {
+    "grade": "44‰",
+    "length": "2090 m"
+  },
+  "PF>VL": {
+    "grade": "37‰",
+    "length": "1670 m"
+  },
+  "VL>LP": {
+    "grade": "18‰",
+    "length": "950 m"
+  },
+  "LP>LF": {
+    "grade": "20‰",
+    "length": "2850 m"
+  },
+  "LF>VD": {
+    "grade": "26‰",
+    "length": "1690 m"
+  },
+  "VD>SC": {
+    "grade": "25‰",
+    "length": "1450 m"
+  },
+  "SC>MS": {
+    "grade": "5‰",
+    "length": "1520 m"
+  }
+}

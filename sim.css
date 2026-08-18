@@ -1,0 +1,140 @@
+@font-face{
+  font-family:"SIM Futura";
+  src:url("../Canal+BoldItalic-Regular.otf") format("opentype");
+  font-weight:700;font-style:italic;font-display:swap;
+}
+@font-face{
+  font-family:"SIM Futura";
+  src:url("../Canal+MediumItalic-Regular.otf") format("opentype");
+  font-weight:500;font-style:italic;font-display:swap;
+}
+@font-face{
+  font-family:"SIM Futura";
+  src:url("../Canal+LightItalic-Regular.otf") format("opentype");
+  font-weight:300;font-style:italic;font-display:swap;
+}
+
+:root{
+  color-scheme:light dark;
+  --bg:#fff;--fg:#000;--muted:#767676;--line:#d7d7d7;--soft:#f1f1f1;--red:#d00000;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#000;--fg:#fff;--muted:#999;--line:#343434;--soft:#111;--red:#ff3b30}
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0;min-height:100%;background:var(--bg);color:var(--fg);
+  font-family:"SIM Futura",Arial,sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+button,input,select,dialog{font-family:"SIM Futura",Arial,sans-serif}
+body{min-height:100vh;overflow-x:hidden}
+
+.top{
+  position:sticky;top:0;z-index:20;background:var(--bg);
+  padding:calc(env(safe-area-inset-top) + 44px) 34px 18px;
+  border-bottom:1px solid var(--line);
+}
+.topline{min-height:64px;display:flex;align-items:center;justify-content:space-between}
+.brand,.clock{
+  font-size:52px;font-weight:700;font-style:italic;line-height:1;
+}
+.clock{font-variant-numeric:tabular-nums}
+.tabs{min-height:82px;display:flex;align-items:center;gap:62px}
+.tab{
+  border:0;background:transparent;color:var(--fg);font-size:34px;
+  font-weight:700;font-style:italic;padding:10px 0;opacity:.42;border-radius:0;
+}
+.tab.active{opacity:1;border-bottom:5px solid var(--fg)}
+.oper{
+  min-height:66px;display:grid;grid-template-columns:1fr 1fr 1fr;
+  align-items:center;font-size:34px;font-weight:700;font-style:italic;
+}
+.oper>div:nth-child(2){text-align:center}
+.oper>div:nth-child(3){text-align:right;letter-spacing:4px}
+#circulationInput{
+  width:160px;border:0;border-bottom:2px solid var(--line);background:transparent;color:var(--fg);
+  font-size:34px;font-weight:700;font-style:italic;text-transform:uppercase;padding:4px 0;outline:none;
+}
+#circulationInput::placeholder{color:var(--muted);opacity:.65}
+
+main{padding:0 34px 70px}
+.view{display:none}
+.view.active{display:block}
+
+.filters{padding:22px 0 12px}
+.filterrow{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
+.filters button,.lit-tools button{
+  border:2px solid var(--line);background:var(--soft);color:var(--fg);
+  border-radius:14px;padding:14px 22px;font-size:28px;font-weight:700;font-style:italic;
+}
+.filters button.off{opacity:.32}
+.filters button.alert{color:var(--red)}
+.substatus,#litStatus{
+  font-size:26px;font-weight:300;font-style:italic;color:var(--muted);margin:18px 0;
+}
+.directionTitle{
+  text-align:center;
+  font-family:"SIM Futura",Arial,sans-serif;
+  font-size:38px;font-weight:700;font-style:italic;margin:34px 0 18px;
+}
+.directionGap{height:32px}
+.trainrow{
+  display:grid;grid-template-columns:138px 108px 1fr;gap:14px;
+  padding:18px 0;border-bottom:1px solid var(--line);
+  font-size:30px;font-weight:700;font-style:italic;
+}
+.trainrow .where{font-weight:300}
+.trainrow.alert{color:var(--red)}
+.empty{
+  text-align:center;color:var(--muted);font-size:28px;font-weight:300;font-style:italic;padding:24px 8px;
+}
+
+.lit-tools{
+  position:sticky;top:268px;z-index:10;background:var(--bg);
+  display:flex;align-items:center;gap:18px;padding:16px 0;border-bottom:1px solid var(--line);
+}
+.lit-route{padding:10px 0 30vh}
+.lit-row{
+  display:grid;grid-template-columns:34px 110px minmax(280px,1fr) 100px;
+  align-items:center;min-height:84px;font-size:32px;font-weight:700;font-style:italic;
+}
+.lit-row.current{scroll-margin-top:310px}
+.pointer{text-align:center;font-style:normal}
+.time,.count{font-variant-numeric:tabular-nums}
+.count{text-align:right}.count.red{color:var(--red)}
+.count.blink{color:var(--red);animation:blink .5s steps(1,end) infinite}
+@keyframes blink{50%{opacity:0}}
+.inter{
+  display:grid;grid-template-columns:34px 110px minmax(280px,1fr) 100px;
+  align-items:center;min-height:58px;font-size:30px;font-weight:500;font-style:italic;
+}
+.inter .technical{grid-column:3}
+.separator{border-top:1px solid var(--line);margin:4px 0}
+
+.essais{text-align:center;font-size:54px;font-weight:700;font-style:italic;margin-top:16vh}
+.ema-note{text-align:center;color:var(--muted);font-size:26px;font-weight:300;font-style:italic;margin-top:20px}
+
+#diagHotspot{position:fixed;left:0;top:0;width:110px;height:110px;opacity:0;border:0;z-index:50}
+dialog{
+  width:min(94vw,760px);background:var(--bg);color:var(--fg);
+  border:1px solid var(--line);border-radius:14px;
+}
+.diaghead{display:flex;justify-content:space-between;align-items:center;font-size:26px}
+.diaghead button{border:0;background:transparent;color:var(--fg);font-size:38px}
+pre{white-space:pre-wrap;font-size:18px}
+
+@media(orientation:landscape){
+  .top{padding-top:calc(env(safe-area-inset-top) + 22px);padding-left:28px;padding-right:28px}
+  .topline{min-height:48px}.brand,.clock{font-size:40px}
+  .tabs{min-height:60px}.tab{font-size:28px}
+  .oper{min-height:50px;font-size:28px}
+  #circulationInput{font-size:28px;width:130px}
+  .directionTitle{font-size:32px}
+  .filters button,.lit-tools button{font-size:22px;padding:10px 16px}
+  .substatus,#litStatus{font-size:20px}
+  .trainrow{font-size:24px;padding:12px 0}
+  .lit-tools{top:190px}
+  .lit-row{min-height:60px;font-size:25px}
+  .inter{min-height:44px;font-size:24px}
+}
