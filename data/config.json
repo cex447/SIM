@@ -1,7 +1,14 @@
 {
-  "positioningUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=100",
+  "positioningUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records",
+  "todayTripsUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/viajes-de-hoy/records",
   "gtfsZipIndexUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/gtfs_zip/records?limit=20",
-  "refreshMs": 10000,
+
+  "refreshMs": 3000,
+  "requestTimeoutMs": 5500,
+  "pageSize": 100,
+  "maxPages": 20,
+  "serverSidePrefixFilter": true,
+
   "allowedLines": [
     "S1",
     "S2",
@@ -9,12 +16,22 @@
     "L7",
     "L12"
   ],
+
   "allowedUnitSeries": [
     "112",
     "113",
     "114",
     "115"
   ],
+
   "idPrefix": "6c4bdae",
-  "udPrefix": "1f2cc"
+  "udPrefix": "1f2cc",
+
+  "lineAssets": {
+    "S1": "https://www.fgc.cat/wp-content/uploads/2020/06/s-1.png",
+    "S2": "https://www.fgc.cat/wp-content/uploads/2020/06/s-2.png",
+    "L6": "https://www.fgc.cat/wp-content/uploads/2020/06/l-6.png",
+    "L7": "https://www.fgc.cat/wp-content/uploads/2020/06/l-7.png",
+    "L12": "https://www.fgc.cat/wp-content/uploads/2020/06/l-12.png"
+  }
 }
