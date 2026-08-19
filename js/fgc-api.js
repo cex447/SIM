@@ -1,65 +1,370 @@
-export async function fetchPositioning(url){
-  const sep=url.includes("?")?"&":"?";
-  const r=await fetch(url+sep+"_ts="+Date.now(),{cache:"no-store"});
-  if(!r.ok)throw new Error("HTTP "+r.status);
-  const j=await r.json();
-  return {rows:j.results||[],total:j.total_count??null};
-}
-export function decodeCirculation(id){
-  const s=String(id||"");
-  const tail=s.includes("|")?s.split("|").pop():s;
-  const family={"6f2":"A","6c2":"B","622":"L","6a2":"D","682":"F"}[tail.slice(0,3)];
-  if(!family)return null;
-  const a={"7e":"0","6e":"1","5e":"2","4e":"3","3e":"4","2e":"5","0e":"7"}[tail.slice(5,7)];
-  const b={"30":"0","20":"1","10":"2","00":"3","70":"4","60":"5","50":"6","40":"7","b0":"8","a0":"9"}[tail.slice(7,9)];
-  const c={"2":"0","3":"1","0":"2","1":"3","6":"4","7":"5","4":"6","5":"7","a":"8","b":"9"}[tail.slice(9,10)];
-  return a!==undefined&&b!==undefined&&c!==undefined?family+a+b+c:null;
-}
-export function decodeUnit(ud){
-  const s=String(ud||"");
-  if(!s.startsWith("1f2cc"))return null;
-  const series={"5":"112","4":"113","3":"114","2":"115"}[s[5]];
-  const a={"02":"0","03":"1","00":"2","01":"3"}[s.slice(8,10)];
-  const b={"74":"0","75":"1","76":"2","77":"3","70":"4","71":"5","72":"6","73":"7","7c":"8","7d":"9"}[s.slice(10,12)];
-  return series&&a!==undefined&&b!==undefined?series+"."+a+b:null;
-}
-function get(r,...names){
-  for(const n of names)if(r[n]!==undefined&&r[n]!==null&&r[n]!=="")return r[n];
+/*
+ * SIM+ — FGC live data adapter
+ *
+ * Objetivos:
+ * - Barcelona–Vallès exclusivamente.
+ * - Tolerancia a cambios de nombre de campo (ut / ud / vehicle_id).
+ * - Sin solapamiento de consultas; el scheduler vive en app.js.
+ * - Filtro de prefijo en servidor cuando sea posible, con fallback local.
+ */
+
+const LINE_BY_FAMILY = Object.freeze({
+  A: "L6",
+  B: "L7",
+  L: "L12",
+  D: "S1",
+  F: "S2"
+});
+
+const FAMILY_BY_CODE = Object.freeze({
+  "6f2": "A",
+  "6c2": "B",
+  "622": "L",
+  "6a2": "D",
+  "682": "F"
+});
+
+const CIRC_D1 = Object.freeze({
+  "7e": "0",
+  "6e": "1",
+  "5e": "2",
+  "4e": "3",
+  "3e": "4",
+  "2e": "5",
+  "1e": "6",
+  "0e": "7"
+});
+
+const CIRC_D2 = Object.freeze({
+  "30": "0",
+  "20": "1",
+  "10": "2",
+  "00": "3",
+  "70": "4",
+  "60": "5",
+  "50": "6",
+  "40": "7",
+  "b0": "8",
+  "a0": "9"
+});
+
+const CIRC_D3 = Object.freeze({
+  "2": "0",
+  "3": "1",
+  "0": "2",
+  "1": "3",
+  "6": "4",
+  "7": "5",
+  "4": "6",
+  "5": "7",
+  "a": "8",
+  "b": "9"
+});
+
+const UNIT_SERIES = Object.freeze({
+  "5": "112",
+  "4": "113",
+  "3": "114",
+  "2": "115"
+});
+
+const UNIT_D1 = Object.freeze({
+  "02": "0",
+  "03": "1",
+  "00": "2",
+  "01": "3"
+});
+
+const UNIT_D2 = Object.freeze({
+  "74": "0",
+  "75": "1",
+  "76": "2",
+  "77": "3",
+  "70": "4",
+  "71": "5",
+  "72": "6",
+  "73": "7",
+  "7c": "8",
+  "7d": "9"
+});
+
+let serverPrefixFilterSupported = null;
+
+function valueFrom(row, ...names) {
+  for (const name of names) {
+    const value = row?.[name];
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
   return null;
 }
-function normalizeUnitFallback(r){
-  const direct=String(get(r,"unitat","unidad","unit")||"");
-  if(/^(112|113|114|115)\.\d{2}$/.test(direct))return direct;
-  let serie=String(get(r,"tipus_unitat","tipo_unidad","serie")||"");
-  let num=String(get(r,"ut","numero_ut","unit_number")||"");
-  if(/^(112|113|114|115)\.\d{2}$/.test(num))return num;
-  if(/^(112|113|114|115)$/.test(serie)&&/^\d{1,2}$/.test(num))return serie+"."+num.padStart(2,"0");
+
+function stringValue(row, ...names) {
+  const value = valueFrom(row, ...names);
+  return value === null ? "" : String(value);
+}
+
+export function findUnitHex(row, prefix = "1f2cc") {
+  const preferred = [
+    row?.ut,
+    row?.ud,
+    row?.vehicle_id
+  ];
+
+  for (const value of preferred) {
+    if (typeof value === "string" && value.startsWith(prefix)) {
+      return value;
+    }
+  }
+
+  for (const value of Object.values(row || {})) {
+    if (typeof value === "string" && value.startsWith(prefix)) {
+      return value;
+    }
+  }
+
   return null;
 }
-export function normalizeTrain(r,cfg){
-  const id=String(get(r,"id","trip_id")||"");
-  const rawCir=String(get(r,"circulacio","circulacion","circulation")||"").toUpperCase();
-  let circulation=decodeCirculation(id)||(/^[ABDFL]\d{3}$/.test(rawCir)?rawCir:null);
-  if(!circulation)return null;
 
-  // BV: familia de trip_id o familias de circulación A/B/D/F/L.
-  if(id && !id.startsWith(cfg.idPrefix) && !/^[ABDFL]/.test(circulation))return null;
+export function decodeUnit(rawUnit) {
+  const s = String(rawUnit || "");
+  if (!s.startsWith("1f2cc") || s.length < 12) return null;
 
-  const ud=String(get(r,"ud","vehicle_id")||"");
-  const unit=decodeUnit(ud)||normalizeUnitFallback(r);
-  if(!unit)return null;
-  if(!cfg.allowedUnitSeries.includes(unit.slice(0,3)))return null;
+  const series = UNIT_SERIES[s[5]];
+  const d1 = UNIT_D1[s.slice(8, 10)];
+  const d2 = UNIT_D2[s.slice(10, 12)];
 
-  const familyLine={A:"L6",B:"L7",L:"L12",D:"S1",F:"S2"}[circulation[0]];
-  const line=String(get(r,"lin","linia","linea","route_short_name","route")||familyLine);
-  const stationed=get(r,"estacionat_a","estacionado_en");
-  const next=get(r,"properes_parades","proximas_paradas");
-  const origin=get(r,"origen","origin");
-  const dest=get(r,"desti","destino","destination");
+  if (!series || d1 === undefined || d2 === undefined) return null;
+  return `${series}.${d1}${d2}`;
+}
+
+export function decodeCirculation(id) {
+  const s = String(id || "");
+  if (!s.includes("|")) return null;
+
+  const tail = s.split("|").pop();
+  if (!tail || tail.length < 10) return null;
+
+  const family = FAMILY_BY_CODE[tail.slice(0, 3)];
+  const d1 = CIRC_D1[tail.slice(5, 7)];
+  const d2 = CIRC_D2[tail.slice(7, 9)];
+  const d3 = CIRC_D3[tail.slice(9, 10)];
+
+  if (!family || d1 === undefined || d2 === undefined || d3 === undefined) {
+    return null;
+  }
+
+  return `${family}${d1}${d2}${d3}`;
+}
+
+export function parseFirstNextStop(raw) {
+  if (!raw) return null;
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (item && typeof item === "object" && item.parada) {
+        return String(item.parada);
+      }
+    }
+    return null;
+  }
+
+  if (typeof raw === "object") {
+    return raw.parada ? String(raw.parada) : null;
+  }
+
+  const text = String(raw).trim();
+  if (!text) return null;
+
+  const first = text.split(";")[0].trim();
+
+  try {
+    const parsed = JSON.parse(first);
+    return parsed?.parada ? String(parsed.parada) : null;
+  } catch {
+    const match = first.match(/["']?parada["']?\s*:\s*["']?([^"',}]+)["']?/i);
+    return match ? match[1].trim() : null;
+  }
+}
+
+function parseOnTime(raw) {
+  if (raw === true || raw === 1) return true;
+  if (raw === false || raw === 0) return false;
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const s = String(raw).trim().toLowerCase();
+
+  if (["true", "1", "yes", "si", "sí"].includes(s)) return true;
+  if (["false", "0", "no"].includes(s)) return false;
+
+  return null;
+}
+
+function isValidL12(origin, destination) {
+  const valid = new Set(["SR", "RE"]);
+  return valid.has(String(origin || "")) && valid.has(String(destination || ""));
+}
+
+function lineFamily(circulation) {
+  return circulation ? circulation[0] : null;
+}
+
+export function normalizeTrain(row, cfg) {
+  const id = stringValue(row, "id", "trip_id");
+
+  // Barcelona–Vallès: solo la familia de trip_id acordada.
+  if (!id.startsWith(cfg.idPrefix)) return null;
+
+  const circulation = decodeCirculation(id);
+  if (!circulation) return null;
+
+  const family = lineFamily(circulation);
+  const line = LINE_BY_FAMILY[family];
+  if (!line || !cfg.allowedLines.includes(line)) return null;
+
+  const rawUnit = findUnitHex(row, cfg.udPrefix);
+  if (!rawUnit) return null;
+
+  const unit = decodeUnit(rawUnit);
+  if (!unit || !cfg.allowedUnitSeries.includes(unit.slice(0, 3))) return null;
+
+  const origin = valueFrom(row, "origen", "origin");
+  const destination = valueFrom(row, "desti", "destino", "destination");
+
+  // L12 en SIM = SR ↔ RE, sin extenderla a otros recorridos.
+  if (line === "L12" && !isValidL12(origin, destination)) return null;
+
+  const stationed = valueFrom(
+    row,
+    "estacionat_a",
+    "estacionado_en",
+    "stationed_at"
+  );
+
+  const nextRaw = valueFrom(
+    row,
+    "properes_parades",
+    "proximas_paradas",
+    "next_stops"
+  );
+
+  const nextStop = parseFirstNextStop(nextRaw);
+  const onTime = parseOnTime(valueFrom(row, "en_hora", "on_time"));
 
   return {
-    raw:r,id,ud,circulation,unit,line,origin,dest,stationed,next,
-    whereText:stationed?"Est. "+stationed:"En circulació",
-    ascending:Number(circulation.slice(-1))%2===1
+    raw: row,
+    id,
+    circulation,
+    family,
+    line,
+    rawUnit,
+    unit,
+    origin: origin ? String(origin) : null,
+    destination: destination ? String(destination) : null,
+    stationed: stationed ? String(stationed) : null,
+    nextRaw,
+    nextStop,
+    onTime,
+    ascending: Number(circulation.slice(-1)) % 2 === 1
   };
+}
+
+function buildPageUrl(baseUrl, cfg, offset, withPrefixFilter) {
+  const url = new URL(baseUrl);
+
+  url.searchParams.set("limit", String(cfg.pageSize || 100));
+  url.searchParams.set("offset", String(offset));
+  url.searchParams.set("_ts", String(Date.now()));
+
+  if (withPrefixFilter) {
+    url.searchParams.set(
+      "where",
+      `startswith(id, "${cfg.idPrefix}")`
+    );
+  } else {
+    url.searchParams.delete("where");
+  }
+
+  return url.toString();
+}
+
+async function fetchPage(url, signal) {
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal
+  });
+
+  if (!response.ok) {
+    const error = new Error(`FGC HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+async function fetchAllPages(baseUrl, cfg, signal, withPrefixFilter) {
+  const rows = [];
+  const pageSize = cfg.pageSize || 100;
+  const maxPages = cfg.maxPages || 20;
+  let total = null;
+  let offset = 0;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const payload = await fetchPage(
+      buildPageUrl(baseUrl, cfg, offset, withPrefixFilter),
+      signal
+    );
+
+    const batch = Array.isArray(payload.results) ? payload.results : [];
+    const apiTotal = Number(payload.total_count);
+
+    if (Number.isFinite(apiTotal)) total = apiTotal;
+
+    rows.push(...batch);
+
+    if (
+      batch.length === 0 ||
+      batch.length < pageSize ||
+      (total !== null && rows.length >= total)
+    ) {
+      break;
+    }
+
+    offset += batch.length;
+  }
+
+  return {
+    rows,
+    total,
+    serverFiltered: withPrefixFilter
+  };
+}
+
+export async function fetchPositioning(baseUrl, cfg, { signal } = {}) {
+  const wantsServerFilter = cfg.serverSidePrefixFilter !== false;
+
+  if (wantsServerFilter && serverPrefixFilterSupported !== false) {
+    try {
+      const result = await fetchAllPages(
+        baseUrl,
+        cfg,
+        signal,
+        true
+      );
+      serverPrefixFilterSupported = true;
+      return result;
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      serverPrefixFilterSupported = false;
+    }
+  }
+
+  return fetchAllPages(
+    baseUrl,
+    cfg,
+    signal,
+    false
+  );
 }
