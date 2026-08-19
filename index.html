@@ -1,71 +1,117 @@
 <!doctype html>
 <html lang="ca">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#000000">
-<title>SIM+ Beta 3</title>
-<link rel="stylesheet" href="css/sim.css?v=3.0.0">
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  >
+  <meta name="theme-color" content="#000000">
+  <title>SIM+</title>
+
+  <link rel="stylesheet" href="css/sim.css?v=3.2.0">
 </head>
+
 <body>
-<div id="app">
-  <header class="top">
-    <div class="topline">
-      <div class="brand">SIM+</div>
-      <div id="clock" class="clock">--:--:--</div>
-    </div>
-
-    <nav class="tabs">
-      <button data-view="lit" class="tab">LIT</button>
-      <button data-view="puv" class="tab active">PUV</button>
-      <button data-view="ema" class="tab">EMA</button>
-    </nav>
-
-    <div class="oper">
-      <div><input id="circulationInput" inputmode="text" autocomplete="off" autocapitalize="characters" placeholder="B503" maxlength="4"></div>
-      <div id="utTop">---.--</div>
-      <div id="signalTop">■■■□</div>
-    </div>
-  </header>
-
-  <main>
-    <section id="view-lit" class="view">
-      <div class="lit-tools">
-        <button id="loadLit">CARREGAR</button>
-        <span id="litStatus">Introdueix circulació</span>
+  <div id="app">
+    <header class="top">
+      <div class="topline">
+        <div class="brand">SIM+</div>
+        <div id="clock" class="clock">--:--:--</div>
       </div>
-      <div id="litRoute" class="lit-route"></div>
-    </section>
 
-    <section id="view-puv" class="view active">
-      <div class="filters">
-        <div id="lineFilters" class="filterrow"></div>
-        <div id="utFilters" class="filterrow"></div>
+      <nav class="tabs" aria-label="Mòduls SIM+">
+        <button class="tab active" data-view="lit" type="button">LIT</button>
+        <button class="tab" data-view="puv" type="button">PUV</button>
+        <button class="tab" data-view="ema" type="button">EMA</button>
+      </nav>
+
+      <div class="oper">
+        <div>
+          <input
+            id="circulationInput"
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            placeholder="B503"
+            maxlength="4"
+            aria-label="Circulació"
+          >
+        </div>
+
+        <div id="utTop">---.--</div>
+        <div id="signalTop">■■■□</div>
       </div>
-      <div id="puvStatus" class="substatus">Esperant dades…</div>
+    </header>
 
-      <div class="directionTitle">ASCENDENTS</div>
-      <div id="ascList"></div>
+    <main>
+      <section id="view-lit" class="view active">
+        <div class="lit-tools">
+          <button id="loadLit" type="button">CARREGAR</button>
+          <span id="litStatus">Introdueix circulació</span>
+        </div>
 
-      <div class="directionGap"></div>
+        <div id="litRoute" class="lit-route"></div>
+      </section>
 
-      <div class="directionTitle">DESCENDENTS</div>
-      <div id="descList"></div>
-    </section>
+      <section id="view-puv" class="view">
+        <div class="filters" aria-label="Filtres PUV">
+          <div class="filter-line">
+            <div id="lineFilters" class="filterrow line-filter-row"></div>
+          </div>
 
-    <section id="view-ema" class="view">
-      <div class="essais">ESSAIS</div>
-      <div class="ema-note">Mòdul preparat per a la biblioteca d’àudios.</div>
-    </section>
-  </main>
+          <div class="filter-line">
+            <div id="utFilters" class="filterrow ut-filter-row"></div>
 
-  <button id="diagHotspot" aria-label="Diagnòstic"></button>
-  <dialog id="diag">
-    <div class="diaghead"><b>SIM+ DIAGNÒSTIC</b><button id="closeDiag">×</button></div>
-    <pre id="diagText"></pre>
-  </dialog>
-</div>
+            <button
+              id="clearPuvFilters"
+              class="clear-filter"
+              type="button"
+            >
+              TOTS
+            </button>
+          </div>
+        </div>
 
-<script type="module" src="js/app.js?v=3.0.0"></script>
+        <div id="puvStatus" class="substatus" aria-live="polite">
+          ESPERANT DADES…
+        </div>
+
+        <div class="directionTitle">ASCENDENTS</div>
+        <div id="ascList"></div>
+        <div id="ascEmpty" class="empty" hidden></div>
+
+        <div class="directionGap"></div>
+
+        <div class="directionTitle">DESCENDENTS</div>
+        <div id="descList"></div>
+        <div id="descEmpty" class="empty" hidden></div>
+      </section>
+
+      <section id="view-ema" class="view">
+        <div class="essais">ESSAIS</div>
+        <div class="ema-note">
+          Mòdul preparat per a la biblioteca d’àudios.
+        </div>
+      </section>
+    </main>
+
+    <button
+      id="diagHotspot"
+      type="button"
+      aria-label="Diagnòstic"
+    ></button>
+
+    <dialog id="diag">
+      <div class="diaghead">
+        <strong>SIM+ DIAGNÒSTIC</strong>
+        <button id="closeDiag" type="button" aria-label="Tancar">×</button>
+      </div>
+      <pre id="diagText"></pre>
+    </dialog>
+  </div>
+
+  <script type="module" src="js/app.js?v=3.2.0"></script>
 </body>
 </html>
