@@ -1,0 +1,26 @@
+SIM+ Beta 3.3 — PUV FIX
+
+Sustituir:
+- index.html
+- css/sim.css
+- data/config.json
+- js/app.js
+- js/fgc-api.js
+- js/puv.js
+
+Qué corrige:
+1. Se restaura una escala grande y legible (Beta 3.2 había quedado demasiado pequeña).
+2. PUV deja de depender del arranque de LIT, network.json y GTFS.
+3. La consulta de PUV vuelve al patrón simple/probado del HTML de seguimiento:
+   endpoint posicionament-dels-trens, limit=100, cache no-store.
+4. Refresco cada 3 s, sin solapar peticiones.
+5. La UT se busca en ut/ud/vehicle_id y, como fallback, en cualquier campo 1f2cc.
+6. Añadido 1e -> 6 en el decoder de circulación.
+7. Se muestran ASCENDENTS/DESCENDENTS y filtros combinables.
+8. El estado ACTUALITZAT HH:MM:SS permite comprobar visualmente que refresca.
+
+No es necesario sustituir:
+- js/lit.js
+- js/gtfs.js
+- data/network.json
+- las tres fuentes Canal+
