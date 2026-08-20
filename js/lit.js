@@ -1,4 +1,4 @@
-import { getTripBundle } from "./gtfs.js?v=3.4.0";
+import { getTripBundle } from "./gtfs.js?v=3.4.1";
 
 const SPECIAL_RED_THRESHOLD = new Set(["PC", "MN", "TT", "SR"]);
 const MANUAL_SCROLL_HOLD_MS = 2500;
