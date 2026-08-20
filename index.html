@@ -2,18 +2,28 @@
 <html lang="ca">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  >
   <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark light">
   <title>SIM+</title>
-  <link rel="stylesheet" href="css/sim.css?v=3.3.0">
+  <link rel="stylesheet" href="css/sim.css?v=3.4.0">
 </head>
 
 <body>
 <div id="app">
   <header class="top">
     <div class="topline">
-      <div class="brand">SIM+</div>
-      <div id="clock" class="clock">--:--:--</div>
+      <button
+        id="brandAudioToggle"
+        class="brand"
+        type="button"
+        aria-label="Pausa o reprèn l'àudio de fons"
+      >SIM+</button>
+
+      <div id="clock" class="clock" aria-label="Hora actual">--:--:--</div>
     </div>
 
     <nav class="tabs" aria-label="Mòduls SIM+">
@@ -22,56 +32,63 @@
       <button data-view="ema" class="tab" type="button">EMA</button>
     </nav>
 
-    <div class="oper">
-      <div>
+    <div id="queryBar" class="query-bar">
+      <div class="query-input-wrap">
         <input
           id="circulationInput"
           inputmode="text"
           autocomplete="off"
           autocapitalize="characters"
           spellcheck="false"
-          placeholder="B503"
           maxlength="4"
-          aria-label="Circulació"
+          aria-label="Cercar circulació"
         >
       </div>
-      <div id="utTop">---.--</div>
-      <div id="signalTop">■■■□</div>
+
+      <div id="queryMeta" class="query-meta" hidden>
+        <span id="queryStatus" class="query-status" hidden></span>
+        <span id="queryUnit" class="query-unit" hidden></span>
+        <div id="queryOccupancy" class="query-occupancy" hidden></div>
+      </div>
     </div>
   </header>
 
   <main>
     <section id="view-lit" class="view">
-      <div class="lit-tools">
-        <button id="loadLit" type="button">CARREGAR</button>
-        <span id="litStatus">Introdueix circulació</span>
-      </div>
-      <div id="litRoute" class="lit-route"></div>
+      <div id="litRoute" class="lit-route" aria-live="polite"></div>
     </section>
 
     <section id="view-puv" class="view active">
-      <div class="filters">
-        <div id="lineFilters" class="filterrow"></div>
+      <div class="puv-filters">
+        <div id="lineFilters" class="filterrow line-filters"></div>
 
-        <div class="filter-bottom">
-          <div id="utFilters" class="filterrow"></div>
-          <button id="clearPuvFilters" class="clear-filter" type="button">TOTS</button>
+        <div class="landscape-filter-gap" aria-hidden="true"></div>
+
+        <div class="ut-filter-line">
+          <div id="utFilters" class="filterrow ut-filters"></div>
+          <button id="clearPuvFilters" class="text-filter all-filter" type="button">
+            TOTS
+          </button>
+        </div>
+
+        <div id="puvStatus" class="puv-status" aria-live="polite">
+          ESPERANT DADES
         </div>
       </div>
 
-      <div id="puvStatus" class="substatus" aria-live="polite">
-        ESPERANT DADES…
+      <div class="puv-directions">
+        <section class="puv-direction" aria-labelledby="ascTitle">
+          <h2 id="ascTitle" class="direction-title">ASCENDENTS</h2>
+          <div id="ascList"></div>
+          <div id="ascEmpty" class="empty" hidden></div>
+        </section>
+
+        <section class="puv-direction" aria-labelledby="descTitle">
+          <h2 id="descTitle" class="direction-title">DESCENDENTS</h2>
+          <div id="descList"></div>
+          <div id="descEmpty" class="empty" hidden></div>
+        </section>
       </div>
-
-      <div class="directionTitle">ASCENDENTS</div>
-      <div id="ascList"></div>
-      <div id="ascEmpty" class="empty" hidden></div>
-
-      <div class="directionGap"></div>
-
-      <div class="directionTitle">DESCENDENTS</div>
-      <div id="descList"></div>
-      <div id="descEmpty" class="empty" hidden></div>
     </section>
 
     <section id="view-ema" class="view">
@@ -90,6 +107,6 @@
   </dialog>
 </div>
 
-<script type="module" src="js/app.js?v=3.3.0"></script>
+<script type="module" src="js/app.js?v=3.4.0"></script>
 </body>
 </html>

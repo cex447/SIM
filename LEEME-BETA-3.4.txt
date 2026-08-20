@@ -1,0 +1,62 @@
+SIM+ Beta 3.4 — revisión ergonómica y funcional
+
+SUSTITUIR / AÑADIR:
+- index.html
+- css/sim.css
+- data/config.json
+- data/audio.json
+- js/app.js
+- js/fgc-api.js
+- js/gtfs.js
+- js/lit.js
+- js/puv.js
+- js/occupancy.js
+- js/audio.js
+
+CONSERVAR:
+- data/network.json
+- Canal+BoldItalic-Regular.otf
+- Canal+MediumItalic-Regular.otf
+- Canal+LightItalic-Regular.otf
+- todos los MP3 de la raíz
+- cualquier otro recurso del proyecto
+
+CAMBIOS PRINCIPALES:
+- Refresco PUV: 5 s.
+- Consulta inicial inmediata y sin solapar peticiones.
+- Campo de circulación = búsqueda, nunca circulación ficticia.
+- No hay botón CARREGAR ni necesidad de Enter.
+- Estados: CARREGANT / CIRCULACIÓ NO ACTIVA.
+- Cambio de módulo borra la búsqueda para evitar datos arrastrados.
+- Retraso: circulación + UT en rojo.
+- Ocupación de 4 coches con datos reales:
+  0–24 verde, 25–49 amarillo, 50–74 naranja, 75–100 rojo, null vacío.
+- PUV: dir. / est. y todas las estaciones en bold.
+- Filtros sin orlas. Iconos de línea 100 % / 35 %.
+- UT/TOTS con fondo gris 50 % + blanco sólo al seleccionarse.
+- Horizontal:
+  - SIM+ y hora arriba.
+  - LIT/PUV/EMA fijos abajo.
+  - notch protegido mediante safe areas.
+  - filtros completos en una sola fila y siempre visibles.
+  - PUV en dos columnas: ASCENDENTS / DESCENDENTS.
+  - no existe desplazamiento horizontal.
+- LIT:
+  - espaciado vertical compacto.
+  - cronometría contenida en el límite derecho.
+  - todas las interestaciones del viaje.
+  - seguimiento automático con pausa temporal al hacer scroll manual.
+- Audio:
+  - reproduce secuencialmente MP3 de raíz como fondo.
+  - EMA pausa el fondo.
+  - tocar SIM+ pausa/reanuda.
+  - por las restricciones de iOS, si el autoplay inicial es bloqueado,
+    empieza con la primera interacción del usuario.
+
+AUDIO:
+data/audio.json puede contener una lista manual, por ejemplo:
+{
+  "tracks": ["audio1.mp3", "audio2.mp3"]
+}
+Si se deja vacío, SIM intenta descubrir automáticamente los MP3 de la raíz
+mediante la API pública de GitHub del repositorio cex447/SIM.
