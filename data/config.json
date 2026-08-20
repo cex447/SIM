@@ -1,7 +1,7 @@
 {
   "positioningUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=100",
   "gtfsZipIndexUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/gtfs_zip/records?limit=20",
-  "refreshMs": 3000,
+  "refreshMs": 5000,
   "requestTimeoutMs": 8000,
   "allowedLines": [
     "S1",
@@ -24,5 +24,12 @@
     "L6": "https://www.fgc.cat/wp-content/uploads/2020/06/l-6.png",
     "L7": "https://www.fgc.cat/wp-content/uploads/2020/06/l-7.png",
     "L12": "https://www.fgc.cat/wp-content/uploads/2020/06/l-12.png"
+  },
+  "audio": {
+    "enabled": true,
+    "manifestUrl": "data/audio.json",
+    "githubOwner": "cex447",
+    "githubRepo": "SIM",
+    "githubBranch": "main"
   }
 }
