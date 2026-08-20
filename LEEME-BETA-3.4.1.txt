@@ -1,0 +1,26 @@
+SIM+ Beta 3.4.1 — FIX DE ARRANQUE PUV
+
+Sustituir:
+- index.html
+- css/sim.css
+- data/config.json
+- js/app.js
+- js/fgc-api.js
+- js/puv.js
+
+Mantener también en el repositorio:
+- js/lit.js
+- js/gtfs.js
+- js/occupancy.js
+- js/audio.js
+- data/network.json
+- data/audio.json
+- fuentes Canal+
+- MP3
+
+Cambio estructural importante:
+PUV ya no depende durante el arranque de LIT, GTFS, audio ni occupancy.js.
+Los 5 iconos de línea y 112/113/114/115/TOTS están escritos directamente
+en index.html y por tanto deben ser visibles incluso antes de ejecutar JS.
+
+El refresco de posicionamiento es de 5000 ms.
