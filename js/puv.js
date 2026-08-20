@@ -1,306 +1,492 @@
-/*
- * SIM+ Beta 3.3 — PUV.
- * DOM incremental: las filas existentes se actualizan, no se recrea el panel.
- */
+import {
+  occupancyFingerprint,
+  updateOccupancy
+} from "./occupancy.js?v=3.4.0";
 
-const FAMILY_ORDER=["A","D","F","B","L"];
-const LINE_BY_FAMILY={A:"L6",D:"S1",F:"S2",B:"L7",L:"L12"};
-const familyRank=new Map(FAMILY_ORDER.map((x,i)=>[x,i]));
+const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 
-const nodes=new Map();
-const groups=new Map();
+const LINE_BY_FAMILY = Object.freeze({
+  A: "L6",
+  D: "S1",
+  F: "S2",
+  B: "L7",
+  L: "L12"
+});
 
-function make(tag,className,text){
-  const n=document.createElement(tag);
-  if(className)n.className=className;
-  if(text!==undefined)n.textContent=text;
-  return n;
+const familyRank = new Map(
+  FAMILY_ORDER.map((family, index) => [family, index])
+);
+
+const rowNodes = new Map();
+const lineGroups = new Map();
+
+function make(tag, className, text) {
+  const node = document.createElement(tag);
+
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+
+  return node;
 }
 
-function unitNumber(unit){
-  const m=String(unit||"").match(/^(\d{3})\.(\d{2})$/);
-  return m?Number(m[1])*100+Number(m[2]):999999;
+function unitRank(unit) {
+  const match = String(unit || "").match(/^(\d{3})\.(\d{2})$/);
+
+  if (!match) return Number.MAX_SAFE_INTEGER;
+
+  return Number(match[1]) * 100 + Number(match[2]);
 }
 
-function sortTrains(a,b){
-  return (familyRank.get(a.family)-familyRank.get(b.family))
-    ||(unitNumber(a.unit)-unitNumber(b.unit))
-    ||a.circulation.localeCompare(b.circulation,"es",{numeric:true});
+function sortTrains(a, b) {
+  const familyDiff =
+    (familyRank.get(a.family) ?? 99) -
+    (familyRank.get(b.family) ?? 99);
+
+  if (familyDiff) return familyDiff;
+
+  const unitDiff = unitRank(a.unit) - unitRank(b.unit);
+
+  if (unitDiff) return unitDiff;
+
+  return a.circulation.localeCompare(
+    b.circulation,
+    "es",
+    { numeric: true }
+  );
 }
 
-function passes(S,t){
-  const f=S.puvFilters;
-  if(f.lines.size&&!f.lines.has(t.family))return false;
-  if(f.units.size&&!f.units.has(t.unit.slice(0,3)))return false;
+function passesFilters(S, train) {
+  if (
+    S.puvFilters.lines.size &&
+    !S.puvFilters.lines.has(train.family)
+  ) {
+    return false;
+  }
+
+  if (
+    S.puvFilters.units.size &&
+    !S.puvFilters.units.has(train.unit.slice(0, 3))
+  ) {
+    return false;
+  }
+
   return true;
 }
 
-function syncButtons(S){
-  document.querySelectorAll("[data-family]").forEach(b=>{
-    const on=!S.puvFilters.lines.size||S.puvFilters.lines.has(b.dataset.family);
-    b.classList.toggle("selected",on);
-    b.classList.toggle("dimmed",!on);
-    b.setAttribute("aria-pressed",String(on));
-  });
+function syncFilterVisuals(S) {
+  document
+    .querySelectorAll("#lineFilters [data-family]")
+    .forEach(button => {
+      const selected =
+        S.puvFilters.lines.size === 0 ||
+        S.puvFilters.lines.has(button.dataset.family);
 
-  document.querySelectorAll("[data-series]").forEach(b=>{
-    const on=!S.puvFilters.units.size||S.puvFilters.units.has(b.dataset.series);
-    b.classList.toggle("selected",on);
-    b.classList.toggle("dimmed",!on);
-    b.setAttribute("aria-pressed",String(on));
-  });
+      button.classList.toggle("selected", selected);
+      button.classList.toggle("dimmed", !selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+
+  document
+    .querySelectorAll("#utFilters [data-series]")
+    .forEach(button => {
+      const selected =
+        S.puvFilters.units.has(button.dataset.series);
+
+      button.classList.toggle("selected", selected);
+      button.classList.toggle("dimmed", !selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+
+  const allButton = document.querySelector("#clearPuvFilters");
+  const allSelected = S.puvFilters.units.size === 0;
+
+  allButton.classList.toggle("selected", allSelected);
+  allButton.classList.toggle("dimmed", !allSelected);
+  allButton.setAttribute("aria-pressed", String(allSelected));
 }
 
-function lineButton(S,family){
-  const line=LINE_BY_FAMILY[family];
-  const b=make("button","line-filter selected");
-  b.type="button";
-  b.dataset.family=family;
-  b.setAttribute("aria-pressed","true");
+function lineButton(S, family) {
+  const line = LINE_BY_FAMILY[family];
+  const button = make("button", "line-filter selected");
+  button.type = "button";
+  button.dataset.family = family;
+  button.setAttribute("aria-pressed", "true");
+  button.setAttribute("aria-label", line);
 
-  const img=document.createElement("img");
-  img.src=S.config.lineAssets?.[line]||"";
-  img.alt=line;
-  img.decoding="async";
+  const image = document.createElement("img");
+  image.src = S.config.lineAssets?.[line] || "";
+  image.alt = line;
+  image.decoding = "async";
 
-  const fallback=make("span","line-fallback",line);
-  b.append(img,fallback);
+  const fallback = make("span", "line-fallback", line);
+  fallback.hidden = true;
 
-  img.addEventListener("error",()=>{
-    img.hidden=true;
-    fallback.hidden=false;
+  image.addEventListener("error", () => {
+    image.hidden = true;
+    fallback.hidden = false;
   });
-  fallback.hidden=true;
 
-  b.addEventListener("click",()=>{
-    const set=S.puvFilters.lines;
+  button.append(image, fallback);
 
-    if(!set.size){
+  button.addEventListener("click", () => {
+    const set = S.puvFilters.lines;
+
+    if (set.size === 0) {
       set.add(family);
-    }else if(set.has(family)){
+    } else if (set.has(family)) {
       set.delete(family);
-    }else{
+    } else {
       set.add(family);
     }
 
-    if(set.size===FAMILY_ORDER.length)set.clear();
+    if (set.size === FAMILY_ORDER.length) {
+      set.clear();
+    }
 
-    syncButtons(S);
+    syncFilterVisuals(S);
     renderPUV(S);
   });
 
-  return b;
+  return button;
 }
 
-function unitButton(S,series){
-  const b=make("button","ut-filter selected",series);
-  b.type="button";
-  b.dataset.series=series;
-  b.setAttribute("aria-pressed","true");
+function unitButton(S, series) {
+  const button = make(
+    "button",
+    "text-filter ut-filter dimmed",
+    series
+  );
 
-  b.addEventListener("click",()=>{
-    const set=S.puvFilters.units;
+  button.type = "button";
+  button.dataset.series = series;
+  button.setAttribute("aria-pressed", "false");
 
-    if(!set.size){
-      set.add(series);
-    }else if(set.has(series)){
+  button.addEventListener("click", () => {
+    const set = S.puvFilters.units;
+
+    if (set.has(series)) {
       set.delete(series);
-    }else{
+    } else {
       set.add(series);
     }
 
-    if(set.size===S.config.allowedUnitSeries.length)set.clear();
+    if (set.size === S.config.allowedUnitSeries.length) {
+      set.clear();
+    }
 
-    syncButtons(S);
+    syncFilterVisuals(S);
     renderPUV(S);
   });
 
-  return b;
+  return button;
 }
 
-export function wirePUV(S){
-  const lineBox=document.querySelector("#lineFilters");
-  const unitBox=document.querySelector("#utFilters");
+export function wirePUV(S) {
+  const lineBox = document.querySelector("#lineFilters");
+  const unitBox = document.querySelector("#utFilters");
+  const allButton = document.querySelector("#clearPuvFilters");
 
-  lineBox.replaceChildren(...FAMILY_ORDER.map(f=>lineButton(S,f)));
-  unitBox.replaceChildren(...S.config.allowedUnitSeries.map(s=>unitButton(S,s)));
+  lineBox.replaceChildren(
+    ...FAMILY_ORDER.map(family => lineButton(S, family))
+  );
 
-  document.querySelector("#clearPuvFilters").addEventListener("click",()=>{
-    S.puvFilters.lines.clear();
+  unitBox.replaceChildren(
+    ...S.config.allowedUnitSeries.map(
+      series => unitButton(S, series)
+    )
+  );
+
+  allButton.addEventListener("click", () => {
     S.puvFilters.units.clear();
-    syncButtons(S);
+    syncFilterVisuals(S);
     renderPUV(S);
   });
 
-  syncButtons(S);
+  syncFilterVisuals(S);
 }
 
-function groupKey(direction,family){
+function groupKey(direction, family) {
   return `${direction}:${family}`;
 }
 
-function ensureGroup(S,direction,family){
-  const key=groupKey(direction,family);
-  if(groups.has(key))return groups.get(key);
+function ensureLineGroup(S, direction, family) {
+  const key = groupKey(direction, family);
 
-  const host=document.querySelector(direction==="asc"?"#ascList":"#descList");
-  const section=make("section","puv-line-group");
-  const heading=make("div","puv-line-heading");
-  const rows=make("div","puv-line-rows");
+  if (lineGroups.has(key)) {
+    return lineGroups.get(key);
+  }
 
-  const line=LINE_BY_FAMILY[family];
-  const img=document.createElement("img");
-  img.src=S.config.lineAssets?.[line]||"";
-  img.alt=line;
-  img.decoding="async";
+  const host = document.querySelector(
+    direction === "asc" ? "#ascList" : "#descList"
+  );
 
-  const fallback=make("span","puv-line-fallback",line);
-  fallback.hidden=true;
+  const group = make("section", "puv-line-group");
+  group.dataset.family = family;
 
-  img.addEventListener("error",()=>{
-    img.hidden=true;
-    fallback.hidden=false;
+  const heading = make("div", "puv-line-heading");
+  const line = LINE_BY_FAMILY[family];
+
+  const image = document.createElement("img");
+  image.src = S.config.lineAssets?.[line] || "";
+  image.alt = line;
+  image.decoding = "async";
+  image.loading = "lazy";
+
+  const fallback = make("span", "puv-line-fallback", line);
+  fallback.hidden = true;
+
+  image.addEventListener("error", () => {
+    image.hidden = true;
+    fallback.hidden = false;
   });
 
-  heading.append(img,fallback);
-  section.append(heading,rows);
-  host.appendChild(section);
+  heading.append(image, fallback);
 
-  const model={section,rows};
-  groups.set(key,model);
+  const rows = make("div", "puv-line-rows");
+
+  group.append(heading, rows);
+  host.appendChild(group);
+
+  const model = { group, rows };
+  lineGroups.set(key, model);
+
   return model;
 }
 
-function keyFor(direction,t){
-  return `${direction}:${t.id}`;
+function rowKey(direction, train) {
+  return `${direction}:${train.id}`;
 }
 
-function ensureRow(direction,t){
-  const key=keyFor(direction,t);
-  if(nodes.has(key))return nodes.get(key);
+function createTrainRow(direction, train) {
+  const row = make("div", "trainrow");
+  row.dataset.tripId = train.id;
+  row.dataset.circulation = train.circulation;
 
-  const row=make("div","trainrow");
-  const unit=make("span","train-unit");
-  const circulation=make("span","train-circulation");
-  const where=make("span","train-where");
+  const unit = make("span", "train-unit");
+  const circulation = make("span", "train-circulation");
 
-  row.append(unit,circulation,where);
+  const occupancy = make("div", "occupancy occupancy-compact");
+  updateOccupancy(occupancy, train.occupancy, { compact: true });
 
-  const model={row,unit,circulation,where,last:""};
-  nodes.set(key,model);
+  const where = make("span", "train-where");
+
+  row.append(unit, circulation, occupancy, where);
+
+  const model = {
+    row,
+    unit,
+    circulation,
+    occupancy,
+    where,
+    fingerprint: ""
+  };
+
+  rowNodes.set(rowKey(direction, train), model);
   return model;
 }
 
-function fingerprint(t){
+function fingerprint(train) {
   return [
-    t.unit,
-    t.circulation,
-    t.stationed||"",
-    t.nextStop||"",
-    t.destination||"",
-    t.onTime===null?"?":String(t.onTime)
+    train.unit,
+    train.circulation,
+    train.stationed || "",
+    train.nextStop || "",
+    train.destination || "",
+    train.onTime === null ? "?" : String(train.onTime),
+    occupancyFingerprint(train.occupancy)
   ].join("|");
 }
 
-function updateRow(model,t){
-  const fp=fingerprint(t);
-  if(model.last===fp)return;
-  model.last=fp;
-
-  model.unit.textContent=t.unit;
-  model.circulation.textContent=t.circulation;
-
-  model.row.classList.toggle("delayed",t.onTime===false);
-  model.row.classList.toggle("is-stationed",Boolean(t.stationed));
-
-  model.where.replaceChildren();
-
-  if(t.stationed){
-    model.where.append(
-      document.createTextNode("estacionat "),
-      make("span","train-station",t.stationed),
-      document.createTextNode(` → ${t.destination||"—"}`)
-    );
-  }else{
-    model.where.textContent=
-      `direcció ${t.nextStop||"—"} → ${t.destination||"—"}`;
-  }
+function appendStation(where, code) {
+  where.appendChild(
+    make("strong", "station-token", code || "—")
+  );
 }
 
-function reconcile(S,direction,trains){
-  const byFamily=new Map(FAMILY_ORDER.map(f=>[f,[]]));
-  for(const t of trains)byFamily.get(t.family)?.push(t);
+function updateWhere(model, train) {
+  model.where.replaceChildren();
 
-  const active=new Set();
+  if (train.stationed) {
+    model.where.appendChild(
+      make("strong", "state-token", "est.")
+    );
+    model.where.appendChild(document.createTextNode(" "));
+    appendStation(model.where, train.stationed);
+    model.where.appendChild(document.createTextNode(" → "));
+    appendStation(model.where, train.destination);
+    return;
+  }
 
-  for(const family of FAMILY_ORDER){
-    const arr=byFamily.get(family);
-    const group=ensureGroup(S,direction,family);
+  model.where.appendChild(
+    make("strong", "state-token", "dir.")
+  );
+  model.where.appendChild(document.createTextNode(" "));
+  appendStation(model.where, train.nextStop);
+  model.where.appendChild(document.createTextNode(" → "));
+  appendStation(model.where, train.destination);
+}
 
-    group.section.hidden=arr.length===0;
-    if(!arr.length)continue;
+function updateTrainRow(model, train, S) {
+  const fp = fingerprint(train);
+  const isTarget = S.query?.code === train.circulation;
 
-    for(const t of arr){
-      const key=keyFor(direction,t);
-      active.add(key);
+  model.row.classList.toggle("search-target", isTarget);
 
-      const model=ensureRow(direction,t);
-      updateRow(model,t);
+  if (model.fingerprint === fp) {
+    return;
+  }
+
+  model.fingerprint = fp;
+
+  model.unit.textContent = train.unit;
+  model.circulation.textContent = train.circulation;
+
+  const delayed = train.onTime === false;
+
+  model.unit.classList.toggle("delayed-text", delayed);
+  model.circulation.classList.toggle("delayed-text", delayed);
+
+  updateOccupancy(
+    model.occupancy,
+    train.occupancy,
+    { compact: true }
+  );
+
+  updateWhere(model, train);
+}
+
+function reconcileDirection(S, direction, trains) {
+  const grouped = new Map(
+    FAMILY_ORDER.map(family => [family, []])
+  );
+
+  for (const train of trains) {
+    grouped.get(train.family)?.push(train);
+  }
+
+  const activeRowKeys = new Set();
+
+  for (const family of FAMILY_ORDER) {
+    const lineTrains = grouped.get(family);
+    const group = ensureLineGroup(S, direction, family);
+
+    if (!lineTrains.length) {
+      group.group.hidden = true;
+      continue;
+    }
+
+    group.group.hidden = false;
+
+    for (const train of lineTrains) {
+      const key = rowKey(direction, train);
+      activeRowKeys.add(key);
+
+      const model =
+        rowNodes.get(key) ||
+        createTrainRow(direction, train);
+
+      updateTrainRow(model, train, S);
+
+      // Reordena el nodo existente sin reconstruir la fila.
       group.rows.appendChild(model.row);
     }
   }
 
-  for(const [key,model] of nodes){
-    if(!key.startsWith(direction+":"))continue;
-    if(active.has(key))continue;
+  for (const [key, model] of rowNodes) {
+    if (!key.startsWith(`${direction}:`)) continue;
+    if (activeRowKeys.has(key)) continue;
+
     model.row.remove();
-    nodes.delete(key);
+    rowNodes.delete(key);
   }
 }
 
-function emptyText(S){
-  const uts=[...S.puvFilters.units].sort();
-  if(uts.length===1)return `ACTUALMENT NO CIRCULEN UT${uts[0]}`;
-  if(uts.length>1)return `ACTUALMENT NO CIRCULEN ${uts.map(x=>"UT"+x).join(" / ")}`;
+function emptyMessage(S) {
+  const units = [...S.puvFilters.units].sort();
+
+  if (units.length === 1) {
+    return `ACTUALMENT NO CIRCULEN UT${units[0]}`;
+  }
+
+  if (units.length > 1) {
+    return `ACTUALMENT NO CIRCULEN ${units
+      .map(series => `UT${series}`)
+      .join(" / ")}`;
+  }
+
   return "ACTUALMENT NO CIRCULEN UNITATS AMB AQUESTS CONDICIONANTS";
 }
 
-function setEmpty(id,visible,text){
-  const n=document.querySelector(id);
-  n.hidden=!visible;
-  n.textContent=visible?text:"";
+function setEmpty(direction, empty, text) {
+  const host = document.querySelector(
+    direction === "asc" ? "#ascEmpty" : "#descEmpty"
+  );
+
+  host.hidden = !empty;
+  host.textContent = empty ? text : "";
 }
 
-function status(S,count){
-  if(S.lastError&&!S.lastFetch){
-    return `ERROR DADES · ${S.lastError}`;
+function statusText(S, count) {
+  if (S.lastError && !S.lastFetch) {
+    return "DADES NO DISPONIBLES";
   }
-  if(S.lastError&&S.lastFetch){
-    return `DADES CONSERVADES ${S.lastFetch.toLocaleTimeString("es-ES",{hour12:false})}`;
-  }
-  if(!S.lastFetch)return "ESPERANT DADES…";
 
-  return `ACTUALITZAT ${S.lastFetch.toLocaleTimeString("es-ES",{hour12:false})} · ${count} UT`;
+  if (S.lastError && S.lastFetch) {
+    return `DADES CONSERVADES ${S.lastFetch.toLocaleTimeString(
+      "es-ES",
+      { hour12: false }
+    )}`;
+  }
+
+  if (!S.lastFetch) {
+    return "ESPERANT DADES";
+  }
+
+  return `ACTUALITZAT ${S.lastFetch.toLocaleTimeString(
+    "es-ES",
+    { hour12: false }
+  )} · ${count} UT`;
 }
 
-export function renderPUV(S){
-  const filtered=(S.trains||[])
-    .filter(t=>passes(S,t))
+export function renderPUV(S) {
+  const filtered = (S.trains || [])
+    .filter(train => passesFilters(S, train))
     .sort(sortTrains);
 
-  const asc=filtered.filter(t=>t.ascending);
-  const desc=filtered.filter(t=>!t.ascending);
-  const empty=emptyText(S);
+  const asc = filtered.filter(train => train.ascending);
+  const desc = filtered.filter(train => !train.ascending);
+  const empty = emptyMessage(S);
 
-  setEmpty("#ascEmpty",asc.length===0,empty);
-  setEmpty("#descEmpty",desc.length===0,empty);
+  setEmpty("asc", asc.length === 0, empty);
+  setEmpty("desc", desc.length === 0, empty);
 
-  reconcile(S,"asc",asc);
-  reconcile(S,"desc",desc);
+  reconcileDirection(S, "asc", asc);
+  reconcileDirection(S, "desc", desc);
 
-  const statusNode=document.querySelector("#puvStatus");
-  statusNode.textContent=status(S,filtered.length);
-  statusNode.classList.toggle("error",Boolean(S.lastError));
+  const status = document.querySelector("#puvStatus");
+  status.textContent = statusText(S, filtered.length);
+  status.classList.toggle("error", Boolean(S.lastError));
 
-  syncButtons(S);
+  syncFilterVisuals(S);
+}
+
+export function revealSearchedTrain(S) {
+  const code = S.query?.code;
+
+  if (!code || S.activeView !== "puv") {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    const row = document.querySelector(
+      `.trainrow[data-circulation="${CSS.escape(code)}"]`
+    );
+
+    if (row) {
+      row.scrollIntoView({
+        block: "center",
+        behavior: "smooth"
+      });
+    }
+  });
 }

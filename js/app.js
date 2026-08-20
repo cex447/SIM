@@ -1,276 +1,581 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.3.0";
+} from "./fgc-api.js?v=3.4.0";
 
 import {
   wirePUV,
-  renderPUV
-} from "./puv.js?v=3.3.0";
+  renderPUV,
+  revealSearchedTrain
+} from "./puv.js?v=3.4.0";
 
-const S={
-  config:null,
-  network:null,
-  trains:[],
-  rawCount:0,
-  apiTotal:null,
-  lastFetch:null,
-  lastError:null,
-  lastLatencyMs:null,
-  activeView:"puv",
-  selected:null,
-  puvFilters:{
-    lines:new Set(),
-    units:new Set()
+import {
+  clearLIT,
+  loadLIT,
+  tickLIT
+} from "./lit.js?v=3.4.0";
+
+import {
+  updateOccupancy
+} from "./occupancy.js?v=3.4.0";
+
+import {
+  BackgroundAudio
+} from "./audio.js?v=3.4.0";
+
+const S = {
+  config: null,
+  network: null,
+
+  trains: [],
+  rawCount: 0,
+  apiTotal: null,
+
+  lastFetch: null,
+  lastError: null,
+  lastLatencyMs: null,
+
+  activeView: "puv",
+  selected: null,
+
+  puvFilters: {
+    lines: new Set(),
+    units: new Set()
+  },
+
+  query: {
+    code: "",
+    state: "empty",
+    train: null,
+    requestId: 0
   }
 };
 
-const $=selector=>document.querySelector(selector);
+const $ = selector => document.querySelector(selector);
 
-let refreshTimer=null;
-let refreshRunning=false;
-let controller=null;
-let litModule=null;
-let litTimer=null;
+let refreshTimer = null;
+let activeController = null;
+let refreshRunning = false;
+let refreshPromise = null;
+let audio = null;
 
-function setupClock(){
-  const tick=()=>{
-    $("#clock").textContent=new Date().toLocaleTimeString("es-ES",{hour12:false});
+function setupClock() {
+  const tick = () => {
+    $("#clock").textContent = new Date().toLocaleTimeString(
+      "es-ES",
+      { hour12: false }
+    );
   };
+
   tick();
-  setInterval(tick,1000);
+  setInterval(tick, 1000);
 }
 
-function showView(name){
-  S.activeView=name;
+async function loadStaticData() {
+  const [configResponse, networkResponse] = await Promise.all([
+    fetch("data/config.json?v=3.4.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.0.0", { cache: "no-store" })
+  ]);
 
-  document.querySelectorAll(".tab").forEach(button=>{
-    button.classList.toggle("active",button.dataset.view===name);
-  });
-
-  document.querySelectorAll(".view").forEach(view=>{
-    view.classList.toggle("active",view.id===`view-${name}`);
-  });
-}
-
-function setupTabs(){
-  document.querySelectorAll(".tab").forEach(button=>{
-    button.addEventListener("click",()=>showView(button.dataset.view));
-  });
-}
-
-async function loadConfig(){
-  const response=await fetch("data/config.json?v=3.3.0",{cache:"no-store"});
-  if(!response.ok)throw new Error(`config.json HTTP ${response.status}`);
-  S.config=await response.json();
-}
-
-async function ensureLit(){
-  if(!S.network){
-    try{
-      const response=await fetch("data/network.json?v=3.0.0",{cache:"no-store"});
-      S.network=response.ok?await response.json():{segments:[]};
-    }catch{
-      S.network={segments:[]};
-    }
+  if (!configResponse.ok) {
+    throw new Error(`config.json HTTP ${configResponse.status}`);
   }
 
-  if(!litModule){
-    litModule=await import("./lit.js?v=3.0.0");
-    if(!litTimer){
-      litTimer=setInterval(()=>litModule?.tickLIT?.(S),250);
-    }
-  }
+  S.config = await configResponse.json();
 
-  return litModule;
+  if (networkResponse.ok) {
+    S.network = await networkResponse.json();
+  } else {
+    S.network = { segments: [] };
+  }
 }
 
-function setupLIT(){
-  const input=$("#circulationInput");
+function hideQueryMeta() {
+  $("#queryMeta").hidden = true;
+  $("#queryStatus").hidden = true;
+  $("#queryUnit").hidden = true;
+  $("#queryOccupancy").hidden = true;
+}
 
-  input.addEventListener("input",()=>{
-    input.value=input.value
-      .replace(/[^a-zA-Z0-9]/g,"")
-      .slice(0,4)
+function renderQuery() {
+  const meta = $("#queryMeta");
+  const status = $("#queryStatus");
+  const unit = $("#queryUnit");
+  const occupancy = $("#queryOccupancy");
+  const input = $("#circulationInput");
+
+  input.classList.remove("delayed-text");
+  unit.classList.remove("delayed-text");
+
+  if (!S.query.code || S.query.state === "empty") {
+    hideQueryMeta();
+    return;
+  }
+
+  meta.hidden = false;
+
+  if (S.query.state === "loading") {
+    status.textContent = "CARREGANT";
+    status.hidden = false;
+    unit.hidden = true;
+    occupancy.hidden = true;
+    return;
+  }
+
+  if (S.query.state === "inactive") {
+    status.textContent = "CIRCULACIÓ NO ACTIVA";
+    status.hidden = false;
+    unit.hidden = true;
+    occupancy.hidden = true;
+    return;
+  }
+
+  const train = S.query.train;
+
+  if (!train) {
+    hideQueryMeta();
+    return;
+  }
+
+  status.hidden = true;
+
+  unit.textContent = train.unit;
+  unit.hidden = false;
+
+  occupancy.hidden = false;
+  updateOccupancy(occupancy, train.occupancy);
+
+  if (train.onTime === false) {
+    input.classList.add("delayed-text");
+    unit.classList.add("delayed-text");
+  }
+}
+
+function clearSearch({ clearInput = true } = {}) {
+  S.query.requestId += 1;
+  S.query.code = "";
+  S.query.state = "empty";
+  S.query.train = null;
+
+  if (clearInput) {
+    $("#circulationInput").value = "";
+  }
+
+  renderQuery();
+  clearLIT(S);
+  renderPUV(S);
+}
+
+async function ensureFreshPositioning() {
+  const age = S.lastFetch
+    ? Date.now() - S.lastFetch.getTime()
+    : Infinity;
+
+  if (age <= S.config.refreshMs) {
+    return;
+  }
+
+  await refreshPositioning({ reschedule: false });
+}
+
+function findTrain(code) {
+  return S.trains.find(
+    train => train.circulation === code
+  ) || null;
+}
+
+async function resolveQuery(code) {
+  const requestId = ++S.query.requestId;
+
+  S.query.code = code;
+  S.query.state = "loading";
+  S.query.train = null;
+  renderQuery();
+
+  try {
+    await ensureFreshPositioning();
+  } catch {
+    // La búsqueda puede seguir usando el último snapshot válido.
+  }
+
+  if (
+    requestId !== S.query.requestId ||
+    S.query.code !== code
+  ) {
+    return;
+  }
+
+  const train = findTrain(code);
+
+  if (!train) {
+    S.query.state = "inactive";
+    S.query.train = null;
+    renderQuery();
+    clearLIT(S);
+    renderPUV(S);
+    return;
+  }
+
+  S.query.state = "active";
+  S.query.train = train;
+  renderQuery();
+  renderPUV(S);
+
+  if (S.activeView === "puv") {
+    revealSearchedTrain(S);
+  }
+
+  if (S.activeView === "lit") {
+    S.query.state = "loading";
+    renderQuery();
+
+    try {
+      const loaded = await loadLIT(S, code, train);
+
+      if (
+        requestId === S.query.requestId &&
+        S.query.code === code
+      ) {
+        const currentTrain = findTrain(code);
+
+        if (!currentTrain) {
+          S.query.state = "inactive";
+          S.query.train = null;
+          clearLIT(S);
+        } else {
+          S.query.state = loaded ? "active" : S.query.state;
+          S.query.train = currentTrain;
+        }
+
+        renderQuery();
+      }
+    } catch (error) {
+      S.lastError = String(error?.message || error);
+
+      if (
+        requestId === S.query.requestId &&
+        S.query.code === code
+      ) {
+        S.query.state = "active";
+        S.query.train = train;
+        renderQuery();
+      }
+    }
+  }
+}
+
+function setupSearch() {
+  const input = $("#circulationInput");
+
+  input.addEventListener("input", () => {
+    const value = input.value
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(0, 4)
       .toUpperCase();
-  });
 
-  const load=async()=>{
-    const circulation=input.value.trim().toUpperCase();
-    if(!circulation)return;
+    input.value = value;
 
-    $("#litStatus").textContent="Carregant…";
-
-    try{
-      const mod=await ensureLit();
-      await mod.loadLIT(S,circulation);
-    }catch(error){
-      $("#litStatus").textContent="ERROR LIT";
-      $("#litRoute").innerHTML=
-        `<div class="empty">${String(error?.message||error)}</div>`;
+    if (value.length < 4) {
+      S.query.requestId += 1;
+      S.query.code = value;
+      S.query.state = value ? "empty" : "empty";
+      S.query.train = null;
+      renderQuery();
+      clearLIT(S);
+      renderPUV(S);
+      return;
     }
-  };
 
-  $("#loadLit").addEventListener("click",load);
-
-  input.addEventListener("keydown",event=>{
-    if(event.key==="Enter"){
-      event.preventDefault();
-      load();
-    }
+    resolveQuery(value);
   });
 }
 
-function dedupe(trains){
-  const map=new Map();
-  for(const t of trains)map.set(t.id,t);
+async function activateView(name, { clearQuery = true } = {}) {
+  if (name === S.activeView) return;
+
+  if (clearQuery) {
+    clearSearch();
+  }
+
+  S.activeView = name;
+
+  document.querySelectorAll(".tab").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.view === name
+    );
+  });
+
+  document.querySelectorAll(".view").forEach(view => {
+    view.classList.toggle(
+      "active",
+      view.id === `view-${name}`
+    );
+  });
+
+  if (name === "ema") {
+    audio?.enterEMA();
+  } else {
+    audio?.leaveEMA();
+  }
+}
+
+function setupTabs() {
+  document.querySelectorAll(".tab").forEach(button => {
+    button.addEventListener("click", () => {
+      activateView(button.dataset.view);
+    });
+  });
+}
+
+function dedupeByTripId(trains) {
+  const map = new Map();
+
+  for (const train of trains) {
+    map.set(train.id, train);
+  }
+
   return [...map.values()];
 }
 
-function scheduleNext(delay=S.config.refreshMs){
+function scheduleNext(delay = S.config.refreshMs) {
   clearTimeout(refreshTimer);
-  if(document.hidden)return;
 
-  refreshTimer=setTimeout(()=>{
+  if (document.hidden) return;
+
+  refreshTimer = setTimeout(() => {
     refreshPositioning();
-  },delay);
+  }, delay);
 }
 
-async function refreshPositioning(){
-  if(refreshRunning||document.hidden)return;
-  refreshRunning=true;
+function syncActiveQueryAfterRefresh() {
+  if (!S.query.code || S.query.code.length !== 4) {
+    return;
+  }
 
-  controller?.abort();
-  controller=new AbortController();
+  const live = findTrain(S.query.code);
 
-  const timeout=setTimeout(
-    ()=>controller.abort(),
-    S.config.requestTimeoutMs||8000
-  );
+  if (!live) {
+    S.query.state = "inactive";
+    S.query.train = null;
+    renderQuery();
 
-  const started=performance.now();
-
-  try{
-    const result=await fetchPositioning(
-      S.config.positioningUrl,
-      {signal:controller.signal}
-    );
-
-    S.rawCount=result.rows.length;
-    S.apiTotal=result.total;
-
-    S.trains=dedupe(
-      result.rows
-        .map(row=>normalizeTrain(row,S.config))
-        .filter(Boolean)
-    );
-
-    S.lastFetch=new Date();
-    S.lastLatencyMs=Math.round(performance.now()-started);
-    S.lastError=null;
-
-    renderPUV(S);
-
-    if(S.selected?.circulation){
-      const live=S.trains.find(
-        t=>t.circulation===S.selected.circulation
-      );
-
-      if(live){
-        S.selected.live=live;
-        $("#utTop").textContent=live.unit;
-      }
+    if (S.selected?.circulation === S.query.code) {
+      clearLIT(S);
     }
-  }catch(error){
-    if(error?.name==="AbortError"){
-      S.lastError="temps d'espera excedit";
-    }else{
-      S.lastError=String(error?.message||error);
-    }
-    renderPUV(S);
-  }finally{
-    clearTimeout(timeout);
-    refreshRunning=false;
-    scheduleNext();
+
+    return;
+  }
+
+  S.query.train = live;
+
+  if (S.query.state !== "loading") {
+    S.query.state = "active";
+  }
+
+  renderQuery();
+
+  if (S.selected?.circulation === live.circulation) {
+    S.selected.live = live;
   }
 }
 
-function setupConnectivity(){
-  document.addEventListener("visibilitychange",()=>{
-    if(document.hidden){
-      clearTimeout(refreshTimer);
-      controller?.abort();
-    }else{
-      refreshPositioning();
+async function refreshPositioning({ reschedule = true } = {}) {
+  if (refreshRunning) {
+    return refreshPromise;
+  }
+
+  if (document.hidden) return null;
+
+  refreshRunning = true;
+
+  activeController?.abort();
+  activeController = new AbortController();
+
+  const timeoutId = setTimeout(
+    () => activeController.abort(),
+    S.config.requestTimeoutMs
+  );
+
+  const started = performance.now();
+
+  refreshPromise = (async () => {
+    try {
+      const result = await fetchPositioning(
+        S.config.positioningUrl,
+        { signal: activeController.signal }
+      );
+
+      S.rawCount = result.rows.length;
+      S.apiTotal = result.total;
+
+      S.trains = dedupeByTripId(
+        result.rows
+          .map(row => normalizeTrain(row, S.config))
+          .filter(Boolean)
+      );
+
+      S.lastFetch = new Date();
+      S.lastLatencyMs = Math.round(
+        performance.now() - started
+      );
+      S.lastError = null;
+
+      syncActiveQueryAfterRefresh();
+      renderPUV(S);
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        S.lastError = String(error?.message || error);
+        renderPUV(S);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      refreshRunning = false;
+      refreshPromise = null;
+
+      if (reschedule) {
+        scheduleNext(S.config.refreshMs);
+      }
     }
+  })();
+
+  return refreshPromise;
+}
+
+function setupConnectivity() {
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearTimeout(refreshTimer);
+      activeController?.abort();
+      return;
+    }
+
+    refreshPositioning();
   });
 
-  window.addEventListener("online",()=>refreshPositioning());
+  window.addEventListener("online", () => {
+    refreshPositioning();
+  });
 
-  window.addEventListener("offline",()=>{
-    S.lastError="sense connexió";
+  window.addEventListener("offline", () => {
+    S.lastError = "sense connexió";
     renderPUV(S);
   });
 }
 
-function setupDiag(){
-  const hotspot=$("#diagHotspot");
-  const dialog=$("#diag");
-  let timer=null;
+function setupDiagnostics() {
+  const hotspot = $("#diagHotspot");
+  const dialog = $("#diag");
+  let holdTimer = null;
 
-  const open=()=>{
-    $("#diagText").textContent=[
-      "SIM+ Beta 3.3",
+  const open = () => {
+    const audioState = audio?.state?.() || {};
+
+    $("#diagText").textContent = [
+      "SIM+ Beta 3.4",
       `Vista: ${S.activeView}`,
-      `Registres rebuts: ${S.rawCount}`,
-      `Total API: ${S.apiTotal??"—"}`,
+      `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
       `Última consulta: ${
         S.lastFetch
-          ?S.lastFetch.toLocaleTimeString("es-ES",{hour12:false})
-          :"—"
+          ? S.lastFetch.toLocaleTimeString(
+              "es-ES",
+              { hour12: false }
+            )
+          : "—"
       }`,
-      `Latència: ${S.lastLatencyMs===null?"—":S.lastLatencyMs+" ms"}`,
-      `Error: ${S.lastError||"—"}`
+      `Latència: ${
+        S.lastLatencyMs === null
+          ? "—"
+          : `${S.lastLatencyMs} ms`
+      }`,
+      `Refresc: ${S.config.refreshMs} ms`,
+      `Consulta: ${S.query.code || "—"}`,
+      `Estat consulta: ${S.query.state}`,
+      `MP3 detectats: ${audioState.tracks ?? 0}`,
+      `Àudio reproduint: ${audioState.playing ? "sí" : "no"}`,
+      `Error: ${S.lastError || "—"}`
     ].join("\n");
 
     dialog.showModal();
   };
 
-  hotspot.addEventListener("pointerdown",()=>{
-    timer=setTimeout(open,900);
-  });
+  const start = () => {
+    holdTimer = setTimeout(open, 900);
+  };
 
-  for(const eventName of ["pointerup","pointercancel","pointerleave"]){
-    hotspot.addEventListener(eventName,()=>clearTimeout(timer));
-  }
+  const cancel = () => {
+    clearTimeout(holdTimer);
+  };
 
-  $("#closeDiag").addEventListener("click",()=>dialog.close());
+  hotspot.addEventListener("pointerdown", start);
+  hotspot.addEventListener("pointerup", cancel);
+  hotspot.addEventListener("pointercancel", cancel);
+  hotspot.addEventListener("pointerleave", cancel);
+
+  $("#closeDiag").addEventListener(
+    "click",
+    () => dialog.close()
+  );
 }
 
-async function init(){
-  /*
-   * El reloj y navegación arrancan antes de tocar la API.
-   * PUV ya no depende de network.json, GTFS ni lit.js.
-   */
+function setupAudio() {
+  audio = new BackgroundAudio(S.config.audio || {});
+  audio.init();
+
+  const brand = $("#brandAudioToggle");
+
+  brand.addEventListener("click", event => {
+    event.stopPropagation();
+    audio.toggleByUser();
+  });
+
+  const unlock = event => {
+    if (event.target.closest("#brandAudioToggle")) return;
+
+    setTimeout(() => {
+      if (S.activeView !== "ema") {
+        audio.unlockFromUserGesture();
+      }
+    }, 0);
+  };
+
+  document.addEventListener("pointerup", unlock, {
+    passive: true
+  });
+}
+
+async function init() {
   setupClock();
+
+  await loadStaticData();
+
   setupTabs();
-  setupLIT();
-  setupDiag();
-
-  try{
-    await loadConfig();
-  }catch(error){
-    $("#puvStatus").textContent=`ERROR CONFIG · ${String(error?.message||error)}`;
-    $("#puvStatus").classList.add("error");
-    return;
-  }
-
+  setupSearch();
+  setupDiagnostics();
   wirePUV(S);
   setupConnectivity();
+  setupAudio();
+
+  renderQuery();
   renderPUV(S);
 
   await refreshPositioning();
+
+  setInterval(() => {
+    tickLIT(S);
+  }, 250);
 }
 
-init();
+init().catch(error => {
+  S.lastError = String(error?.message || error);
+
+  const status = $("#puvStatus");
+
+  if (status) {
+    status.textContent = "ERROR D'INICIALITZACIÓ";
+    status.classList.add("error");
+  }
+
+  console.error(error);
+});
