@@ -1,4 +1,4 @@
-/* SIM+ Beta 3.4.1 — núcleo PUV sin dependencias externas. */
+/* SIM+ Beta 3.5.1 — núcleo PUV sin dependencias externas. */
 
 const FAMILY_BY_CODE = Object.freeze({
   "6f2":"A", "6c2":"B", "622":"L", "6a2":"D", "682":"F"

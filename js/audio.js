@@ -43,28 +43,22 @@ async function discoverGithubRoot(audioConfig) {
   try {
     const response = await fetch(endpoint, {
       cache: "no-store",
-      headers: {
-        Accept: "application/vnd.github+json"
-      }
+      headers: { Accept: "application/vnd.github+json" }
     });
 
     if (!response.ok) return [];
 
     const items = await response.json();
-
     if (!Array.isArray(items)) return [];
 
     return items
-      .filter(
-        item =>
-          item?.type === "file" &&
-          /\.mp3$/i.test(item.name || "") &&
-          item.download_url
+      .filter(item =>
+        item?.type === "file" &&
+        /\.mp3$/i.test(item.name || "") &&
+        item.download_url
       )
       .sort((a, b) =>
-        String(a.name).localeCompare(String(b.name), "es", {
-          numeric: true
-        })
+        String(a.name).localeCompare(String(b.name), "es", { numeric: true })
       )
       .map(item => item.download_url);
   } catch {
@@ -81,36 +75,50 @@ export class BackgroundAudio {
 
     this.tracks = [];
     this.index = 0;
-    this.userPaused = false;
+    this.userEnabled = false;
     this.emaPaused = false;
-    this.wantsPlayback = true;
     this.ready = false;
+    this.tracksLoaded = false;
+    this.loadingTracks = null;
 
-    this.audio.addEventListener("ended", () => {
-      this.next();
-    });
-
-    this.audio.addEventListener("error", () => {
-      this.next();
-    });
+    this.audio.addEventListener("ended", () => this.next());
+    this.audio.addEventListener("error", () => this.next());
   }
 
   async init() {
-    if (this.config?.enabled === false) return;
+    /*
+     * Por defecto no suena ni se consultan los MP3.
+     * El catálogo se carga únicamente cuando el usuario pulsa SIM+.
+     */
+    this.ready = this.config?.enabled !== false;
+  }
 
-    const manifestTracks = await readManifest(
-      this.config?.manifestUrl
-    );
+  async ensureTracks() {
+    if (!this.ready) return [];
+    if (this.tracksLoaded) return this.tracks;
+    if (this.loadingTracks) return this.loadingTracks;
 
-    this.tracks = manifestTracks.length
-      ? manifestTracks
-      : await discoverGithubRoot(this.config);
+    this.loadingTracks = (async () => {
+      const manifestTracks =
+        await readManifest(this.config?.manifestUrl);
 
-    this.ready = true;
+      this.tracks = manifestTracks.length
+        ? manifestTracks
+        : await discoverGithubRoot(this.config);
 
-    if (this.tracks.length) {
-      this.setTrack(0);
-      this.tryPlay();
+      this.tracksLoaded = true;
+
+      if (this.tracks.length) {
+        this.setTrack(0);
+      }
+
+      return this.tracks;
+    })();
+
+    try {
+      return await this.loadingTracks;
+    } finally {
+      this.loadingTracks = null;
     }
   }
 
@@ -129,14 +137,18 @@ export class BackgroundAudio {
     }
   }
 
-  async tryPlay() {
+  async playIfAllowed() {
     if (
       !this.ready ||
-      !this.tracks.length ||
-      this.userPaused ||
-      this.emaPaused ||
-      !this.wantsPlayback
+      !this.userEnabled ||
+      this.emaPaused
     ) {
+      return false;
+    }
+
+    await this.ensureTracks();
+
+    if (!this.tracks.length) {
       return false;
     }
 
@@ -144,33 +156,24 @@ export class BackgroundAudio {
       await this.audio.play();
       return true;
     } catch {
-      // iOS/Safari puede exigir una interacción del usuario.
       return false;
     }
   }
 
-  async unlockFromUserGesture() {
-    return this.tryPlay();
-  }
-
-  pauseByUser() {
-    this.userPaused = true;
-    this.audio.pause();
-  }
-
-  resumeByUser() {
-    this.userPaused = false;
-    this.wantsPlayback = true;
-    return this.tryPlay();
-  }
-
   toggleByUser() {
-    if (!this.audio.paused && !this.userPaused) {
-      this.pauseByUser();
-      return;
+    if (!this.userEnabled) {
+      this.userEnabled = true;
+      return this.playIfAllowed();
     }
 
-    this.resumeByUser();
+    if (!this.audio.paused) {
+      this.userEnabled = false;
+      this.audio.pause();
+      return false;
+    }
+
+    this.userEnabled = true;
+    return this.playIfAllowed();
   }
 
   enterEMA() {
@@ -180,20 +183,13 @@ export class BackgroundAudio {
 
   leaveEMA() {
     this.emaPaused = false;
-
-    if (!this.userPaused) {
-      this.tryPlay();
-    }
+    if (this.userEnabled) this.playIfAllowed();
   }
 
   next() {
     if (!this.tracks.length) return;
-
     this.setTrack(this.index + 1);
-
-    if (!this.userPaused && !this.emaPaused) {
-      this.tryPlay();
-    }
+    if (this.userEnabled && !this.emaPaused) this.playIfAllowed();
   }
 
   state() {
@@ -201,7 +197,7 @@ export class BackgroundAudio {
       tracks: this.tracks.length,
       index: this.index,
       playing: !this.audio.paused,
-      userPaused: this.userPaused,
+      userEnabled: this.userEnabled,
       emaPaused: this.emaPaused
     };
   }
