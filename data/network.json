@@ -1,295 +1,311 @@
 {
-  "stations": {
-    "PC": "Barcelona - Plaça Catalunya",
-    "PR": "Provença",
-    "GR": "Gràcia",
-    "SG": "Sant Gervasi",
-    "MN": "Muntaner",
-    "BN": "La Bonanova",
-    "TT": "Les Tres Torres",
-    "SR": "Sarrià",
-    "RE": "Reina Elisenda",
-    "PM": "Pl. Molina",
-    "PD": "Pàdua",
-    "EP": "El Putxet",
-    "TB": "Av. Tibidabo",
-    "PF": "Peu del Funicular",
-    "VL": "Baixador de Vallvidrera",
-    "LP": "Les Planes",
-    "LF": "La Floresta",
-    "VD": "Valldoreix",
-    "SC": "Sant Cugat Centre",
-    "MS": "Mira-Sol",
-    "HG": "Hospital General",
-    "RB": "Rubí Centre",
-    "FN": "Les Fonts",
-    "TR": "Terrassa - Rambla",
-    "VP": "Vallparadís Universitat",
-    "EN": "Terrassa Estació del nord",
-    "NA": "Terrassa Nacions Unides",
-    "VO": "Volpelleres",
-    "SJ": "Sant Joan",
-    "BT": "Bellaterra",
-    "UN": "Universitat Autònoma",
-    "SQ": "Sant Quirze",
-    "CF": "Can Feu - Gràcia",
-    "PJ": "Sabadell Plaça Major",
-    "CT": "La Creu Alta",
-    "NO": "Sabadell Nord",
-    "PN": "Sabadell Parc del Nord"
-  },
+  "version": "3.5.1",
   "segments": [
     {
       "from": "PC",
       "to": "PR",
       "grade": "29‰",
       "length": "1220 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "DO PC1…4    M+30E PC5",
+          "from": "PR",
+          "to": "PC"
+        }
+      ]
     },
     {
       "from": "PR",
       "to": "GR",
       "grade": "38‰",
-      "length": "830 m",
-      "technical": []
+      "length": "830 m"
     },
     {
       "from": "GR",
       "to": "PM",
       "grade": "39‰",
       "length": "600 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "SK [PC-SR 2+072]…[GR-TB 0+000]"
+        }
+      ]
     },
     {
       "from": "PM",
       "to": "PD",
       "grade": "25‰",
-      "length": "410 m",
-      "technical": []
+      "length": "410 m"
     },
     {
       "from": "PD",
       "to": "EP",
       "grade": "46‰",
-      "length": "400 m",
-      "technical": []
+      "length": "400 m"
     },
     {
       "from": "EP",
       "to": "TB",
       "grade": "40‰",
       "length": "450 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "M+30E entrada TB",
+          "from": "EP",
+          "to": "TB"
+        }
+      ]
     },
     {
       "from": "GR",
       "to": "SG",
       "grade": "24‰",
-      "length": "560 m",
-      "technical": []
+      "length": "560 m"
     },
     {
       "from": "SG",
       "to": "MN",
       "grade": "36‰",
-      "length": "470 m",
-      "technical": []
+      "length": "470 m"
     },
     {
       "from": "MN",
       "to": "BN",
       "grade": "11‰",
       "length": "530 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "M1 Asc",
+          "parity": "odd"
+        }
+      ]
     },
     {
       "from": "BN",
       "to": "TT",
       "grade": "25‰",
       "length": "470 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "M1 Des",
+          "parity": "even"
+        }
+      ]
     },
     {
       "from": "TT",
       "to": "SR",
       "grade": "40‰",
       "length": "530 m",
-      "technical": []
-    },
-    {
-      "from": "SR",
-      "to": "RE",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "technical": [
+        {
+          "text": "SR0 M+30",
+          "parity": "odd"
+        }
+      ]
     },
     {
       "from": "SR",
       "to": "PF",
       "grade": "44‰",
       "length": "2090 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "SK [PC-SR 4+614]…[SR-LP 0+000]"
+        }
+      ]
     },
     {
       "from": "PF",
       "to": "VL",
       "grade": "37‰",
       "length": "1670 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "M1 Asc",
+          "parity": "odd"
+        },
+        {
+          "text": "M1 Des",
+          "parity": "even"
+        }
+      ]
     },
     {
       "from": "VL",
       "to": "LP",
       "grade": "18‰",
-      "length": "950 m",
-      "technical": []
+      "length": "950 m"
     },
     {
       "from": "LP",
       "to": "LF",
       "grade": "20‰",
       "length": "2850 m",
-      "technical": []
+      "technical": [
+        {
+          "text": "SK [SR-LP 4+713]…[LP-NA 0+000]"
+        }
+      ]
     },
     {
       "from": "LF",
       "to": "VD",
       "grade": "26‰",
-      "length": "1690 m",
-      "technical": []
+      "length": "1690 m"
     },
     {
       "from": "VD",
       "to": "SC",
       "grade": "25‰",
-      "length": "1450 m",
-      "technical": []
+      "length": "1450 m"
     },
     {
       "from": "SC",
       "to": "MS",
       "grade": "5‰",
-      "length": "1520 m",
-      "technical": []
+      "length": "1520 m"
     },
     {
       "from": "MS",
       "to": "HG",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "7‰",
+      "length": "1540 m"
     },
     {
       "from": "HG",
       "to": "RB",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "5‰",
+      "length": "1840 m",
+      "technical": [
+        {
+          "text": "RB0 ATP",
+          "parity": "odd"
+        }
+      ]
     },
     {
       "from": "RB",
       "to": "FN",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "20‰",
+      "length": "4920 m",
+      "technical": [
+        {
+          "text": "RB0 ATP",
+          "parity": "even"
+        }
+      ]
     },
     {
       "from": "FN",
       "to": "TR",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "26‰",
+      "length": "4340 m"
     },
     {
       "from": "TR",
       "to": "VP",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "9‰",
+      "length": "1520 m"
     },
     {
       "from": "VP",
       "to": "EN",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "40‰",
+      "length": "915 m"
     },
     {
       "from": "EN",
       "to": "NA",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "38‰",
+      "length": "1267 m"
     },
     {
       "from": "SC",
       "to": "VO",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "30‰",
+      "length": "1532 m",
+      "technical": [
+        {
+          "text": "SK [LP-NA 5+988]…[SC-PN 0+000]"
+        }
+      ]
     },
     {
       "from": "VO",
       "to": "SJ",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "15‰",
+      "length": "1198 m"
     },
     {
       "from": "SJ",
       "to": "BT",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "7‰",
+      "length": "1670 m",
+      "technical": [
+        {
+          "text": "BT3 ATP",
+          "parity": "odd"
+        }
+      ]
     },
     {
       "from": "BT",
       "to": "UN",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "38‰",
+      "length": "1300 m",
+      "technical": [
+        {
+          "text": "SK [SC-PN 4+402]…[BT-vUN 0+000]"
+        }
+      ]
     },
     {
       "from": "UN",
       "to": "SQ",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "30‰",
+      "length": "3900 m",
+      "technical": [
+        {
+          "text": "SK [BT-vUN 3+354]…[SC-PN 5+957]"
+        }
+      ]
     },
     {
       "from": "SQ",
       "to": "CF",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "38‰",
+      "length": "1721 m"
     },
     {
       "from": "CF",
       "to": "PJ",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "38‰",
+      "length": "1128 m"
     },
     {
       "from": "PJ",
       "to": "CT",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "38‰",
+      "length": "1147 m"
     },
     {
       "from": "CT",
       "to": "NO",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "38‰",
+      "length": "779 m"
     },
     {
       "from": "NO",
       "to": "PN",
-      "grade": null,
-      "length": null,
-      "technical": []
+      "grade": "30‰",
+      "length": "1380 m"
+    },
+    {
+      "from": "SR",
+      "to": "RE",
+      "grade": "6‰",
+      "length": "550 m"
     }
   ]
 }

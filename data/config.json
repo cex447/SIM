@@ -3,8 +3,19 @@
   "gtfsZipIndexUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/gtfs_zip/records?limit=20",
   "refreshMs": 5000,
   "requestTimeoutMs": 8000,
-  "allowedLines": ["S1", "S2", "L6", "L7", "L12"],
-  "allowedUnitSeries": ["112", "113", "114", "115"],
+  "allowedLines": [
+    "S1",
+    "S2",
+    "L6",
+    "L7",
+    "L12"
+  ],
+  "allowedUnitSeries": [
+    "112",
+    "113",
+    "114",
+    "115"
+  ],
   "idPrefix": "6c4bdae",
   "udPrefix": "1f2cc",
   "audio": {
@@ -13,5 +24,12 @@
     "githubOwner": "cex447",
     "githubRepo": "SIM",
     "githubBranch": "main"
+  },
+  "lineAssets": {
+    "L6": "assets/lines/l6.png",
+    "S1": "assets/lines/s1.png",
+    "S2": "assets/lines/s2.png",
+    "L7": "assets/lines/l7.png",
+    "L12": "assets/lines/l12.png"
   }
 }
