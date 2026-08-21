@@ -1,0 +1,53 @@
+SIM+ Beta 3.5.1 — revisión LIT/PUV
+
+SUSTITUIR / AÑADIR:
+- index.html
+- css/sim.css
+- data/config.json
+- data/audio.json
+- data/network.json  <-- IMPORTANTE: ahora se incluye completo
+- js/app.js
+- js/fgc-api.js
+- js/gtfs.js
+- js/lit.js
+- js/puv.js
+- js/occupancy.js
+- js/audio.js
+
+CONSERVAR:
+- Canal+BoldItalic-Regular.otf
+- Canal+MediumItalic-Regular.otf
+- Canal+LightItalic-Regular.otf
+- todos los MP3 de la raíz
+
+CAMBIOS:
+- PUV: refresco 5 s.
+- PUV: no muestra campo de búsqueda/circulación.
+- PUV: elimina sombreado de fila por búsqueda.
+- PUV: filtros compactos; líneas 35 % por defecto y 100 % al seleccionarlas.
+- PUV: UT/TOTS sin orla; selección con fondo gris 50 % ajustado al texto.
+- PUV: separación uniforme entre UT, circulación, ocupación y ubicación.
+- PUV: no hay separador después de la última circulación de cada línea.
+- PUV: mensajes de vacío con interlineado compacto.
+- PUV: circulación + UT en rojo si en_hora == false.
+- PUV/LIT: ocupación real en 4 coches y colores.
+- LIT: nombre de estación GTFS en mayúsculas.
+- LIT: stop_id/plataforma (LP1, SR1...) bajo la hora, en gris.
+- LIT: data/network.json completo con 36 interestaciones BV,
+  declividad, distancia y los mensajes técnicos conocidos (SK, ATP, M1, DO, M+30E, SR0/M+30).
+- LIT: triángulo ▶ fijo en la estación si está estacionado y triángulo
+  parpadeante situado EN la interestación real cuando circula, calculada con
+  la primera propera parada de posicionament-dels-trens.
+- LIT: cronometría solo cuando el tren está estacionado:
+  0:59–0:10 normal; 0:09–0:00 roja; 0:00 roja parpadeante hasta salir.
+  Excepción PC/MN/BN/SR: parpadea desde 0:13.
+- LIT: auto-seguimiento solo cuando cambia la posición lógica; respeta scroll manual.
+- LIT: separadores compactos entre interestación y estación siguiente.
+- Audio: por defecto apagado. Solo se inicia al pulsar SIM+.
+  Un nuevo toque en SIM+ lo detiene. EMA siempre pausa la música.
+- Horizontal: SIM+ y reloj arriba; navegación abajo; notch protegido;
+  filtros completos en una fila y sin desplazamiento horizontal.
+
+- Iconos de línea empaquetados localmente en assets/lines/ para no depender de fgc.cat al renderizar PUV.
+- El audio no consulta ni carga MP3 hasta que se pulsa SIM+ por primera vez.
+- LIT: textos de interestación y código de andén/plataforma en gris; estación en negrita cursiva.

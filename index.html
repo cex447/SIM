@@ -1,30 +1,37 @@
 <!doctype html>
-<html lang="ca">
+<html lang="ca" data-view="lit">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <title>SIM+</title>
-  <link rel="stylesheet" href="css/sim.css?v=3.4.1">
+  <link rel="stylesheet" href="css/sim.css?v=3.5.1">
 </head>
 <body>
 <div id="app">
   <header class="top">
     <div class="topline">
-      <button id="brandAudioToggle" class="brand" type="button">SIM+</button>
+      <button id="brandAudioToggle" class="brand" type="button" aria-label="Activar o aturar música de fons">SIM+</button>
       <div id="clock" class="clock">--:--:--</div>
     </div>
 
-    <nav class="tabs" aria-label="Mòduls SIM+">
-      <button data-view="lit" class="tab" type="button">LIT</button>
-      <button data-view="puv" class="tab active" type="button">PUV</button>
+    <nav class="tabs tabs-portrait" aria-label="Mòduls SIM+">
+      <button data-view="lit" class="tab active" type="button">LIT</button>
+      <button data-view="puv" class="tab" type="button">PUV</button>
       <button data-view="ema" class="tab" type="button">EMA</button>
     </nav>
 
     <div class="query-bar">
       <div class="query-input-wrap">
-        <input id="circulationInput" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" aria-label="Cercar circulació">
+        <input id="circulationInput"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="4"
+          aria-label="Cercar circulació">
       </div>
+
       <div id="queryMeta" class="query-meta" hidden>
         <span id="queryStatus" class="query-status" hidden></span>
         <span id="queryUnit" class="query-unit" hidden></span>
@@ -34,28 +41,28 @@
   </header>
 
   <main>
-    <section id="view-lit" class="view">
+    <section id="view-lit" class="view active">
       <div id="litRoute" class="lit-route"></div>
     </section>
 
-    <section id="view-puv" class="view active">
+    <section id="view-puv" class="view">
       <div class="puv-filters">
         <div id="lineFilters" class="line-filters" aria-label="Línies">
-          <button class="line-filter selected" data-family="A" type="button" aria-pressed="true"><img src="https://www.fgc.cat/wp-content/uploads/2020/06/l-6.png" alt="L6"></button>
-          <button class="line-filter selected" data-family="D" type="button" aria-pressed="true"><img src="https://www.fgc.cat/wp-content/uploads/2020/06/s-1.png" alt="S1"></button>
-          <button class="line-filter selected" data-family="F" type="button" aria-pressed="true"><img src="https://www.fgc.cat/wp-content/uploads/2020/06/s-2.png" alt="S2"></button>
-          <button class="line-filter selected" data-family="B" type="button" aria-pressed="true"><img src="https://www.fgc.cat/wp-content/uploads/2020/06/l-7.png" alt="L7"></button>
-          <button class="line-filter selected" data-family="L" type="button" aria-pressed="true"><img src="https://www.fgc.cat/wp-content/uploads/2020/06/l-12.png" alt="L12"></button>
+          <button class="line-filter" data-family="A" type="button" aria-pressed="false"><img src="assets/lines/l6.png" alt="L6"></button>
+          <button class="line-filter" data-family="D" type="button" aria-pressed="false"><img src="assets/lines/s1.png" alt="S1"></button>
+          <button class="line-filter" data-family="F" type="button" aria-pressed="false"><img src="assets/lines/s2.png" alt="S2"></button>
+          <button class="line-filter" data-family="B" type="button" aria-pressed="false"><img src="assets/lines/l7.png" alt="L7"></button>
+          <button class="line-filter" data-family="L" type="button" aria-pressed="false"><img src="assets/lines/l12.png" alt="L12"></button>
         </div>
 
         <div class="landscape-filter-gap" aria-hidden="true"></div>
 
         <div class="ut-filter-line">
           <div id="utFilters" class="ut-filters" aria-label="Sèries UT">
-            <button class="text-filter ut-filter dimmed" data-series="112" type="button" aria-pressed="false">112</button>
-            <button class="text-filter ut-filter dimmed" data-series="113" type="button" aria-pressed="false">113</button>
-            <button class="text-filter ut-filter dimmed" data-series="114" type="button" aria-pressed="false">114</button>
-            <button class="text-filter ut-filter dimmed" data-series="115" type="button" aria-pressed="false">115</button>
+            <button class="text-filter ut-filter" data-series="112" type="button" aria-pressed="false">112</button>
+            <button class="text-filter ut-filter" data-series="113" type="button" aria-pressed="false">113</button>
+            <button class="text-filter ut-filter" data-series="114" type="button" aria-pressed="false">114</button>
+            <button class="text-filter ut-filter" data-series="115" type="button" aria-pressed="false">115</button>
           </div>
           <button id="clearPuvFilters" class="text-filter all-filter selected" type="button" aria-pressed="true">TOTS</button>
         </div>
@@ -69,6 +76,7 @@
           <div id="ascList"></div>
           <div id="ascEmpty" class="empty" hidden></div>
         </section>
+
         <section class="puv-direction">
           <h2 class="direction-title">DESCENDENTS</h2>
           <div id="descList"></div>
@@ -77,18 +85,27 @@
       </div>
     </section>
 
-    <section id="view-ema" class="view"><div class="essais">ESSAIS</div></section>
+    <section id="view-ema" class="view">
+      <div class="essais">ESSAIS</div>
+    </section>
   </main>
 
   <nav class="tabs tabs-landscape" aria-label="Mòduls SIM+ horitzontal">
-    <button data-view="lit" class="tab" type="button">LIT</button>
-    <button data-view="puv" class="tab active" type="button">PUV</button>
+    <button data-view="lit" class="tab active" type="button">LIT</button>
+    <button data-view="puv" class="tab" type="button">PUV</button>
     <button data-view="ema" class="tab" type="button">EMA</button>
   </nav>
 
   <button id="diagHotspot" type="button" aria-label="Diagnòstic"></button>
-  <dialog id="diag"><div class="diaghead"><strong>SIM+ DIAGNÒSTIC</strong><button id="closeDiag" type="button">×</button></div><pre id="diagText"></pre></dialog>
+  <dialog id="diag">
+    <div class="diaghead">
+      <strong>SIM+ DIAGNÒSTIC</strong>
+      <button id="closeDiag" type="button" aria-label="Tancar">×</button>
+    </div>
+    <pre id="diagText"></pre>
+  </dialog>
 </div>
-<script type="module" src="js/app.js?v=3.4.1"></script>
+
+<script type="module" src="js/app.js?v=3.5.1"></script>
 </body>
 </html>
