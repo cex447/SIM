@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <title>SIM+</title>
-  <link rel="stylesheet" href="css/sim.css?v=3.5.1">
+  <link rel="stylesheet" href="css/sim.css?v=3.7.1">
 </head>
 <body>
 <div id="app">
@@ -17,8 +17,8 @@
 
     <nav class="tabs tabs-portrait" aria-label="Mòduls SIM+">
       <button data-view="lit" class="tab active" type="button">LIT</button>
-      <button data-view="puv" class="tab" type="button">PUV</button>
-      <button data-view="ema" class="tab" type="button">EMA</button>
+      <button data-view="plastic" class="tab" type="button">PLASTIC</button>
+      <button data-view="megafonia" class="tab" type="button">MEGAFONIA</button>
     </nav>
 
     <div class="query-bar">
@@ -35,7 +35,7 @@
       <div id="queryMeta" class="query-meta" hidden>
         <span id="queryStatus" class="query-status" hidden></span>
         <span id="queryUnit" class="query-unit" hidden></span>
-        <div id="queryOccupancy" class="query-occupancy" hidden></div>
+        <span id="queryOccupancy" class="query-occupancy occupancy" hidden></span>
       </div>
     </div>
   </header>
@@ -45,55 +45,42 @@
       <div id="litRoute" class="lit-route"></div>
     </section>
 
-    <section id="view-puv" class="view">
-      <div class="puv-filters">
-        <div id="lineFilters" class="line-filters" aria-label="Línies">
-          <button class="line-filter" data-family="A" type="button" aria-pressed="false"><img src="assets/lines/l6.png" alt="L6"></button>
-          <button class="line-filter" data-family="D" type="button" aria-pressed="false"><img src="assets/lines/s1.png" alt="S1"></button>
-          <button class="line-filter" data-family="F" type="button" aria-pressed="false"><img src="assets/lines/s2.png" alt="S2"></button>
-          <button class="line-filter" data-family="B" type="button" aria-pressed="false"><img src="assets/lines/l7.png" alt="L7"></button>
-          <button class="line-filter" data-family="L" type="button" aria-pressed="false"><img src="assets/lines/l12.png" alt="L12"></button>
-        </div>
-
+    <section id="view-plastic" class="view">
+      <div class="plastic-filters">
+        <div id="lineFilters" class="line-filters" aria-label="Línies"></div>
         <div class="landscape-filter-gap" aria-hidden="true"></div>
-
         <div class="ut-filter-line">
-          <div id="utFilters" class="ut-filters" aria-label="Sèries UT">
-            <button class="text-filter ut-filter" data-series="112" type="button" aria-pressed="false">112</button>
-            <button class="text-filter ut-filter" data-series="113" type="button" aria-pressed="false">113</button>
-            <button class="text-filter ut-filter" data-series="114" type="button" aria-pressed="false">114</button>
-            <button class="text-filter ut-filter" data-series="115" type="button" aria-pressed="false">115</button>
-          </div>
-          <button id="clearPuvFilters" class="text-filter all-filter selected" type="button" aria-pressed="true">TOTS</button>
+          <div id="utFilters" class="ut-filters" aria-label="Sèries UT"></div>
+          <button id="clearPlasticFilters" class="text-filter all-filter selected" type="button" aria-pressed="true">TOTS</button>
         </div>
-
-        <div id="puvStatus" class="puv-status" aria-live="polite">ESPERANT DADES</div>
       </div>
 
-      <div class="puv-directions">
-        <section class="puv-direction">
-          <h2 class="direction-title">ASCENDENTS</h2>
+      <div id="plasticStatus" class="plastic-status" aria-live="polite">ESPERANT DADES</div>
+
+      <div class="plastic-directions">
+        <section class="plastic-direction">
+          <h2 class="direction-title">ASCENDENTS <span id="ascCount" class="direction-count">· 0</span></h2>
           <div id="ascList"></div>
           <div id="ascEmpty" class="empty" hidden></div>
         </section>
 
-        <section class="puv-direction">
-          <h2 class="direction-title">DESCENDENTS</h2>
+        <section class="plastic-direction">
+          <h2 class="direction-title">DESCENDENTS <span id="descCount" class="direction-count">· 0</span></h2>
           <div id="descList"></div>
           <div id="descEmpty" class="empty" hidden></div>
         </section>
       </div>
     </section>
 
-    <section id="view-ema" class="view">
-      <div class="essais">ESSAIS</div>
+    <section id="view-megafonia" class="view">
+      <div class="megafonia-placeholder">MEGAFONIA</div>
     </section>
   </main>
 
   <nav class="tabs tabs-landscape" aria-label="Mòduls SIM+ horitzontal">
     <button data-view="lit" class="tab active" type="button">LIT</button>
-    <button data-view="puv" class="tab" type="button">PUV</button>
-    <button data-view="ema" class="tab" type="button">EMA</button>
+    <button data-view="plastic" class="tab" type="button">PLASTIC</button>
+    <button data-view="megafonia" class="tab" type="button">MEGAFONIA</button>
   </nav>
 
   <button id="diagHotspot" type="button" aria-label="Diagnòstic"></button>
@@ -106,6 +93,6 @@
   </dialog>
 </div>
 
-<script type="module" src="js/app.js?v=3.5.1"></script>
+<script type="module" src="js/app.js?v=3.7.1"></script>
 </body>
 </html>

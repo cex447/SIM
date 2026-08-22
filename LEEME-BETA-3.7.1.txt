@@ -1,0 +1,106 @@
+SIM+ Beta 3.7.1 — cronometría y máquina de estados operacional
+
+OBJETIVO DE ESTA REVISIÓN
+-------------------------
+Cerrar la lógica de cronometría antes de seguir ampliando SIM+.
+
+CAMBIOS PRINCIPALES
+-------------------
+
+LIT
+- Posicionamiento decide SIEMPRE dónde está el tren.
+- GTFS decide únicamente cuánto falta hasta la salida comercial de la estación objetivo.
+- Estacionado en X:
+  · triángulo relleno apuntando a la derecha, fijo, en la fila X.
+  · cronometría hasta departure_time(X), desde el instante en que se detecta estacionado.
+- Circulando hacia Y:
+  · triángulo de contorno apuntando a la derecha, en la fila Y.
+  · fader progresivo: 1000 ms apareciendo + 1000 ms desapareciendo (ciclo total 2000 ms).
+  · cronometría hasta departure_time(Y).
+- Al salir de Y, el objetivo pasa a Z y el triángulo vuelve a modo circulando/fade en Z.
+- En la estación final se muestra la posición, pero no cronometría.
+- Si la hora comercial ya ha vencido, nunca se inventa una salida real: se muestra 0:00.
+- Si sigue estacionado después de la hora comercial: 0:00 rojo intermitente.
+- Normalmente 0:09...0:00 es rojo.
+- En PC, MN, TT y SR el aviso rojo/intermitente comienza en 0:13 cuando está estacionado.
+- Si en_hora == false:
+  · cronometría roja.
+  · hora comercial de la estación objetivo roja.
+  · nombre de estación NO cambia de color.
+- Se resuelven correctamente horas GTFS 24:xx / 25:xx escogiendo la ocurrencia temporal activa más próxima.
+- El contador se recalcula contra Date.now(); no decrementa un contador interno, por lo que no deriva al suspender Safari.
+
+RETÍCULA LIT
+- El triángulo aparece inmediatamente junto a la hora de salida, con una sola separación visual equivalente a un espacio.
+- El triángulo apunta SIEMPRE hacia la derecha.
+- Hora de salida y código estación/vía comparten una columna.
+- El código de estación/vía queda centrado respecto a la hora.
+- Nombre de estación en mayúsculas y bold italic.
+- El código/vía queda debajo de la hora, en gris.
+- Los datos de interestación quedan debajo del nombre de estación.
+- Preparado para señalización futura:
+    19:10   GRÀCIA
+    GR3     [SEÑALIZACIÓN FUTURA]
+            39‰ 600 m
+            SK [...]
+- La señalización futura será la primera línea técnica, sin reservar espacio mientras no exista.
+- Todos los textos LIT utilizan el mismo tamaño base que el campo de circulación.
+- La cronometría termina horizontalmente en la vertical donde comienza el reloj superior.
+- Sólo existe la línea gris del propio campo de circulación; se elimina la línea gris inferior de cabecera.
+
+PLASTIC
+- PUV pasa a denominarse PLASTIC.
+- El campo de búsqueda no aparece dentro de PLASTIC.
+- Pulsar una circulación en PLASTIC abre directamente esa circulación en LIT.
+- Refresco de posicionamiento: 5 s, sin solapar peticiones.
+- Las circulaciones estacionadas en SU PROPIO ORIGEN muestran cronometría hasta la salida de cabecera.
+- Ninguna otra circulación de PLASTIC muestra cronometría.
+- La cronometría de cabecera se carga de GTFS en segundo plano; PLASTIC sigue siendo utilizable si GTFS falla.
+- Si una circulación va con retraso:
+  · UT, circulación y toda la ubicación (est./dir. + estaciones) en rojo.
+  · la ocupación conserva sus colores.
+  · si un coche no tiene dato de ocupación, su contorno pasa a rojo.
+- Ocupación ligeramente bajada para alinearla con los caracteres.
+- Al lado de cada icono de línea se muestra el número de circulaciones visibles de esa línea.
+- ASCENDENTS y DESCENDENTS muestran también su número total visible.
+- Esos contadores usan el mismo estilo gris que ACTUALITZAT.
+- Espaciado homogéneo entre título de dirección, icono de línea y primera circulación.
+- Entre grupos de líneas se usa aproximadamente el doble de ese espacio.
+- No hay separador gris tras la última circulación de cada línea comercial.
+
+FILTROS / RESPONSIVE
+- Iconos de línea: seleccionado 100 %, no seleccionado 35 %.
+- 112/113/114/115/TOTS sin orla; seleccionado = relleno gris + texto blanco.
+- En horizontal todos los filtros permanecen en una sola fila.
+- En horizontal: SIM+ y reloj arriba, navegación abajo.
+- Safe areas para notch.
+- Sin desplazamiento horizontal.
+
+MEGAFONIA
+- EMA pasa a denominarse MEGAFONIA.
+- El módulo queda deliberadamente como placeholder hasta definir mensajes e iconos.
+
+AUDIO
+- Silencio por defecto.
+- Al iniciar SIM+ se prepara silenciosamente la lista de MP3, pero NO se reproduce nada.
+- Sólo al pulsar SIM+ comienza la reproducción; esto preserva mejor el gesto de usuario exigido por iOS/Safari.
+- Un segundo toque detiene la música.
+- Entrar en MEGAFONIA pausa el fondo; salir lo reanuda si el usuario lo había activado.
+
+SK / INTERESTACIONES
+- 36 interestaciones definidas.
+- Inventario SK cerrado en 6 tramos:
+  GR-PM
+  SR-PF
+  LP-LF
+  SC-VO
+  BT-UN
+  UN-SQ
+- No existe SK en SQ-CF.
+- Se conservan además los datos técnicos ya definidos (M1, ATP, M+30E, SR0/M+30, DO, etc.) con sus condicionantes de sentido/paridad.
+
+ARCHIVOS A SUBIR
+-----------------
+Sustituir/añadir TODO el contenido de esta carpeta, excepto que las tres fuentes Canal+ y los MP3 ya existentes en la raíz deben conservarse.
+
+NO se incluyen las fuentes en este paquete.
