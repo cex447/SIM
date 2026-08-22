@@ -1,29 +1,44 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.5.1";
+} from "./fgc-api.js?v=3.7.1";
 
 import {
-  wirePUV,
-  renderPUV,
-  paintOccupancy
-} from "./puv.js?v=3.5.1";
+  wirePLASTIC,
+  renderPLASTIC,
+  tickPLASTIC,
+  revealSearchedTrain
+} from "./plastic.js?v=3.7.1";
+
+import {
+  clearLIT,
+  loadLIT,
+  tickLIT
+} from "./lit.js?v=3.7.1";
+
+import { updateOccupancy } from "./occupancy.js?v=3.7.1";
+import { BackgroundAudio } from "./audio.js?v=3.7.1";
 
 const S = {
   config: null,
-  network: null,
+  network: { segments: [] },
+
   trains: [],
   rawCount: 0,
   apiTotal: null,
+
   lastFetch: null,
   lastError: null,
   lastLatencyMs: null,
+
   activeView: "lit",
   selected: null,
-  puvFilters: {
+
+  plasticFilters: {
     lines: new Set(),
     units: new Set()
   },
+
   query: {
     code: "",
     state: "empty",
@@ -32,43 +47,57 @@ const S = {
   }
 };
 
-const $ = selector =>
-  document.querySelector(selector);
+const $ = selector => document.querySelector(selector);
 
 let refreshTimer = null;
 let activeController = null;
 let refreshRunning = false;
 let refreshPromise = null;
-let litModule = null;
-let litTimer = null;
 let audio = null;
+
+function syncClockReserve() {
+  const clock = $("#clock");
+  if (!clock) return;
+
+  const width = Math.ceil(clock.getBoundingClientRect().width);
+  document.documentElement.style.setProperty("--clock-reserve", `${width}px`);
+}
 
 function setupClock() {
   const tick = () => {
-    $("#clock").textContent =
-      new Date().toLocaleTimeString(
-        "es-ES",
-        { hour12: false }
-      );
+    $("#clock").textContent = new Date().toLocaleTimeString(
+      "es-ES",
+      { hour12: false }
+    );
+    syncClockReserve();
   };
 
   tick();
   setInterval(tick, 1000);
-}
 
-async function loadConfig() {
-  const response = await fetch(
-    "data/config.json?v=3.5.1",
-    { cache: "no-store" }
-  );
+  window.addEventListener("resize", syncClockReserve, { passive: true });
 
-  if (!response.ok) {
-    throw new Error(
-      `config.json HTTP ${response.status}`
-    );
+  if ("ResizeObserver" in window) {
+    new ResizeObserver(syncClockReserve).observe($("#clock"));
   }
 
-  S.config = await response.json();
+  document.fonts?.ready?.then(syncClockReserve).catch(() => {});
+}
+
+async function loadStaticData() {
+  const [configResponse, networkResponse] = await Promise.all([
+    fetch("data/config.json?v=3.7.1", { cache: "no-store" }),
+    fetch("data/network.json?v=3.7.1", { cache: "no-store" })
+  ]);
+
+  if (!configResponse.ok) {
+    throw new Error(`config.json HTTP ${configResponse.status}`);
+  }
+
+  S.config = await configResponse.json();
+  S.network = networkResponse.ok
+    ? await networkResponse.json()
+    : { segments: [] };
 }
 
 function hideQueryMeta() {
@@ -79,19 +108,16 @@ function hideQueryMeta() {
 }
 
 function renderQuery() {
-  const input = $("#circulationInput");
   const meta = $("#queryMeta");
   const status = $("#queryStatus");
   const unit = $("#queryUnit");
   const occupancy = $("#queryOccupancy");
+  const input = $("#circulationInput");
 
   input.classList.remove("delayed-text");
   unit.classList.remove("delayed-text");
 
-  if (
-    !S.query.code ||
-    S.query.state === "empty"
-  ) {
+  if (!S.query.code || S.query.state === "empty") {
     hideQueryMeta();
     return;
   }
@@ -107,8 +133,7 @@ function renderQuery() {
   }
 
   if (S.query.state === "inactive") {
-    status.textContent =
-      "CIRCULACIÓ NO ACTIVA";
+    status.textContent = "CIRCULACIÓ NO ACTIVA";
     status.hidden = false;
     unit.hidden = true;
     occupancy.hidden = true;
@@ -116,24 +141,19 @@ function renderQuery() {
   }
 
   const train = S.query.train;
-
   if (!train) {
     hideQueryMeta();
     return;
   }
 
   status.hidden = true;
-
   unit.textContent = train.unit;
   unit.hidden = false;
 
   occupancy.hidden = false;
-
-  paintOccupancy(
-    occupancy,
-    train.occupancy,
-    false
-  );
+  updateOccupancy(occupancy, train.occupancy, {
+    delayed: train.onTime === false
+  });
 
   if (train.onTime === false) {
     input.classList.add("delayed-text");
@@ -141,68 +161,34 @@ function renderQuery() {
   }
 }
 
-async function ensureLIT() {
-  if (!litModule) {
-    litModule =
-      await import("./lit.js?v=3.5.1");
+function clearSearch({ clearInput = true, rerenderPlastic = true } = {}) {
+  S.query.requestId += 1;
+  S.query.code = "";
+  S.query.state = "empty";
+  S.query.train = null;
 
-    if (!litTimer) {
-      litTimer = setInterval(
-        () => litModule?.tickLIT?.(S),
-        250
-      );
-    }
-  }
+  if (clearInput) $("#circulationInput").value = "";
 
-  if (!S.network) {
-    const response = await fetch(
-      "data/network.json?v=3.5.1",
-      { cache: "no-store" }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `network.json HTTP ${response.status}`
-      );
-    }
-
-    S.network = await response.json();
-  }
-
-  return litModule;
-}
-
-function clearLITSafely() {
-  if (litModule?.clearLIT) {
-    litModule.clearLIT(S);
-  } else {
-    $("#litRoute")?.replaceChildren();
-    S.selected = null;
-  }
-}
-
-function findTrain(code) {
-  return S.trains.find(
-    train => train.circulation === code
-  ) || null;
+  renderQuery();
+  clearLIT(S);
+  if (rerenderPlastic) renderPLASTIC(S);
 }
 
 async function ensureFreshPositioning() {
   const age = S.lastFetch
-    ? Date.now() -
-      S.lastFetch.getTime()
+    ? Date.now() - S.lastFetch.getTime()
     : Infinity;
 
-  if (age > S.config.refreshMs) {
-    await refreshPositioning({
-      reschedule: false
-    });
-  }
+  if (age <= S.config.refreshMs) return;
+  await refreshPositioning({ reschedule: false });
+}
+
+function findTrain(code) {
+  return S.trains.find(train => train.circulation === code) || null;
 }
 
 async function resolveQuery(code) {
-  const requestId =
-    ++S.query.requestId;
+  const requestId = ++S.query.requestId;
 
   S.query.code = code;
   S.query.state = "loading";
@@ -212,16 +198,10 @@ async function resolveQuery(code) {
   try {
     await ensureFreshPositioning();
   } catch {
-    // El estado final se resuelve con los datos
-    // conservados si la consulta puntual falla.
+    // Se puede seguir con el último snapshot válido de posicionamiento.
   }
 
-  if (
-    requestId !== S.query.requestId ||
-    S.query.code !== code
-  ) {
-    return;
-  }
+  if (requestId !== S.query.requestId || S.query.code !== code) return;
 
   const train = findTrain(code);
 
@@ -229,71 +209,50 @@ async function resolveQuery(code) {
     S.query.state = "inactive";
     S.query.train = null;
     renderQuery();
-    clearLITSafely();
+    clearLIT(S);
+    renderPLASTIC(S);
     return;
   }
 
   S.query.state = "active";
   S.query.train = train;
   renderQuery();
+  renderPLASTIC(S);
 
-  if (S.activeView !== "lit") {
+  if (S.activeView === "plastic") {
+    revealSearchedTrain(S);
     return;
   }
+
+  if (S.activeView !== "lit") return;
 
   S.query.state = "loading";
   renderQuery();
 
   try {
-    const lit = await ensureLIT();
+    const loaded = await loadLIT(S, code, train);
 
-    await lit.loadLIT(
-      S,
-      code,
-      train
-    );
+    if (requestId !== S.query.requestId || S.query.code !== code) return;
 
-    if (
-      requestId === S.query.requestId &&
-      S.query.code === code
-    ) {
-      const live = findTrain(code);
+    const currentTrain = findTrain(code);
 
-      if (!live) {
-        S.query.state = "inactive";
-        S.query.train = null;
-        clearLITSafely();
-      } else {
-        S.query.state = "active";
-        S.query.train = live;
-      }
-
-      renderQuery();
+    if (!currentTrain) {
+      S.query.state = "inactive";
+      S.query.train = null;
+      clearLIT(S);
+    } else {
+      S.query.state = loaded ? "active" : S.query.state;
+      S.query.train = currentTrain;
     }
-  } catch (error) {
-    S.lastError = String(
-      error?.message || error
-    );
 
-    if (
-      requestId === S.query.requestId &&
-      S.query.code === code
-    ) {
+    renderQuery();
+  } catch (error) {
+    S.lastError = String(error?.message || error);
+
+    if (requestId === S.query.requestId && S.query.code === code) {
       S.query.state = "active";
       S.query.train = train;
       renderQuery();
-
-      const box = $("#litRoute");
-      box.replaceChildren();
-
-      const message =
-        document.createElement("div");
-
-      message.className = "empty";
-      message.textContent =
-        `ERROR LIT · ${S.lastError}`;
-
-      box.appendChild(message);
     }
   }
 }
@@ -314,226 +273,146 @@ function setupSearch() {
       S.query.code = value;
       S.query.state = "empty";
       S.query.train = null;
-
       renderQuery();
-      clearLITSafely();
+      clearLIT(S);
+      renderPLASTIC(S);
       return;
     }
 
-    /*
-     * Al completar los cuatro caracteres no hace falta
-     * Enter ni botón. En iPhone también cerramos el teclado.
-     */
-    input.blur();
     resolveQuery(value);
+
+    /* En iPhone, una vez introducidos los 4 caracteres liberamos pantalla. */
+    input.blur();
   });
 }
 
-function setViewDOM(name) {
-  document.documentElement.dataset.view =
-    name;
-
-  document
-    .querySelectorAll(".tab")
-    .forEach(button => {
-      button.classList.toggle(
-        "active",
-        button.dataset.view === name
-      );
-    });
-
-  document
-    .querySelectorAll(".view")
-    .forEach(view => {
-      view.classList.toggle(
-        "active",
-        view.id === `view-${name}`
-      );
-    });
-}
-
-async function activateView(name) {
+async function activateView(name, { clearQuery = true } = {}) {
   if (name === S.activeView) return;
 
+  if (clearQuery) {
+    clearSearch({ rerenderPlastic: false });
+  }
+
   S.activeView = name;
-  setViewDOM(name);
+  document.documentElement.dataset.view = name;
 
-  if (name === "ema") {
-    audio?.enterEMA?.();
+  document.querySelectorAll(".tab").forEach(button => {
+    button.classList.toggle("active", button.dataset.view === name);
+  });
+
+  document.querySelectorAll(".view").forEach(view => {
+    view.classList.toggle("active", view.id === `view-${name}`);
+  });
+
+  if (name === "megafonia") {
+    audio?.enterMegafonia();
   } else {
-    audio?.leaveEMA?.();
+    audio?.leaveMegafonia();
   }
 
-  if (
-    name === "lit" &&
-    S.query.code.length === 4 &&
-    S.query.train
-  ) {
-    S.query.state = "loading";
-    renderQuery();
+  if (name === "plastic") renderPLASTIC(S);
+}
 
-    try {
-      const lit = await ensureLIT();
-
-      await lit.loadLIT(
-        S,
-        S.query.code,
-        S.query.train
-      );
-
-      S.query.state = "active";
-      renderQuery();
-    } catch (error) {
-      S.lastError = String(
-        error?.message || error
-      );
-
-      S.query.state = "active";
-      renderQuery();
-    }
-  }
+async function openCirculationFromPlastic(code) {
+  $("#circulationInput").value = code;
+  await activateView("lit", { clearQuery: false });
+  await resolveQuery(code);
 }
 
 function setupTabs() {
-  document
-    .querySelectorAll(".tab")
-    .forEach(button =>
-      button.addEventListener(
-        "click",
-        () => activateView(
-          button.dataset.view
-        )
-      )
-    );
+  document.querySelectorAll(".tab").forEach(button => {
+    button.addEventListener("click", () => {
+      activateView(button.dataset.view);
+    });
+  });
 }
 
-function dedupe(trains) {
+function dedupeByTripId(trains) {
   const map = new Map();
-
-  for (const train of trains) {
-    map.set(train.id, train);
-  }
-
+  for (const train of trains) map.set(train.id, train);
   return [...map.values()];
 }
 
-function scheduleNext() {
+function scheduleNext(delay = S.config.refreshMs) {
   clearTimeout(refreshTimer);
-
   if (document.hidden) return;
 
-  refreshTimer = setTimeout(
-    () => refreshPositioning(),
-    S.config.refreshMs
-  );
+  refreshTimer = setTimeout(() => {
+    refreshPositioning();
+  }, delay);
 }
 
-function syncActiveQuery() {
-  if (S.query.code.length !== 4) return;
+function syncActiveQueryAfterRefresh() {
+  if (!S.query.code || S.query.code.length !== 4) return;
 
-  const live = findTrain(
-    S.query.code
-  );
+  const live = findTrain(S.query.code);
 
   if (!live) {
     S.query.state = "inactive";
     S.query.train = null;
     renderQuery();
+
+    if (S.selected?.circulation === S.query.code) clearLIT(S);
     return;
   }
 
   S.query.train = live;
-
-  if (S.query.state !== "loading") {
-    S.query.state = "active";
-  }
-
+  if (S.query.state !== "loading") S.query.state = "active";
   renderQuery();
 
-  if (
-    S.selected?.circulation ===
-    live.circulation
-  ) {
+  if (S.selected?.circulation === live.circulation) {
     S.selected.live = live;
   }
 }
 
-async function refreshPositioning(
-  { reschedule = true } = {}
-) {
-  if (refreshRunning) {
-    return refreshPromise;
-  }
-
-  if (document.hidden) {
-    return null;
-  }
+async function refreshPositioning({ reschedule = true } = {}) {
+  if (refreshRunning) return refreshPromise;
+  if (document.hidden) return null;
 
   refreshRunning = true;
-
   activeController?.abort();
-
-  activeController =
-    new AbortController();
+  activeController = new AbortController();
 
   const timeoutId = setTimeout(
     () => activeController.abort(),
-    S.config.requestTimeoutMs || 8000
+    S.config.requestTimeoutMs
   );
 
   const started = performance.now();
 
   refreshPromise = (async () => {
     try {
-      const result =
-        await fetchPositioning(
-          S.config.positioningUrl,
-          { signal: activeController.signal }
-        );
+      const result = await fetchPositioning(
+        S.config.positioningUrl,
+        { signal: activeController.signal }
+      );
 
       S.rawCount = result.rows.length;
       S.apiTotal = result.total;
 
-      S.trains = dedupe(
+      S.trains = dedupeByTripId(
         result.rows
-          .map(row =>
-            normalizeTrain(
-              row,
-              S.config
-            )
-          )
+          .map(row => normalizeTrain(row, S.config))
           .filter(Boolean)
       );
 
       S.lastFetch = new Date();
-
-      S.lastLatencyMs =
-        Math.round(
-          performance.now() -
-          started
-        );
-
+      S.lastLatencyMs = Math.round(performance.now() - started);
       S.lastError = null;
 
-      syncActiveQuery();
-      renderPUV(S);
+      syncActiveQueryAfterRefresh();
+      renderPLASTIC(S);
     } catch (error) {
-      S.lastError =
-        error?.name === "AbortError"
-          ? "temps d'espera excedit"
-          : String(
-              error?.message || error
-            );
-
-      renderPUV(S);
+      if (error?.name !== "AbortError") {
+        S.lastError = String(error?.message || error);
+        renderPLASTIC(S);
+      }
     } finally {
       clearTimeout(timeoutId);
       refreshRunning = false;
       refreshPromise = null;
 
-      if (reschedule) {
-        scheduleNext();
-      }
+      if (reschedule) scheduleNext(S.config.refreshMs);
     }
   })();
 
@@ -541,152 +420,107 @@ async function refreshPositioning(
 }
 
 function setupConnectivity() {
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (document.hidden) {
-        clearTimeout(refreshTimer);
-        activeController?.abort();
-      } else {
-        refreshPositioning();
-      }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearTimeout(refreshTimer);
+      activeController?.abort();
+      return;
     }
-  );
 
-  window.addEventListener(
-    "online",
-    () => refreshPositioning()
-  );
+    refreshPositioning();
+  });
 
-  window.addEventListener(
-    "offline",
-    () => {
-      S.lastError = "sense connexió";
-      renderPUV(S);
-    }
-  );
+  window.addEventListener("online", () => refreshPositioning());
+
+  window.addEventListener("offline", () => {
+    S.lastError = "sense connexió";
+    renderPLASTIC(S);
+  });
 }
 
 function setupDiagnostics() {
   const hotspot = $("#diagHotspot");
   const dialog = $("#diag");
-
-  let timer = null;
+  let holdTimer = null;
 
   const open = () => {
+    const audioState = audio?.state?.() || {};
+
     $("#diagText").textContent = [
-      "SIM+ Beta 3.5.1",
+      "SIM+ Beta 3.7.1",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
       `Última consulta: ${
         S.lastFetch
-          ? S.lastFetch.toLocaleTimeString(
-              "es-ES",
-              { hour12: false }
-            )
+          ? S.lastFetch.toLocaleTimeString("es-ES", { hour12: false })
           : "—"
       }`,
-      `Latència: ${
-        S.lastLatencyMs === null
-          ? "—"
-          : S.lastLatencyMs + " ms"
-      }`,
-      `Refresc: ${
-        S.config?.refreshMs ?? "—"
-      } ms`,
+      `Latència: ${S.lastLatencyMs === null ? "—" : `${S.lastLatencyMs} ms`}`,
+      `Refresc: ${S.config.refreshMs} ms`,
+      `Consulta: ${S.query.code || "—"}`,
+      `Estat consulta: ${S.query.state}`,
+      `MP3 detectats: ${audioState.tracks ?? 0}`,
+      `Àudio carregat: ${audioState.loaded ? "sí" : "no"}`,
+      `Àudio reproduint: ${audioState.playing ? "sí" : "no"}`,
       `Error: ${S.lastError || "—"}`
     ].join("\n");
 
-    dialog?.showModal?.();
+    dialog.showModal();
   };
 
-  hotspot?.addEventListener(
-    "pointerdown",
-    () => {
-      timer = setTimeout(open, 900);
-    }
-  );
+  const start = () => { holdTimer = setTimeout(open, 900); };
+  const cancel = () => { clearTimeout(holdTimer); };
 
-  [
-    "pointerup",
-    "pointercancel",
-    "pointerleave"
-  ].forEach(eventName =>
-    hotspot?.addEventListener(
-      eventName,
-      () => clearTimeout(timer)
-    )
-  );
+  hotspot.addEventListener("pointerdown", start);
+  hotspot.addEventListener("pointerup", cancel);
+  hotspot.addEventListener("pointercancel", cancel);
+  hotspot.addEventListener("pointerleave", cancel);
 
-  $("#closeDiag")?.addEventListener(
-    "click",
-    () => dialog?.close?.()
-  );
+  $("#closeDiag").addEventListener("click", () => dialog.close());
 }
 
-async function setupAudioOptional() {
-  try {
-    const { BackgroundAudio } =
-      await import(
-        "./audio.js?v=3.5.1"
-      );
+function setupAudio() {
+  audio = new BackgroundAudio(S.config.audio || {});
+  audio.init();
 
-    audio = new BackgroundAudio(
-      S.config.audio || {}
-    );
-
-    await audio.init();
-
-    $("#brandAudioToggle")
-      ?.addEventListener(
-        "click",
-        event => {
-          event.stopPropagation();
-          audio?.toggleByUser?.();
-        }
-      );
-  } catch (error) {
-    console.warn(
-      "Àudio opcional no disponible",
-      error
-    );
-  }
+  $("#brandAudioToggle").addEventListener("click", event => {
+    event.stopPropagation();
+    audio.toggleByUser();
+  });
 }
 
 async function init() {
   setupClock();
+  await loadStaticData();
+
   setupTabs();
   setupSearch();
   setupDiagnostics();
-  setViewDOM("lit");
-
-  try {
-    await loadConfig();
-  } catch (error) {
-    S.lastError = String(
-      error?.message || error
-    );
-
-    const status = $("#puvStatus");
-
-    if (status) {
-      status.textContent =
-        "ERROR CONFIG";
-      status.classList.add("error");
-    }
-
-    return;
-  }
-
-  wirePUV(S);
+  wirePLASTIC(S, { onSelectTrain: openCirculationFromPlastic });
   setupConnectivity();
-  renderQuery();
-  renderPUV(S);
+  setupAudio();
 
-  setupAudioOptional();
+  document.documentElement.dataset.view = S.activeView;
+  renderQuery();
+  renderPLASTIC(S);
 
   await refreshPositioning();
+
+  setInterval(() => {
+    tickLIT(S);
+    tickPLASTIC(S);
+  }, 250);
 }
 
-init();
+init().catch(error => {
+  S.lastError = String(error?.message || error);
+
+  const status = $("#plasticStatus");
+  if (status) {
+    status.textContent = "ERROR D'INICIALITZACIÓ";
+    status.classList.add("error");
+  }
+
+  console.error(error);
+});

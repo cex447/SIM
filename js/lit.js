@@ -1,25 +1,21 @@
-import { getTripBundle } from "./gtfs.js?v=3.5.1";
+import { getTripBundle } from "./gtfs.js?v=3.7.1";
+import {
+  countdownState,
+  formatCountdown,
+  formatDeparture
+} from "./time.js?v=3.7.1";
+import {
+  countdownRedThreshold,
+  isSpecialCountdownStation,
+  locateOperationalTarget,
+  parentCode
+} from "./operations.js?v=3.7.1";
 
-const SPECIAL_BLINK_THRESHOLD = new Set(["PC", "MN", "BN", "SR"]);
 const MANUAL_SCROLL_HOLD_MS = 2500;
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 const $ = selector => document.querySelector(selector);
 
-function parentCode(stop) {
-  if (stop?.parent_station) return String(stop.parent_station);
-
-  return String(stop?.stop_id || "")
-    .replace(/\d+$/, "");
-}
-
-function formatDeparture(value) {
-  if (!value) return " --:--";
-
-  const [hours, minutes] = String(value).split(":");
-  const hour = Number(hours) % 24;
-
-  return `${hour < 10 ? " " : ""}${hour}:${minutes}`;
-}
 
 function stationName(stop) {
   return String(stop?.stop_name || stop?.stop_id || "")
@@ -31,215 +27,170 @@ function platformCode(stop) {
 }
 
 function parityOf(train) {
-  const last = Number(
-    String(train?.circulation || "").slice(-1)
-  );
-
-  return Number.isFinite(last) && last % 2 === 0
-    ? "even"
-    : "odd";
+  const last = Number(String(train?.circulation || "").slice(-1));
+  return Number.isFinite(last) && last % 2 === 0 ? "even" : "odd";
 }
 
 function segmentData(S, from, to) {
-  return (S.network?.segments || []).find(
-    segment =>
-      (segment.from === from && segment.to === to) ||
-      (segment.from === to && segment.to === from)
+  return (S.network?.segments || []).find(segment =>
+    (segment.from === from && segment.to === to) ||
+    (segment.from === to && segment.to === from)
   ) || null;
 }
 
-function technicalItemVisible(item, context) {
+function itemVisible(item, context) {
   if (typeof item === "string") return true;
   if (!item || typeof item !== "object") return false;
 
-  if (
-    item.parity &&
-    item.parity !== context.parity
-  ) {
-    return false;
-  }
-
-  if (
-    item.from &&
-    item.from !== context.from
-  ) {
-    return false;
-  }
-
-  if (
-    item.to &&
-    item.to !== context.to
-  ) {
-    return false;
-  }
-
-  if (
-    item.line &&
-    item.line !== context.line
-  ) {
-    return false;
-  }
+  if (item.parity && item.parity !== context.parity) return false;
+  if (item.from && item.from !== context.from) return false;
+  if (item.to && item.to !== context.to) return false;
+  if (item.line && item.line !== context.line) return false;
 
   return true;
 }
 
-function technicalText(item) {
-  return typeof item === "string"
-    ? item
-    : String(item?.text || "");
+function itemText(item) {
+  return typeof item === "string" ? item : String(item?.text || "");
 }
 
-function technicalLines(segment, context) {
+function collectTechnicalLines(segment, context) {
   if (!segment) return [];
 
   const lines = [];
 
+  /*
+   * Preparado para la futura señalización: cuando exista segment.signaling,
+   * se renderizará como PRIMERA línea técnica, alineada con el código/vía.
+   * Mientras no haya datos, no se reserva ninguna línea vacía.
+   */
+  const signaling = Array.isArray(segment.signaling)
+    ? segment.signaling
+    : segment.signaling
+      ? [segment.signaling]
+      : [];
+
+  for (const item of signaling) {
+    if (!itemVisible(item, context)) continue;
+    const text = itemText(item);
+    if (text) lines.push({ type: "signaling", text });
+  }
+
   if (segment.grade || segment.length) {
-    lines.push(
-      [segment.grade, segment.length]
-        .filter(Boolean)
-        .join(" ")
-    );
+    lines.push({
+      type: "geometry",
+      text: [segment.grade, segment.length].filter(Boolean).join(" ")
+    });
   }
 
   for (const item of segment.technical || []) {
-    if (!technicalItemVisible(item, context)) {
-      continue;
-    }
-
-    const text = technicalText(item);
-
-    if (text) lines.push(text);
+    if (!itemVisible(item, context)) continue;
+    const text = itemText(item);
+    if (text) lines.push({ type: "technical", text });
   }
 
   return lines;
 }
 
-function createStationRow(stop, index) {
-  const row = document.createElement("div");
-  row.className = "lit-row";
-  row.dataset.i = String(index);
-  row.dataset.code = parentCode(stop);
+function createPointerSvg(moving) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 20 18");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("pointer-marker");
+  if (moving) svg.classList.add("moving");
+
+  const polygon = document.createElementNS(SVG_NS, "polygon");
+  polygon.setAttribute("points", "1,1 19,9 1,17");
+  polygon.setAttribute("stroke", "currentColor");
+  polygon.setAttribute("stroke-width", "2");
+  polygon.setAttribute("stroke-linejoin", "round");
+  polygon.setAttribute("fill", moving ? "none" : "currentColor");
+
+  svg.appendChild(polygon);
+  return svg;
+}
+
+function createStationItem(S, stop, nextStop, index, isLast) {
+  const item = document.createElement("article");
+  item.className = "lit-item";
+  item.dataset.i = String(index);
+  item.dataset.code = parentCode(stop);
+
+  const main = document.createElement("div");
+  main.className = "lit-main-row";
 
   const pointer = document.createElement("div");
   pointer.className = "pointer";
-  pointer.setAttribute("aria-hidden", "true");
-
-  const timeStack = document.createElement("div");
-  timeStack.className = "time-stack";
 
   const time = document.createElement("div");
   time.className = "time";
-  time.textContent = formatDeparture(
-    stop.departure_time || stop.arrival_time
-  );
+  time.textContent = formatDeparture(stop.departure_time || stop.arrival_time);
+
+  const name = document.createElement("div");
+  name.className = "station-name";
+  name.textContent = stationName(stop);
+
+  const count = document.createElement("div");
+  count.className = "count";
+
+  main.append(pointer, time, name, count);
+  item.appendChild(main);
+
+  const sub = document.createElement("div");
+  sub.className = "lit-sub-row";
+
+  const pointerSpacer = document.createElement("div");
 
   const platform = document.createElement("div");
   platform.className = "platform-code";
   platform.textContent = platformCode(stop);
 
-  timeStack.append(time, platform);
+  const technical = document.createElement("div");
+  technical.className = "technical";
 
-  const station = document.createElement("div");
-  station.className = "station-name";
-  station.textContent = stationName(stop);
+  if (!isLast && nextStop) {
+    const from = parentCode(stop);
+    const to = parentCode(nextStop);
+    const segment = segmentData(S, from, to);
+    const context = {
+      from,
+      to,
+      parity: parityOf(S.selected?.live),
+      line: S.selected?.live?.line || null
+    };
 
-  const count = document.createElement("div");
-  count.className = "count";
+    const lines = collectTechnicalLines(segment, context);
 
-  row.append(
-    pointer,
-    timeStack,
-    station,
-    count
-  );
+    for (const lineData of lines) {
+      const line = document.createElement("div");
+      line.className = `inter-line inter-${lineData.type}`;
+      line.textContent = lineData.text;
+      technical.appendChild(line);
+    }
 
-  return row;
-}
-
-function createInterstation(
-  S,
-  from,
-  to,
-  segmentIndex
-) {
-  const segment = segmentData(S, from, to);
-
-  const inter = document.createElement("div");
-  inter.className = "inter";
-  inter.dataset.segmentIndex = String(segmentIndex);
-  inter.dataset.from = from;
-  inter.dataset.to = to;
-
-  const pointer = document.createElement("div");
-  pointer.className = "inter-pointer";
-
-  const spacerTime = document.createElement("div");
-
-  const content = document.createElement("div");
-  content.className = "technical";
-
-  const spacerCount = document.createElement("div");
-
-  const context = {
-    from,
-    to,
-    parity: parityOf(S.selected?.live),
-    line: S.selected?.live?.line || null
-  };
-
-  const lines = technicalLines(
-    segment,
-    context
-  );
-
-  for (const [index, text] of lines.entries()) {
-    const line = document.createElement("div");
-
-    line.className =
-      index === 0
-        ? "inter-line inter-primary"
-        : "inter-line inter-secondary";
-
-    line.textContent = text;
-    content.appendChild(line);
+    if (!lines.length) {
+      console.warn(`SIM+ LIT: sense dades d'interestació ${from}-${to}`);
+    }
   }
 
-  if (!lines.length) {
-    console.warn(
-      `SIM+ LIT: sense dades d'interestació ${from}-${to}`
-    );
+  sub.append(pointerSpacer, platform, technical);
+  item.appendChild(sub);
+
+  if (!isLast) {
+    const separator = document.createElement("div");
+    separator.className = "separator";
+    item.appendChild(separator);
   }
 
-  inter.append(
-    pointer,
-    spacerTime,
-    content,
-    spacerCount
-  );
-
-  return inter;
-}
-
-function createSeparator() {
-  const separator = document.createElement("div");
-  separator.className = "separator";
-  return separator;
+  return item;
 }
 
 export function clearLIT(S) {
   $("#litRoute")?.replaceChildren();
-
-  if (S.selected) {
-    S.selected = null;
-  }
+  if (S.selected) S.selected = null;
 }
 
-export async function loadLIT(
-  S,
-  circulation,
-  liveTrain
-) {
+export async function loadLIT(S, circulation, liveTrain) {
   if (!circulation || !liveTrain?.id) {
     clearLIT(S);
     return false;
@@ -251,18 +202,12 @@ export async function loadLIT(
     stops: [],
     lastFollowKey: null,
     manualHoldUntil: 0,
-    autoScrolling: false
+    autoScrolling: false,
   };
 
-  const bundle = await getTripBundle(
-    S.config.gtfsZipIndexUrl,
-    liveTrain.id
-  );
+  const bundle = await getTripBundle(S.config.gtfsZipIndexUrl, liveTrain.id);
 
-  if (
-    S.query?.code !== circulation ||
-    S.query?.state === "inactive"
-  ) {
+  if (S.query?.code !== circulation || S.query?.state === "inactive") {
     return false;
   }
 
@@ -271,324 +216,106 @@ export async function loadLIT(
 
   render(S);
   updateCurrent(S, true);
-
   return true;
 }
 
 function render(S) {
   const box = $("#litRoute");
-  const fragment =
-    document.createDocumentFragment();
+  const fragment = document.createDocumentFragment();
   const stops = S.selected?.stops || [];
 
   box.replaceChildren();
 
   stops.forEach((stop, index) => {
     fragment.appendChild(
-      createStationRow(stop, index)
-    );
-
-    if (index >= stops.length - 1) return;
-
-    const from = parentCode(stop);
-    const to = parentCode(stops[index + 1]);
-
-    fragment.appendChild(
-      createInterstation(
-        S,
-        from,
-        to,
-        index
-      )
-    );
-
-    fragment.appendChild(
-      createSeparator()
+      createStationItem(S, stop, stops[index + 1], index, index === stops.length - 1)
     );
   });
 
   box.appendChild(fragment);
 
-  box.addEventListener(
-    "scroll",
-    () => {
-      if (
-        !S.selected ||
-        S.selected.autoScrolling
-      ) {
-        return;
-      }
+  if (box.dataset.scrollBound !== "true") {
+    box.addEventListener("scroll", () => {
+      if (!S.selected || S.selected.autoScrolling) return;
+      S.selected.manualHoldUntil = performance.now() + MANUAL_SCROLL_HOLD_MS;
+    }, { passive: true });
 
-      S.selected.manualHoldUntil =
-        performance.now() +
-        MANUAL_SCROLL_HOLD_MS;
-    },
-    { passive: true }
-  );
+    box.dataset.scrollBound = "true";
+  }
 }
 
-function locateTrain(S) {
-  const stops = S.selected?.stops || [];
-  const live = S.selected?.live;
 
-  if (!stops.length || !live) {
-    return null;
-  }
+function clearOperationalState() {
+  document.querySelectorAll(".lit-item").forEach(item => {
+    item.classList.remove("current", "moving", "stationed", "delayed-target");
+    item.querySelector(".pointer")?.replaceChildren();
 
-  if (live.stationed) {
-    const index = stops.findIndex(
-      stop =>
-        parentCode(stop) ===
-        String(live.stationed)
-    );
+    const time = item.querySelector(".time");
+    time?.classList.remove("delayed-text");
 
-    if (index >= 0) {
-      return {
-        type: "stationed",
-        stationIndex: index,
-        followIndex: index
-      };
+    const count = item.querySelector(".count");
+    if (count) {
+      count.textContent = "";
+      count.className = "count";
     }
-  }
-
-  if (live.nextStop) {
-    const nextIndex = stops.findIndex(
-      stop =>
-        parentCode(stop) ===
-        String(live.nextStop)
-    );
-
-    if (nextIndex >= 0) {
-      return {
-        type: "moving",
-        nextIndex,
-        previousIndex:
-          nextIndex > 0
-            ? nextIndex - 1
-            : null,
-        followIndex: nextIndex
-      };
-    }
-  }
-
-  return null;
+  });
 }
 
-function serviceTimeDiffSeconds(timeValue) {
-  if (!timeValue) return null;
 
-  const [hours, minutes, seconds = "0"] =
-    String(timeValue)
-      .split(":")
-      .map(Number);
+function updateTargetCountdown(S, location, item, stop) {
+  const count = item?.querySelector(".count");
+  const time = item?.querySelector(".time");
+  if (!count || !time || !stop || location.final) return;
 
-  if (
-    !Number.isFinite(hours) ||
-    !Number.isFinite(minutes) ||
-    !Number.isFinite(seconds)
-  ) {
-    return null;
-  }
+  const departure = stop.departure_time || stop.arrival_time;
+  const state = countdownState(departure, Date.now());
+  if (!state) return;
 
-  const now = new Date();
-  const target = new Date(now);
+  const delayed = S.selected?.live?.onTime === false;
+  const urgent = state.seconds <= countdownRedThreshold(parentCode(stop));
+  const red = delayed || state.overdue || urgent;
 
-  target.setHours(
-    hours % 24,
-    minutes,
-    seconds,
-    0
-  );
+  count.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
+  count.classList.toggle("red", red);
+  count.classList.toggle("overdue", state.overdue);
 
-  let diff = Math.floor(
-    (target.getTime() - now.getTime()) /
-    1000
-  );
+  const specialBlink =
+    location.type === "stationed" &&
+    isSpecialCountdownStation(parentCode(stop)) &&
+    !state.overdue &&
+    state.seconds <= 13;
+
+  const zeroBlink = location.type === "stationed" && state.overdue;
+  count.classList.toggle("blink", specialBlink || zeroBlink);
 
   /*
-   * Los servicios que continúan tras medianoche
-   * pueden llegar como 24:xx / 25:xx.
-   * Elegimos la ocurrencia temporal más cercana.
+   * En retraso, el rojo temporal afecta a la HORA de la estación objetivo y
+   * a su cronometría. El nombre de estación permanece en color normal.
    */
-  if (diff < -43200) diff += 86400;
-  if (diff > 43200) diff -= 86400;
-
-  return diff;
+  time.classList.toggle("delayed-text", delayed);
+  item.classList.toggle("delayed-target", delayed);
 }
 
-function clearPointers() {
-  document
-    .querySelectorAll(".lit-row")
-    .forEach(row => {
-      row.classList.remove(
-        "current-station",
-        "next-station"
-      );
-
-      row.querySelector(".pointer")
-        ?.replaceChildren();
-    });
-
-  document
-    .querySelectorAll(".inter")
-    .forEach(inter => {
-      inter.classList.remove(
-        "current-interstation"
-      );
-
-      inter.querySelector(".inter-pointer")
-        ?.replaceChildren();
-    });
-}
-
-function clearCountdowns() {
-  document
-    .querySelectorAll(".count")
-    .forEach(node => {
-      node.textContent = "";
-      node.className = "count";
-    });
-}
-
-function setTriangle(cell, moving) {
+function setPointer(item, moving) {
+  const cell = item?.querySelector(".pointer");
   if (!cell) return;
-
-  const marker =
-    document.createElement("span");
-
-  marker.className = moving
-    ? "pointer-marker moving"
-    : "pointer-marker";
-
-  marker.textContent = "▶";
-
-  cell.replaceChildren(marker);
+  cell.replaceChildren(createPointerSvg(moving));
 }
 
-function setStationTriangle(row, moving = false) {
-  setTriangle(
-    row?.querySelector(".pointer"),
-    moving
-  );
-}
+function maybeAutoScroll(S, location, force) {
+  if (!S.selected || !location) return;
 
-function setInterstationTriangle(inter) {
-  setTriangle(
-    inter?.querySelector(".inter-pointer"),
-    true
-  );
-}
+  const item = document.querySelector(`.lit-item[data-i="${location.targetIndex}"]`);
+  if (!item) return;
 
-function updateStationedCountdown(
-  stop,
-  row
-) {
-  const count = row?.querySelector(".count");
-  if (!count) return;
+  if (!force && performance.now() < (S.selected.manualHoldUntil || 0)) return;
 
-  const diff = serviceTimeDiffSeconds(
-    stop?.departure_time ||
-    stop?.arrival_time
-  );
-
-  if (diff === null) return;
-
-  const code = parentCode(stop);
-  const special =
-    SPECIAL_BLINK_THRESHOLD.has(code);
-
-  /*
-   * La cronometría solo existe con el tren estacionado.
-   * Empieza a 0:59 y permanece en 0:00 hasta que
-   * posicionamiento indique que el tren ha salido.
-   */
-  if (diff > 59) return;
-
-  if (diff >= 0) {
-    count.textContent =
-      `0:${String(diff).padStart(2, "0")}`;
-
-    if (special && diff <= 13) {
-      count.classList.add(
-        "red",
-        "blink"
-      );
-    } else if (diff <= 9) {
-      count.classList.add("red");
-    }
-
-    return;
-  }
-
-  count.textContent = "0:00";
-  count.classList.add(
-    "red",
-    "blink"
-  );
-}
-
-function followTargetNode(location) {
-  if (!location) return null;
-
-  if (location.type === "stationed") {
-    return document.querySelector(
-      `.lit-row[data-i="${location.stationIndex}"]`
-    );
-  }
-
-  if (location.previousIndex !== null) {
-    return document.querySelector(
-      `.inter[data-segment-index="${location.previousIndex}"]`
-    );
-  }
-
-  return document.querySelector(
-    `.lit-row[data-i="${location.nextIndex}"]`
-  );
-}
-
-function followKey(location) {
-  if (!location) return "none";
-
-  return location.type === "stationed"
-    ? `S:${location.stationIndex}`
-    : `M:${location.nextIndex}`;
-}
-
-function maybeAutoScroll(
-  S,
-  location,
-  force
-) {
-  if (!S.selected) return;
-
-  const node = followTargetNode(location);
-  if (!node) return;
-
-  if (
-    !force &&
-    performance.now() <
-      (S.selected.manualHoldUntil || 0)
-  ) {
-    return;
-  }
-
-  const key = followKey(location);
-
-  /*
-   * Solo se recentra cuando cambia la posición lógica
-   * (estación / próxima estación), no cada 250 ms.
-   */
-  if (
-    !force &&
-    key === S.selected.lastFollowKey
-  ) {
-    return;
-  }
+  const key = `${location.type}:${location.targetIndex}`;
+  if (!force && key === S.selected.lastFollowKey) return;
 
   S.selected.autoScrolling = true;
 
-  node.scrollIntoView({
+  item.scrollIntoView({
     block: "center",
     behavior: force ? "auto" : "smooth"
   });
@@ -596,91 +323,33 @@ function maybeAutoScroll(
   S.selected.lastFollowKey = key;
 
   setTimeout(() => {
-    if (S.selected) {
-      S.selected.autoScrolling = false;
-    }
+    if (S.selected) S.selected.autoScrolling = false;
   }, 320);
 }
 
-export function updateCurrent(
-  S,
-  forceScroll = false
-) {
+export function updateCurrent(S, forceScroll = false) {
   if (!S.selected?.stops?.length) return;
 
   const live = (S.trains || []).find(
-    train =>
-      train.circulation ===
-      S.selected.circulation
+    train => train.circulation === S.selected.circulation
   );
 
-  if (live) {
-    S.selected.live = live;
-  }
+  if (live) S.selected.live = live;
 
-  const location = locateTrain(S);
-
-  clearPointers();
-  clearCountdowns();
-
+  const location = locateOperationalTarget(S.selected.stops, S.selected.live);
+  clearOperationalState();
   if (!location) return;
 
-  if (location.type === "stationed") {
-    const row = document.querySelector(
-      `.lit-row[data-i="${location.stationIndex}"]`
-    );
+  const item = document.querySelector(`.lit-item[data-i="${location.targetIndex}"]`);
+  const stop = S.selected.stops[location.targetIndex];
 
-    row?.classList.add(
-      "current-station"
-    );
-
-    setStationTriangle(row, false);
-
-    updateStationedCountdown(
-      S.selected.stops[
-        location.stationIndex
-      ],
-      row
-    );
-  } else {
-    const nextRow =
-      document.querySelector(
-        `.lit-row[data-i="${location.nextIndex}"]`
-      );
-
-    nextRow?.classList.add(
-      "next-station"
-    );
-
-    const inter =
-      location.previousIndex !== null
-        ? document.querySelector(
-            `.inter[data-segment-index="${location.previousIndex}"]`
-          )
-        : null;
-
-    /*
-     * Posición real de la circulación:
-     * si posicionament-dels-trens indica una próxima parada,
-     * el tren está en la interestación inmediatamente anterior.
-     * El triángulo se sitúa por tanto EN la interestación,
-     * no sobre la estación siguiente.
-     */
-    if (inter) {
-      inter.classList.add(
-        "current-interstation"
-      );
-      setInterstationTriangle(inter);
-    } else {
-      setStationTriangle(nextRow, true);
-    }
+  if (item) {
+    item.classList.add("current", location.type);
+    setPointer(item, location.type === "moving");
+    updateTargetCountdown(S, location, item, stop);
   }
 
-  maybeAutoScroll(
-    S,
-    location,
-    forceScroll
-  );
+  maybeAutoScroll(S, location, forceScroll);
 }
 
 export function tickLIT(S) {

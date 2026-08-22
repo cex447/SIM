@@ -11,7 +11,6 @@ function level(percent) {
   }
 
   const value = Number(percent);
-
   if (value < 25) return "low";
   if (value < 50) return "medium";
   if (value < 75) return "high";
@@ -21,11 +20,7 @@ function level(percent) {
 export function readOccupancy(raw = {}) {
   const read = key => {
     const value = raw[`ocupacio_${key}_percent`];
-
-    if (value === null || value === undefined || value === "") {
-      return null;
-    }
-
+    if (value === null || value === undefined || value === "") return null;
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
   };
@@ -39,15 +34,14 @@ export function readOccupancy(raw = {}) {
 }
 
 export function occupancyFingerprint(occupancy) {
-  return CAR_ORDER
-    .map(([key]) => occupancy?.[key] ?? "x")
-    .join("|");
+  return CAR_ORDER.map(([key]) => occupancy?.[key] ?? "x").join("|");
 }
 
-export function updateOccupancy(container, occupancy, { compact = false } = {}) {
+export function updateOccupancy(container, occupancy, { compact = false, delayed = false } = {}) {
   if (!container) return;
 
   container.classList.toggle("occupancy-compact", compact);
+  container.classList.toggle("delayed", delayed);
 
   if (container.children.length !== CAR_ORDER.length) {
     container.replaceChildren();
@@ -66,9 +60,7 @@ export function updateOccupancy(container, occupancy, { compact = false } = {}) 
   CAR_ORDER.forEach(([key, label], index) => {
     const percent = occupancy?.[key] ?? null;
     const car = container.children[index];
-    const cls = `occ-${level(percent)}`;
-
-    car.className = `occ-car ${cls}`;
+    car.className = `occ-car occ-${level(percent)}`;
     car.dataset.value = percent === null ? "" : String(percent);
 
     parts.push(

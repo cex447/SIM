@@ -16,7 +16,6 @@ async function readManifest(url) {
     );
 
     if (!response.ok) return [];
-
     const json = await response.json();
 
     return Array.isArray(json.tracks)
@@ -47,7 +46,6 @@ async function discoverGithubRoot(audioConfig) {
     });
 
     if (!response.ok) return [];
-
     const items = await response.json();
     if (!Array.isArray(items)) return [];
 
@@ -57,9 +55,7 @@ async function discoverGithubRoot(audioConfig) {
         /\.mp3$/i.test(item.name || "") &&
         item.download_url
       )
-      .sort((a, b) =>
-        String(a.name).localeCompare(String(b.name), "es", { numeric: true })
-      )
+      .sort((a, b) => String(a.name).localeCompare(String(b.name), "es", { numeric: true }))
       .map(item => item.download_url);
   } catch {
     return [];
@@ -70,65 +66,50 @@ export class BackgroundAudio {
   constructor(audioConfig = {}) {
     this.config = audioConfig;
     this.audio = new Audio();
-    this.audio.preload = "auto";
+    this.audio.preload = "metadata";
     this.audio.playsInline = true;
 
     this.tracks = [];
     this.index = 0;
-    this.userEnabled = false;
-    this.emaPaused = false;
-    this.ready = false;
-    this.tracksLoaded = false;
-    this.loadingTracks = null;
+    this.enabledByUser = false;
+    this.megafoniaPaused = false;
+    this.loaded = false;
+    this.loadingPromise = null;
 
     this.audio.addEventListener("ended", () => this.next());
     this.audio.addEventListener("error", () => this.next());
   }
 
-  async init() {
-    /*
-     * Por defecto no suena ni se consultan los MP3.
-     * El catálogo se carga únicamente cuando el usuario pulsa SIM+.
-     */
-    this.ready = this.config?.enabled !== false;
+  init() {
+    // Preparamos silenciosamente la lista de pistas para que el primer toque
+    // sobre SIM+ pueda llamar a audio.play() dentro del gesto de usuario de iOS.
+    // No se reproduce sonido hasta que el usuario pulsa SIM+.
+    if (this.config?.enabled !== false) this.ensureTracks();
   }
 
   async ensureTracks() {
-    if (!this.ready) return [];
-    if (this.tracksLoaded) return this.tracks;
-    if (this.loadingTracks) return this.loadingTracks;
+    if (this.loaded) return;
+    if (this.loadingPromise) return this.loadingPromise;
 
-    this.loadingTracks = (async () => {
-      const manifestTracks =
-        await readManifest(this.config?.manifestUrl);
-
+    this.loadingPromise = (async () => {
+      const manifestTracks = await readManifest(this.config?.manifestUrl);
       this.tracks = manifestTracks.length
         ? manifestTracks
         : await discoverGithubRoot(this.config);
 
-      this.tracksLoaded = true;
+      this.loaded = true;
+      this.loadingPromise = null;
 
-      if (this.tracks.length) {
-        this.setTrack(0);
-      }
-
-      return this.tracks;
+      if (this.tracks.length) this.setTrack(0);
     })();
 
-    try {
-      return await this.loadingTracks;
-    } finally {
-      this.loadingTracks = null;
-    }
+    return this.loadingPromise;
   }
 
   setTrack(index) {
     if (!this.tracks.length) return;
 
-    this.index =
-      ((index % this.tracks.length) + this.tracks.length) %
-      this.tracks.length;
-
+    this.index = ((index % this.tracks.length) + this.tracks.length) % this.tracks.length;
     const nextSrc = this.tracks[this.index];
 
     if (this.audio.src !== nextSrc) {
@@ -137,59 +118,54 @@ export class BackgroundAudio {
     }
   }
 
-  async playIfAllowed() {
+  play() {
     if (
-      !this.ready ||
-      !this.userEnabled ||
-      this.emaPaused
+      this.config?.enabled === false ||
+      !this.enabledByUser ||
+      this.megafoniaPaused
     ) {
-      return false;
+      return Promise.resolve(false);
     }
 
-    await this.ensureTracks();
-
-    if (!this.tracks.length) {
-      return false;
+    if (!this.loaded) {
+      return this.ensureTracks().then(() => this.play());
     }
+
+    if (!this.tracks.length) return Promise.resolve(false);
 
     try {
-      await this.audio.play();
-      return true;
+      const result = this.audio.play();
+      return Promise.resolve(result).then(() => true).catch(() => false);
     } catch {
-      return false;
+      return Promise.resolve(false);
     }
   }
 
-  toggleByUser() {
-    if (!this.userEnabled) {
-      this.userEnabled = true;
-      return this.playIfAllowed();
-    }
-
-    if (!this.audio.paused) {
-      this.userEnabled = false;
+  async toggleByUser() {
+    if (this.enabledByUser) {
+      this.enabledByUser = false;
       this.audio.pause();
       return false;
     }
 
-    this.userEnabled = true;
-    return this.playIfAllowed();
+    this.enabledByUser = true;
+    return this.play();
   }
 
-  enterEMA() {
-    this.emaPaused = true;
+  enterMegafonia() {
+    this.megafoniaPaused = true;
     this.audio.pause();
   }
 
-  leaveEMA() {
-    this.emaPaused = false;
-    if (this.userEnabled) this.playIfAllowed();
+  leaveMegafonia() {
+    this.megafoniaPaused = false;
+    if (this.enabledByUser) this.play();
   }
 
   next() {
     if (!this.tracks.length) return;
     this.setTrack(this.index + 1);
-    if (this.userEnabled && !this.emaPaused) this.playIfAllowed();
+    if (this.enabledByUser && !this.megafoniaPaused) this.play();
   }
 
   state() {
@@ -197,8 +173,9 @@ export class BackgroundAudio {
       tracks: this.tracks.length,
       index: this.index,
       playing: !this.audio.paused,
-      userEnabled: this.userEnabled,
-      emaPaused: this.emaPaused
+      enabledByUser: this.enabledByUser,
+      megafoniaPaused: this.megafoniaPaused,
+      loaded: this.loaded
     };
   }
 }
