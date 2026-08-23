@@ -1,0 +1,34 @@
+SIM+ Beta 3.7.2 — ajustes visuales posteriores a 3.7.1
+
+BASE
+----
+Esta beta parte íntegramente de SIM-Beta-3.7.1. No introduce todavía el estimador de posición continua ni cambia la fuente operacional/GTFS-RT; conserva la máquina de estados y cronometría de 3.7.1.
+
+CAMBIOS INCORPORADOS
+--------------------
+PLASTIC
+- Horizontal: separador gris vertical entre ASCENDENTS y DESCENDENTS.
+  Usa exactamente border-left: 1px solid var(--line), el mismo grosor y color/opacidad que los separadores de circulaciones.
+- Contadores sin punto y con singular/plural: ASCENDENTS 1 UT / 2 UTs, DESCENDENTS…, y cada línea comercial.
+- En movimiento desaparece el texto “est.” pero se conserva exactamente su anchura mediante un spacer invisible; estación, flecha y destino no se desplazan respecto a una fila estacionada.
+- Flecha siempre hacia la derecha.
+- Estacionado: flecha visible y estática.
+- Movimiento: barrido/mascarilla de izquierda a derecha; no fade y no desplazamiento. La máscara cubre la flecha en 1000 ms, permanece totalmente oculta 500 ms y la revela de izquierda a derecha en 1000 ms.
+
+NAVEGACIÓN / FILTROS
+- PLASTIC, LIT, MEGAFONIA y 112/113/114/115/TOTS mantienen centrado horizontal y vertical mediante sus cajas flex; se añade una compensación óptica común al texto para evitar el apoyo visual sobre la línea base.
+
+LIT
+- Triángulo en circulación: contorno gris 50 %, transición cromática gris → fondo → gris; no se usa opacity. En modo día va hacia blanco; en modo noche hacia negro. Ciclo 1000 ms + 1000 ms.
+- Triángulo estacionado: relleno, fijo, sin fader.
+- Separadores: espaciado vertical simétrico y compacto (4 px arriba y abajo), manteniendo el ritmo visual de PLASTIC.
+
+NO INCLUIDO AÚN
+----------------
+- Estimación/interpolación/extrapolación de posición entre snapshots.
+- Integración nueva de GTFS-RT current_status/TripUpdates para inferir movimiento.
+Estos puntos siguen en investigación y se incorporarán sólo cuando estén validados.
+
+ARCHIVOS
+--------
+Sustituir/añadir todo el contenido del paquete. Conservar en el repositorio las tres fuentes Canal+ y los MP3 existentes, que no se incluyen en el ZIP.
