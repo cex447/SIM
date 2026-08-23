@@ -1,0 +1,67 @@
+SIM+ Beta 3.8.0 — consolidación tras revisión visual de Beta 3.7.2
+
+BASE
+----
+Esta beta parte íntegramente de SIM-Beta-3.7.2 y conserva su arquitectura,
+fuentes de datos, decodificación, cronometría, filtros, actualización y
+comportamiento operativo. Se incorporan las indicaciones de la revisión visual
+finalizada el 24/08/2026.
+
+CAMBIOS INCORPORADOS
+--------------------
+NAVEGACIÓN
+- Orden definitivo de módulos: PLASTIC → LIT → SIV.
+- MEGAFONIA pasa a denominarse SIV en la interfaz y en el estado interno.
+- Se mantiene LIT como vista inicial.
+- El texto de las placas/botones grises recibe una compensación óptica mayor
+  para quedar centrado horizontal y verticalmente dentro del rectángulo.
+
+PLASTIC
+- La animación de la flecha aprobada en Beta 3.7.2 se conserva sin cambios:
+  flecha fija hacia la derecha y barrido/mascarilla de izquierda a derecha
+  exclusivamente mientras el tren está en movimiento.
+- Cuando aparece “est.” (tren estacionado), la flecha NO se muestra.
+  Su caja queda reservada de forma invisible para que el resto de la fila no
+  cambie de posición entre estado estacionado y movimiento.
+- La ocupación se representa con exactamente 3 cuadros/coches. Los dos campos
+  centrales históricos de FGC (MI/RI) se condensan en un único coche central
+  para conservar la información disponible.
+- Filtros de líneas y UTs alineados por una retícula común en vertical:
+  L6↔112, S1↔113, S2↔114, L7↔115; L12/TOTS completan la quinta columna.
+- En horizontal se conserva la fila compacta de filtros y el separador vertical
+  entre ASCENDENTS y DESCENDENTS con exactamente el mismo 1 px / var(--line)
+  que los separadores horizontales de circulaciones.
+- Los mensajes multilínea de ausencia de circulaciones usan un interlineado
+  más compacto.
+
+LIT
+- El campo de circulación queda centrado horizontalmente respecto a la columna
+  de horas y alineado verticalmente con el campo de UT/ocupación de cabecera.
+- Los separadores grises entre una interestación y la estación siguiente quedan
+  visualmente centrados, con espacio simétrico arriba y abajo.
+- Se elimina el antiguo fader del triángulo.
+- Tren estacionado: triángulo equilátero relleno, apuntando hacia abajo,
+  estático y gris 50 %.
+- Tren en movimiento: triángulo equilátero de contorno, apuntando hacia abajo,
+  que se desplaza físicamente desde la altura de la hora de la estación que se
+  acaba de dejar hasta la altura de la hora de la siguiente estación.
+- El símbolo completo se desplaza: sin fade, sin cortinilla y sin mascarilla.
+- La velocidad vertical es constante y toma como referencia el tempo visual de
+  la flecha de PLASTIC. Añadir líneas de interestación aumenta el tiempo total
+  del recorrido, no la velocidad del triángulo.
+- Con retraso: el triángulo pasa a rojo. En movimiento, contorno rojo; detenido,
+  triángulo relleno rojo.
+
+CONSERVADO DE BETA 3.7.2
+------------------------
+- Contadores ASCENDENTS/DESCENDENTS y por línea con “1 UT / n UTs”, sin punto.
+- Reserva exacta del ancho de “est.” cuando el tren está en movimiento.
+- Flecha PLASTIC siempre hacia la derecha en ambos sentidos ferroviarios.
+- Cronometrías, rojo y parpadeo especial de PC/MN/TT/SR.
+- Tema día/noche, tipografía, API, GTFS y lógica de selección existentes.
+
+ARCHIVOS
+--------
+El ZIP contiene todo el proyecto necesario para sustituir la Beta 3.7.2,
+excepto las fuentes Canal+ y los MP3 del repositorio, que se conservan donde ya
+están y no se redistribuyen en este paquete.
