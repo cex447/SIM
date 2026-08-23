@@ -1,23 +1,23 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.8.0";
+} from "./fgc-api.js?v=3.10.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.8.0";
+} from "./plastic.js?v=3.10.0";
 
 import {
   clearLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.8.0";
+} from "./lit.js?v=3.10.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.8.0";
-import { BackgroundAudio } from "./audio.js?v=3.8.0";
+import { updateOccupancy } from "./occupancy.js?v=3.10.0";
+import { BackgroundAudio } from "./audio.js?v=3.10.0";
 
 const S = {
   config: null,
@@ -86,8 +86,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.8.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.8.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.10.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.10.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -105,6 +105,7 @@ function hideQueryMeta() {
   $("#queryStatus").hidden = true;
   $("#queryUnit").hidden = true;
   $("#queryOccupancy").hidden = true;
+  $("#queryDelay").hidden = true;
 }
 
 function renderQuery() {
@@ -112,6 +113,7 @@ function renderQuery() {
   const status = $("#queryStatus");
   const unit = $("#queryUnit");
   const occupancy = $("#queryOccupancy");
+  const delay = $("#queryDelay");
   const input = $("#circulationInput");
 
   input.classList.remove("delayed-text");
@@ -129,6 +131,7 @@ function renderQuery() {
     status.hidden = false;
     unit.hidden = true;
     occupancy.hidden = true;
+    delay.hidden = true;
     return;
   }
 
@@ -137,6 +140,7 @@ function renderQuery() {
     status.hidden = false;
     unit.hidden = true;
     occupancy.hidden = true;
+    delay.hidden = true;
     return;
   }
 
@@ -154,6 +158,11 @@ function renderQuery() {
   updateOccupancy(occupancy, train.occupancy, {
     delayed: train.onTime === false
   });
+
+  /* El valor +N de LIT lo actualiza lit.js cada segundo con el contexto
+     operacional de la circulación. Aquí solo fijamos su visibilidad base. */
+  delay.hidden = train.onTime !== false;
+  if (delay.hidden) delay.textContent = "";
 
   if (train.onTime === false) {
     input.classList.add("delayed-text");
@@ -447,7 +456,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.8.0",
+      "SIM+ Beta 3.10.0",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,

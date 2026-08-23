@@ -1,11 +1,11 @@
-import { getTripBundle } from "./gtfs.js?v=3.8.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.8.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.8.0";
+import { getTripBundle } from "./gtfs.js?v=3.10.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.10.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.10.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.8.0";
+} from "./operations.js?v=3.10.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -281,7 +281,9 @@ function updateWhere(model, train) {
     model.where.appendChild(reservedArrow);
 
     model.where.appendChild(document.createTextNode(" "));
-    appendStation(model.where, train.destination);
+    /* El destino final estacionado se mantiene en la misma columna visual,
+       pero se diferencia entre paréntesis. */
+    appendStation(model.where, train.destination ? `(${train.destination})` : "(—)");
     return;
   }
 
@@ -343,12 +345,28 @@ function updateOriginCountdown(model, train) {
     return;
   }
 
-  const threshold = countdownRedThreshold(train.origin);
-  const red = train.onTime === false || state.overdue || state.seconds <= threshold;
+  const delayedByPositioning = train.onTime === false;
 
   model.countdown.hidden = false;
-  model.countdown.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
   model.countdown.className = "plastic-countdown";
+
+  if (delayedByPositioning) {
+    /*
+     * PLASTIC: el modo retraso se activa EXCLUSIVAMENTE por el bit/flag de
+     * posicionament-dels-trens (en_hora=false). El valor mostrado es el
+     * retraso transcurrido en minutos enteros respecto a la salida programada.
+     * No se muestra ningún segundo.
+     */
+    const delayMinutes = Math.max(0, Math.floor(Math.max(0, -state.diffMs) / 60000));
+    model.countdown.textContent = `+${delayMinutes}`;
+    model.countdown.classList.add("red", "delay-minutes");
+    return;
+  }
+
+  const threshold = countdownRedThreshold(train.origin);
+  const red = state.overdue || state.seconds <= threshold;
+
+  model.countdown.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
   model.countdown.classList.toggle("red", red);
   model.countdown.classList.toggle("overdue", state.overdue);
 }
@@ -449,7 +467,8 @@ function reconcileDirection(S, direction, trains) {
 }
 
 export function renderPLASTIC(S) {
-  const filtered = (S.trains || [])
+  const allTrains = (S.trains || []).slice().sort(sortTrains);
+  const filtered = allTrains
     .filter(train => passesFilters(S, train))
     .sort(sortTrains);
 
@@ -457,14 +476,41 @@ export function renderPLASTIC(S) {
   const desc = filtered.filter(train => !train.ascending);
   const empty = emptyMessage(S);
 
-  setEmpty("asc", asc.length === 0, empty);
-  setEmpty("desc", desc.length === 0, empty);
+  /*
+   * “SENSE SERVEI COMERCIAL” solo corresponde a ausencia real de servicio
+   * BV tras una consulta válida; no se activa porque un filtro deje 0 filas.
+   */
+  const noCommercialService =
+    Boolean(S.lastFetch) && !S.lastError && allTrains.length === 0;
 
-  reconcileDirection(S, "asc", asc);
-  reconcileDirection(S, "desc", desc);
+  const directions = document.querySelector(".plastic-directions");
+  const ascDirection = document.querySelector("#ascDirection");
+  const descDirection = document.querySelector("#descDirection");
+  const ascLabel = document.querySelector("#ascLabel");
+  const ascCount = document.querySelector("#ascCount");
 
-  document.querySelector("#ascCount").textContent = unitCountText(asc.length);
-  document.querySelector("#descCount").textContent = unitCountText(desc.length);
+  directions?.classList.toggle("no-service", noCommercialService);
+  if (ascLabel) ascLabel.textContent = noCommercialService
+    ? "SENSE SERVEI COMERCIAL"
+    : "ASCENDENTS";
+  if (ascCount) ascCount.hidden = noCommercialService;
+  if (ascDirection) ascDirection.hidden = false;
+  if (descDirection) descDirection.hidden = noCommercialService;
+
+  if (noCommercialService) {
+    setEmpty("asc", false, "");
+    setEmpty("desc", false, "");
+    reconcileDirection(S, "asc", []);
+    reconcileDirection(S, "desc", []);
+  } else {
+    setEmpty("asc", asc.length === 0, empty);
+    setEmpty("desc", desc.length === 0, empty);
+    reconcileDirection(S, "asc", asc);
+    reconcileDirection(S, "desc", desc);
+
+    document.querySelector("#ascCount").textContent = unitCountText(asc.length);
+    document.querySelector("#descCount").textContent = unitCountText(desc.length);
+  }
 
   const status = document.querySelector("#plasticStatus");
   status.textContent = statusText(S, filtered.length);

@@ -1,29 +1,31 @@
-import { getTripBundle } from "./gtfs.js?v=3.8.0";
+import { getTripBundle } from "./gtfs.js?v=3.10.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.8.0";
+} from "./time.js?v=3.10.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.8.0";
+} from "./operations.js?v=3.10.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /*
- * La animación aprobada de la flecha de PLASTIC usa un ciclo de 2500 ms.
- * En LIT trasladamos ese mismo tempo visual a una velocidad lineal constante:
- * una distancia visual de referencia de 36 px se recorre en 2500 ms. Así, añadir
- * líneas de interestación aumenta el tiempo de recorrido, nunca la velocidad.
+ * El indicador móvil de LIT conserva velocidad lineal constante, pero desde
+ * Beta 3.10.0 circula al doble de velocidad que en 3.8.0. El número de líneas
+ * de interestación solo modifica la duración total del recorrido, nunca la
+ * velocidad del triángulo.
  */
 const PLASTIC_ARROW_REFERENCE_MS = 2500;
 const LIT_REFERENCE_TRAVEL_PX = 36;
+const LIT_POINTER_SPEED_MULTIPLIER = 2;
 const LIT_POINTER_SPEED_PX_PER_SECOND =
-  LIT_REFERENCE_TRAVEL_PX / (PLASTIC_ARROW_REFERENCE_MS / 1000);
+  (LIT_REFERENCE_TRAVEL_PX / (PLASTIC_ARROW_REFERENCE_MS / 1000)) *
+  LIT_POINTER_SPEED_MULTIPLIER;
 
 const $ = selector => document.querySelector(selector);
 
@@ -107,19 +109,27 @@ function collectTechnicalLines(segment, context) {
 
 function createPointerSvg({ moving = false, delayed = false } = {}) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", "0 0 18 20");
+  svg.setAttribute("viewBox", moving ? "0 0 18 20" : "0 0 20 18");
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add("pointer-marker");
   if (moving) svg.classList.add("moving");
   if (delayed) svg.classList.add("delayed");
 
   const polygon = document.createElementNS(SVG_NS, "polygon");
-  /* Triángulo equilátero visual, siempre apuntando hacia abajo. */
-  polygon.setAttribute("points", "1,2 17,2 9,18");
+
+  if (moving) {
+    /* En marcha: triángulo de contorno apuntando hacia abajo. */
+    polygon.setAttribute("points", "1,2 17,2 9,18");
+    polygon.setAttribute("fill", "none");
+  } else {
+    /* Estacionado: triángulo relleno apuntando hacia la derecha. */
+    polygon.setAttribute("points", "2,1 18,9 2,17");
+    polygon.setAttribute("fill", "currentColor");
+  }
+
   polygon.setAttribute("stroke", "currentColor");
   polygon.setAttribute("stroke-width", "2");
   polygon.setAttribute("stroke-linejoin", "round");
-  polygon.setAttribute("fill", moving ? "none" : "currentColor");
 
   svg.appendChild(polygon);
   return svg;
@@ -233,8 +243,8 @@ function setMovingPointer(targetIndex, delayed) {
     {
       duration,
       easing: "linear",
-      fill: "forwards",
-      iterations: 1
+      fill: "none",
+      iterations: Infinity
     }
   );
 }
@@ -421,6 +431,48 @@ function updateTargetCountdown(S, location, item, stop) {
   item.classList.toggle("delayed-target", delayed);
 }
 
+
+function updateHeaderDelay(S, location) {
+  const delay = $("#queryDelay");
+  if (!delay) return;
+
+  const delayed = S.selected?.live?.onTime === false;
+  if (!delayed || !location || location.final) {
+    delay.hidden = true;
+    delay.textContent = "";
+    return;
+  }
+
+  const stop = S.selected?.stops?.[location.targetIndex];
+  if (!stop) {
+    delay.hidden = true;
+    delay.textContent = "";
+    return;
+  }
+
+  /*
+   * Igual que en PLASTIC, +N solo existe si posicionament-dels-trens
+   * marca en_hora=false y se expresa exclusivamente en minutos enteros.
+   * En marcha usamos la llegada prevista de la estación objetivo; estando
+   * estacionado usamos su salida prevista. Así evitamos convertir el tiempo
+   * normal de recorrido de la interestación en falso retraso.
+   */
+  const reference = location.type === "moving"
+    ? (stop.arrival_time || stop.departure_time)
+    : (stop.departure_time || stop.arrival_time);
+  const state = countdownState(reference, Date.now());
+
+  if (!state) {
+    delay.hidden = true;
+    delay.textContent = "";
+    return;
+  }
+
+  const minutes = Math.max(0, Math.floor(Math.max(0, -state.diffMs) / 60000));
+  delay.textContent = `+${minutes}`;
+  delay.hidden = false;
+}
+
 function maybeAutoScroll(S, location, force) {
   if (!S.selected || !location) return;
 
@@ -461,12 +513,15 @@ export function updateCurrent(S, forceScroll = false) {
   if (!location) {
     clearStationPointers();
     removeMovingPointer();
+    updateHeaderDelay(S, null);
     return;
   }
 
   const item = document.querySelector(`.lit-item[data-i="${location.targetIndex}"]`);
   const stop = S.selected.stops[location.targetIndex];
   const delayed = S.selected?.live?.onTime === false;
+
+  updateHeaderDelay(S, location);
 
   if (item) {
     item.classList.add("current", location.type);
