@@ -187,7 +187,8 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   border-radius:0;
   background:transparent;
   color:var(--fg);
-  padding:0 0 3px;
+  /* Separación visual código↔línea: ~2 grosores de la línea de 1 px. */
+  padding:0 0 2px;
   outline:none;
   font-size:var(--lit-size);
   font-weight:700;
@@ -206,7 +207,7 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   overflow:hidden;
   padding-bottom:0;
 }
-.query-status,.query-unit{
+.query-status,.query-unit,.query-delay{
   color:var(--fg);
   font-size:var(--lit-size);
   font-weight:700;
@@ -216,6 +217,7 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   font-variant-numeric:tabular-nums;
 }
 .query-occupancy{ transform:translateY(1px); }
+.query-delay{ color:var(--red); }
 .delayed-text{ color:var(--red) !important; }
 
 html[data-view="plastic"] .query-bar,
@@ -505,6 +507,7 @@ main{ min-height:0; overflow:hidden; }
    PLASTIC · CIRCULACIONES
    ========================================================= */
 .plastic-directions{ display:block; }
+.plastic-directions.no-service{ display:block; }
 .plastic-direction{ min-width:0; }
 .plastic-direction + .plastic-direction{ margin-top:22px; }
 .direction-title{
@@ -637,6 +640,7 @@ main{ min-height:0; overflow:hidden; }
   color:var(--fg);
 }
 .plastic-countdown.red{ color:var(--red); }
+.plastic-countdown.delay-minutes{ font-variant-numeric:tabular-nums; }
 .empty{
   padding:5px 0;
   color:var(--muted);
@@ -781,7 +785,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
   .query-bar{ min-height:var(--query-row-h); }
   #circulationInput{ font-size:var(--lit-size); padding-bottom:2px; }
   .query-meta{ min-height:var(--query-row-h); padding-bottom:0; gap:15px; }
-  .query-status,.query-unit{ font-size:var(--lit-size); }
+  .query-status,.query-unit,.query-delay{ font-size:var(--lit-size); }
   .occ-car{ width:12px; height:10px; }
 
   .view{
@@ -847,6 +851,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
     gap:0;
     align-items:start;
   }
+  .plastic-directions.no-service{ display:block; }
   .plastic-direction:first-child{ padding-right:12px; }
   .plastic-direction + .plastic-direction{
     margin-top:0;
