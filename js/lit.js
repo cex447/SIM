@@ -1,21 +1,35 @@
-import { getTripBundle } from "./gtfs.js?v=3.7.2";
+import { getTripBundle } from "./gtfs.js?v=3.8.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.7.2";
+} from "./time.js?v=3.8.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.7.2";
+} from "./operations.js?v=3.8.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
+/*
+ * La animación aprobada de la flecha de PLASTIC usa un ciclo de 2500 ms.
+ * En LIT trasladamos ese mismo tempo visual a una velocidad lineal constante:
+ * una distancia visual de referencia de 36 px se recorre en 2500 ms. Así, añadir
+ * líneas de interestación aumenta el tiempo de recorrido, nunca la velocidad.
+ */
+const PLASTIC_ARROW_REFERENCE_MS = 2500;
+const LIT_REFERENCE_TRAVEL_PX = 36;
+const LIT_POINTER_SPEED_PX_PER_SECOND =
+  LIT_REFERENCE_TRAVEL_PX / (PLASTIC_ARROW_REFERENCE_MS / 1000);
+
 const $ = selector => document.querySelector(selector);
 
+let movingPointerLayer = null;
+let movingPointerAnimation = null;
+let movingPointerKey = "";
 
 function stationName(stop) {
   return String(stop?.stop_name || stop?.stop_id || "")
@@ -60,9 +74,8 @@ function collectTechnicalLines(segment, context) {
   const lines = [];
 
   /*
-   * Preparado para la futura señalización: cuando exista segment.signaling,
-   * se renderizará como PRIMERA línea técnica, alineada con el código/vía.
-   * Mientras no haya datos, no se reserva ninguna línea vacía.
+   * Cuando exista segment.signaling se renderiza como PRIMERA línea técnica,
+   * alineada con el código/vía. Si no hay dato, no se reserva una línea vacía.
    */
   const signaling = Array.isArray(segment.signaling)
     ? segment.signaling
@@ -92,15 +105,17 @@ function collectTechnicalLines(segment, context) {
   return lines;
 }
 
-function createPointerSvg(moving) {
+function createPointerSvg({ moving = false, delayed = false } = {}) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", "0 0 20 18");
+  svg.setAttribute("viewBox", "0 0 18 20");
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add("pointer-marker");
   if (moving) svg.classList.add("moving");
+  if (delayed) svg.classList.add("delayed");
 
   const polygon = document.createElementNS(SVG_NS, "polygon");
-  polygon.setAttribute("points", "1,1 19,9 1,17");
+  /* Triángulo equilátero visual, siempre apuntando hacia abajo. */
+  polygon.setAttribute("points", "1,2 17,2 9,18");
   polygon.setAttribute("stroke", "currentColor");
   polygon.setAttribute("stroke-width", "2");
   polygon.setAttribute("stroke-linejoin", "round");
@@ -108,6 +123,120 @@ function createPointerSvg(moving) {
 
   svg.appendChild(polygon);
   return svg;
+}
+
+function clearStationPointers() {
+  document.querySelectorAll(".lit-item .pointer").forEach(cell => {
+    cell.replaceChildren();
+  });
+}
+
+function removeMovingPointer() {
+  movingPointerAnimation?.cancel();
+  movingPointerAnimation = null;
+  movingPointerLayer?.remove();
+  movingPointerLayer = null;
+  movingPointerKey = "";
+}
+
+function setStationaryPointer(item, delayed) {
+  removeMovingPointer();
+  clearStationPointers();
+
+  const cell = item?.querySelector(".pointer");
+  if (!cell) return;
+  cell.replaceChildren(createPointerSvg({ moving: false, delayed }));
+}
+
+function movingPointerGeometry(targetIndex) {
+  const route = $("#litRoute");
+  if (!route) return null;
+
+  const targetCell = document.querySelector(
+    `.lit-item[data-i="${targetIndex}"] .pointer`
+  );
+
+  const fromIndex = Math.max(0, targetIndex - 1);
+  const fromCell = document.querySelector(
+    `.lit-item[data-i="${fromIndex}"] .pointer`
+  );
+
+  if (!targetCell || !fromCell) return null;
+
+  const routeRect = route.getBoundingClientRect();
+  const fromRect = fromCell.getBoundingClientRect();
+  const targetRect = targetCell.getBoundingClientRect();
+
+  const startX = fromRect.left + fromRect.width / 2 - routeRect.left;
+  const startY = fromRect.top + fromRect.height / 2 - routeRect.top;
+  const endY = targetRect.top + targetRect.height / 2 - routeRect.top;
+
+  return {
+    route,
+    fromIndex,
+    startX,
+    startY,
+    distance: endY - startY
+  };
+}
+
+function setMovingPointer(targetIndex, delayed) {
+  clearStationPointers();
+
+  const geometry = movingPointerGeometry(targetIndex);
+  if (!geometry) {
+    removeMovingPointer();
+    return;
+  }
+
+  const roundedDistance = Math.round(geometry.distance * 10) / 10;
+  const key = `${geometry.fromIndex}:${targetIndex}:${roundedDistance}`;
+
+  if (movingPointerLayer && movingPointerKey === key) {
+    movingPointerLayer
+      .querySelector(".pointer-marker")
+      ?.classList.toggle("delayed", delayed);
+    return;
+  }
+
+  removeMovingPointer();
+
+  const layer = document.createElement("div");
+  layer.className = "lit-moving-pointer";
+  layer.setAttribute("aria-hidden", "true");
+  layer.style.left = `${geometry.startX}px`;
+  layer.style.top = `${geometry.startY}px`;
+
+  const marker = createPointerSvg({ moving: true, delayed });
+  layer.appendChild(marker);
+  geometry.route.appendChild(layer);
+
+  movingPointerLayer = layer;
+  movingPointerKey = key;
+
+  const distance = Math.max(0, geometry.distance);
+  const duration = Math.max(
+    350,
+    (distance / LIT_POINTER_SPEED_PX_PER_SECOND) * 1000
+  );
+
+  if (distance <= 0 || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    marker.style.transform = `translate3d(0, ${distance}px, 0)`;
+    return;
+  }
+
+  movingPointerAnimation = marker.animate(
+    [
+      { transform: "translate3d(0, 0, 0)" },
+      { transform: `translate3d(0, ${distance}px, 0)` }
+    ],
+    {
+      duration,
+      easing: "linear",
+      fill: "forwards",
+      iterations: 1
+    }
+  );
 }
 
 function createStationItem(S, stop, nextStop, index, isLast) {
@@ -186,6 +315,7 @@ function createStationItem(S, stop, nextStop, index, isLast) {
 }
 
 export function clearLIT(S) {
+  removeMovingPointer();
   $("#litRoute")?.replaceChildren();
   if (S.selected) S.selected = null;
 }
@@ -202,7 +332,7 @@ export async function loadLIT(S, circulation, liveTrain) {
     stops: [],
     lastFollowKey: null,
     manualHoldUntil: 0,
-    autoScrolling: false,
+    autoScrolling: false
   };
 
   const bundle = await getTripBundle(S.config.gtfsZipIndexUrl, liveTrain.id);
@@ -224,6 +354,7 @@ function render(S) {
   const fragment = document.createDocumentFragment();
   const stops = S.selected?.stops || [];
 
+  removeMovingPointer();
   box.replaceChildren();
 
   stops.forEach((stop, index) => {
@@ -244,11 +375,9 @@ function render(S) {
   }
 }
 
-
 function clearOperationalState() {
   document.querySelectorAll(".lit-item").forEach(item => {
     item.classList.remove("current", "moving", "stationed", "delayed-target");
-    item.querySelector(".pointer")?.replaceChildren();
 
     const time = item.querySelector(".time");
     time?.classList.remove("delayed-text");
@@ -260,7 +389,6 @@ function clearOperationalState() {
     }
   });
 }
-
 
 function updateTargetCountdown(S, location, item, stop) {
   const count = item?.querySelector(".count");
@@ -288,18 +416,9 @@ function updateTargetCountdown(S, location, item, stop) {
   const zeroBlink = location.type === "stationed" && state.overdue;
   count.classList.toggle("blink", specialBlink || zeroBlink);
 
-  /*
-   * En retraso, el rojo temporal afecta a la HORA de la estación objetivo y
-   * a su cronometría. El nombre de estación permanece en color normal.
-   */
+  /* En retraso, hora objetivo y cronometría rojas; nombre normal. */
   time.classList.toggle("delayed-text", delayed);
   item.classList.toggle("delayed-target", delayed);
-}
-
-function setPointer(item, moving) {
-  const cell = item?.querySelector(".pointer");
-  if (!cell) return;
-  cell.replaceChildren(createPointerSvg(moving));
 }
 
 function maybeAutoScroll(S, location, force) {
@@ -338,14 +457,26 @@ export function updateCurrent(S, forceScroll = false) {
 
   const location = locateOperationalTarget(S.selected.stops, S.selected.live);
   clearOperationalState();
-  if (!location) return;
+
+  if (!location) {
+    clearStationPointers();
+    removeMovingPointer();
+    return;
+  }
 
   const item = document.querySelector(`.lit-item[data-i="${location.targetIndex}"]`);
   const stop = S.selected.stops[location.targetIndex];
+  const delayed = S.selected?.live?.onTime === false;
 
   if (item) {
     item.classList.add("current", location.type);
-    setPointer(item, location.type === "moving");
+
+    if (location.type === "moving") {
+      setMovingPointer(location.targetIndex, delayed);
+    } else {
+      setStationaryPointer(item, delayed);
+    }
+
     updateTargetCountdown(S, location, item, stop);
   }
 

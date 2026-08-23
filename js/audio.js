@@ -72,7 +72,7 @@ export class BackgroundAudio {
     this.tracks = [];
     this.index = 0;
     this.enabledByUser = false;
-    this.megafoniaPaused = false;
+    this.sivPaused = false;
     this.loaded = false;
     this.loadingPromise = null;
 
@@ -122,7 +122,7 @@ export class BackgroundAudio {
     if (
       this.config?.enabled === false ||
       !this.enabledByUser ||
-      this.megafoniaPaused
+      this.sivPaused
     ) {
       return Promise.resolve(false);
     }
@@ -152,20 +152,20 @@ export class BackgroundAudio {
     return this.play();
   }
 
-  enterMegafonia() {
-    this.megafoniaPaused = true;
+  enterSIV() {
+    this.sivPaused = true;
     this.audio.pause();
   }
 
-  leaveMegafonia() {
-    this.megafoniaPaused = false;
+  leaveSIV() {
+    this.sivPaused = false;
     if (this.enabledByUser) this.play();
   }
 
   next() {
     if (!this.tracks.length) return;
     this.setTrack(this.index + 1);
-    if (this.enabledByUser && !this.megafoniaPaused) this.play();
+    if (this.enabledByUser && !this.sivPaused) this.play();
   }
 
   state() {
@@ -174,7 +174,7 @@ export class BackgroundAudio {
       index: this.index,
       playing: !this.audio.paused,
       enabledByUser: this.enabledByUser,
-      megafoniaPaused: this.megafoniaPaused,
+      sivPaused: this.sivPaused,
       loaded: this.loaded
     };
   }

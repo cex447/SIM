@@ -1,11 +1,11 @@
-import { getTripBundle } from "./gtfs.js?v=3.7.2";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.7.2";
-import { countdownState, formatCountdown } from "./time.js?v=3.7.2";
+import { getTripBundle } from "./gtfs.js?v=3.8.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.8.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.8.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.7.2";
+} from "./operations.js?v=3.8.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -271,7 +271,15 @@ function updateWhere(model, train) {
     model.where.appendChild(document.createTextNode(" "));
     appendStation(model.where, train.stationed);
     model.where.appendChild(document.createTextNode(" "));
-    appendRouteArrow(model.where, false);
+
+    /*
+     * Estacionado: no se muestra flecha. Conservamos exactamente su caja
+     * para que la estación de destino no cambie de posición al pasar a marcha.
+     */
+    const reservedArrow = make("span", "route-arrow route-arrow-placeholder", "→");
+    reservedArrow.setAttribute("aria-hidden", "true");
+    model.where.appendChild(reservedArrow);
+
     model.where.appendChild(document.createTextNode(" "));
     appendStation(model.where, train.destination);
     return;

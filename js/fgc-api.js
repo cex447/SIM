@@ -1,4 +1,4 @@
-import { readOccupancy } from "./occupancy.js?v=3.7.2";
+import { readOccupancy } from "./occupancy.js?v=3.8.0";
 
 const FAMILY_BY_CODE = Object.freeze({
   "6f2": "A",

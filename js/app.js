@@ -1,23 +1,23 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.7.2";
+} from "./fgc-api.js?v=3.8.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.7.2";
+} from "./plastic.js?v=3.8.0";
 
 import {
   clearLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.7.2";
+} from "./lit.js?v=3.8.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.7.2";
-import { BackgroundAudio } from "./audio.js?v=3.7.2";
+import { updateOccupancy } from "./occupancy.js?v=3.8.0";
+import { BackgroundAudio } from "./audio.js?v=3.8.0";
 
 const S = {
   config: null,
@@ -86,8 +86,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.7.2", { cache: "no-store" }),
-    fetch("data/network.json?v=3.7.2", { cache: "no-store" })
+    fetch("data/config.json?v=3.8.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.8.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -304,10 +304,10 @@ async function activateView(name, { clearQuery = true } = {}) {
     view.classList.toggle("active", view.id === `view-${name}`);
   });
 
-  if (name === "megafonia") {
-    audio?.enterMegafonia();
+  if (name === "siv") {
+    audio?.enterSIV();
   } else {
-    audio?.leaveMegafonia();
+    audio?.leaveSIV();
   }
 
   if (name === "plastic") renderPLASTIC(S);
@@ -447,7 +447,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.7.2",
+      "SIM+ Beta 3.8.0",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
