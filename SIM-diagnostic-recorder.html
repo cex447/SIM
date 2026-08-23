@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>SIM+ Diagnòstic</title>
+<style>
+  :root{color-scheme:dark;--bg:#000;--fg:#fff;--mid:#888;--dim:#555;--red:#ff2b2b;--line:#555}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif}
+  body{min-height:100vh;padding:calc(env(safe-area-inset-top) + 18px) calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 22px) calc(env(safe-area-inset-left) + 18px)}
+  main{max-width:900px;margin:0 auto}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}
+  h1{font-size:21px;line-height:1;margin:0;font-weight:800;font-style:italic;letter-spacing:.02em}
+  #clock{font-variant-numeric:tabular-nums;font-size:19px;font-weight:700}
+  .intro{font-size:14px;line-height:1.45;color:#ccc;margin:0 0 16px}
+  .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:0 0 14px}
+  .cell{background:var(--bg);padding:10px 11px;min-width:0}
+  .label{font-size:10px;color:var(--mid);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+  .value{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .controls{display:grid;grid-template-columns:1.6fr .7fr;gap:10px;margin-bottom:10px}
+  select,input,button{appearance:none;-webkit-appearance:none;border-radius:0;border:1px solid #666;background:#000;color:#fff;font:inherit;min-height:44px}
+  select,input{width:100%;padding:0 12px;font-size:16px}
+  button{font-weight:800;font-style:italic;letter-spacing:.02em;padding:0 14px;touch-action:manipulation}
+  button.primary{background:#fff;color:#000;border-color:#fff}
+  button.stop{background:var(--red);border-color:var(--red);color:#fff}
+  button:disabled{opacity:.35}
+  .buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .source{border-top:1px solid var(--line);padding:10px 0;display:grid;grid-template-columns:150px 1fr auto;gap:8px;align-items:baseline;font-size:13px}
+  .source .name{font-weight:800;font-style:italic}
+  .source .detail{color:#bbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ok{color:#9cff9c}.bad{color:var(--red)}.idle{color:var(--mid)}
+  #live{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+  #liveTitle{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:7px}
+  #liveTitle strong{font-style:italic}
+  .train{display:grid;grid-template-columns:60px 84px 88px 1fr 72px;gap:8px;padding:6px 0;border-top:1px solid #292929;font-size:13px;align-items:baseline}
+  .train:first-child{border-top:0}
+  .train .circ{font-weight:800}.train .state{font-weight:700}.train .coords{color:#999;font-variant-numeric:tabular-nums}.train .delta{text-align:right;font-variant-numeric:tabular-nums}
+  #events{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  #events h2{font-size:13px;font-style:italic;margin:0 0 8px}
+  #eventList{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.45;color:#bbb;max-height:220px;overflow:auto;white-space:pre-wrap}
+  .note{font-size:12px;color:#aaa;line-height:1.4;margin-top:12px}
+  @media(max-width:700px){
+    .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .buttons{grid-template-columns:repeat(2,1fr)}
+    .controls{grid-template-columns:1fr 110px}
+    .source{grid-template-columns:112px 1fr}.source .stamp{display:none}
+    .train{grid-template-columns:50px 72px 66px 1fr 52px;font-size:12px;gap:5px}.train .coords{display:none}
+  }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>SIM+ DIAGNÒSTIC</h1><div id="clock">--:--:--</div></header>
+  <p class="intro">Registrador independent. No modifica SIM+. Mantén Safari en primer pla durant una arribada, parada i sortida. El registre guarda totes les circulacions BV; el selector només decideix quina es destaca en pantalla.</p>
+
+  <section class="grid">
+    <div class="cell"><div class="label">Estat</div><div class="value" id="recState">ATURAT</div></div>
+    <div class="cell"><div class="label">Durada</div><div class="value" id="elapsed">00:00</div></div>
+    <div class="cell"><div class="label">Mostres POS</div><div class="value" id="sampleCount">0</div></div>
+    <div class="cell"><div class="label">BV actives</div><div class="value" id="activeCount">–</div></div>
+  </section>
+
+  <section class="controls">
+    <select id="focus"><option value="">TOTES LES CIRCULACIONS</option></select>
+    <select id="interval" aria-label="Interval"><option value="2000">2 s</option><option value="3000" selected>3 s</option><option value="5000">5 s</option></select>
+  </section>
+
+  <section class="buttons">
+    <button id="loadBtn">CARREGAR</button>
+    <button id="startBtn" class="primary">REGISTRAR</button>
+    <button id="stopBtn" class="stop" disabled>ATURAR</button>
+    <button id="exportBtn" disabled>EXPORTAR</button>
+  </section>
+
+  <section>
+    <div class="source"><div class="name">POSICIONAMENT</div><div class="detail" id="posDetail">sense consulta</div><div class="stamp idle" id="posState">–</div></div>
+    <div class="source"><div class="name">VEHICLE RT</div><div class="detail" id="vehDetail">sense consulta</div><div class="stamp idle" id="vehState">–</div></div>
+    <div class="source"><div class="name">TRIP UPDATE</div><div class="detail" id="tripDetail">sense consulta</div><div class="stamp idle" id="tripState">–</div></div>
+  </section>
+
+  <section id="live">
+    <div id="liveTitle"><strong>POSICIONS BV</strong><span id="lastLocal">–</span></div>
+    <div id="trainList"></div>
+  </section>
+
+  <section id="events"><h2>CANVIS DETECTATS</h2><div id="eventList">Encara no hi ha canvis.</div></section>
+  <p class="note">Durant la prova no bloquegis l’iPhone ni canviïs d’app. Si iOS suspèn Safari, el registrador ho anotarà. L’exportació és un únic JSON sense fonts ni recursos privats.</p>
+</main>
+<script>
+'use strict';
+
+const POS_V2='https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=100';
+const POS_V1='https://dadesobertes.fgc.cat/api/records/1.0/search/?dataset=posicionament-dels-trens&rows=100';
+const VEH_META_V2='https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/vehicle-positions-gtfs_realtime/records?limit=1';
+const TRIP_META_V2='https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/trip-updates-gtfs_realtime/records?limit=1';
+const VEH_META_V1='https://dadesobertes.fgc.cat/api/records/1.0/search/?dataset=vehicle-positions-gtfs_realtime&rows=1';
+const TRIP_META_V1='https://dadesobertes.fgc.cat/api/records/1.0/search/?dataset=trip-updates-gtfs_realtime&rows=1';
+
+const familyMap={'6f2':'A','6c2':'B','622':'L','6a2':'D','682':'F'};
+const lineMap={A:'L6',B:'L7',L:'L12',D:'S1',F:'S2'};
+const d1Map={'7e':'0','6e':'1','5e':'2','4e':'3','3e':'4','2e':'5','1e':'6','0e':'7'};
+const d2Map={'30':'0','20':'1','10':'2','00':'3','70':'4','60':'5','50':'6','40':'7','b0':'8','a0':'9'};
+const d3Map={'2':'0','3':'1','0':'2','1':'3','6':'4','7':'5','4':'6','5':'7','a':'8','b':'9'};
+
+const S={
+  recording:false, startEpoch:null, endEpoch:null, seq:0, posSamples:[], rtSamples:[], events:[],
+  lastByTrip:new Map(), lastVehicleHeader:null, lastTripHeader:null, wakeLock:null,
+  posTimer:null, rtTimer:null, nextPosDue:0, nextRtDue:0, posBusy:false, rtBusy:false,
+  sourceUrls:{vehicle:null,trip:null}
+};
+
+const $=id=>document.getElementById(id);
+const nowIso=()=>new Date().toISOString();
+const localHms=(ms=Date.now())=>new Date(ms).toLocaleTimeString('ca-ES',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function fmtElapsed(ms){const s=Math.max(0,Math.floor(ms/1000));return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function addTs(url){return url+(url.includes('?')?'&':'?')+'_ts='+Date.now()}
+
+function isBvTripId(tripId){const s=String(tripId||'');const i=s.indexOf('|');return i>0&&s.slice(0,i).startsWith('6c4bdae')}
+function decodeCirc(tripId){
+  if(!isBvTripId(tripId))return null;
+  const tail=String(tripId||'').split('|').pop();
+  if(!tail||tail.length<10)return null;
+  const fam=familyMap[tail.slice(0,3)];
+  const a=d1Map[tail.slice(5,7)], b=d2Map[tail.slice(7,9)], c=d3Map[tail.slice(9,10)];
+  return fam&&a!==undefined&&b!==undefined&&c!==undefined ? fam+a+b+c : null;
+}
+function routeFromCirc(c){return c?lineMap[c[0]]||'':''}
+function normalizeResults(j){
+  if(Array.isArray(j)) return j;
+  if(Array.isArray(j?.results)) return j.results;
+  if(Array.isArray(j?.records)) return j.records.map(r=>r.fields||r);
+  return [];
+}
+function firstNext(v){
+  if(v==null)return null;
+  let x=v;
+  if(typeof x==='string'){
+    const s=x.trim();
+    if(!s)return null;
+    if(s[0]==='['){try{x=JSON.parse(s)}catch(_){} }
+    if(typeof x==='string') return x.split(/[,;|]/)[0].trim()||null;
+  }
+  if(Array.isArray(x)) x=x[0];
+  if(x&&typeof x==='object') return x.stop_id||x.id||x.codi||x.code||x.nom||x.name||JSON.stringify(x);
+  return x==null?null:String(x);
+}
+function coordsOf(r){
+  const g=r?.geo_point_2d ?? r?.geopoint ?? r?.position;
+  if(Array.isArray(g)&&g.length>=2)return {lat:+g[0],lon:+g[1]};
+  if(g&&typeof g==='object'){
+    const lat=g.lat??g.latitude??g.y, lon=g.lon??g.lng??g.longitude??g.x;
+    if(Number.isFinite(+lat)&&Number.isFinite(+lon))return {lat:+lat,lon:+lon};
+  }
+  const lat=r?.lat??r?.latitude, lon=r?.lon??r?.lng??r?.longitude;
+  return Number.isFinite(+lat)&&Number.isFinite(+lon)?{lat:+lat,lon:+lon}:null;
+}
+function hav(a,b){
+  if(!a||!b)return null; const R=6371000, rad=Math.PI/180;
+  const p1=a.lat*rad,p2=b.lat*rad,dp=(b.lat-a.lat)*rad,dl=(b.lon-a.lon)*rad;
+  const h=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2*R*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+function compactPos(r){
+  const trip=String(r.id??r.trip_id??'');
+  const circ=decodeCirc(trip);
+  const c=coordsOf(r);
+  return {
+    trip_id:trip,circulation:circ,line:routeFromCirc(circ)||r.lin||r.linia||null,
+    dir:r.dir??r.direccio??null,origen:r.origen??null,desti:r.desti??r.destino??null,
+    estacionat_a:(r.estacionat_a===undefined?null:r.estacionat_a),
+    next_stop:firstNext(r.properes_parades??r.proximes_parades??r.next_stops),
+    lat:c?.lat??null,lon:c?.lon??null,en_hora:r.en_hora??null,
+    ut:r.ut??r.ud??r.vehicle_id??null,tipus_unitat:r.tipus_unitat??null
+  };
+}
+function isBV(p){return !!p.circulation}
+
+async function fetchJsonTry(urls){
+  let last;
+  for(const u of urls){
+    try{
+      const t0=performance.now(), e0=Date.now();
+      const res=await fetch(addTs(u),{cache:'no-store',headers:{'Accept':'application/json'}});
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const j=await res.json();
+      return {json:j,url:u,latency_ms:Math.round(performance.now()-t0),request_epoch:e0,response_epoch:Date.now(),headers:{date:res.headers.get('date'),etag:res.headers.get('etag'),last_modified:res.headers.get('last-modified')}};
+    }catch(e){last=e}
+  }
+  throw last||new Error('No response');
+}
+
+async function fetchPositioning(){
+  const out=await fetchJsonTry([POS_V2,POS_V1]);
+  const rows=normalizeResults(out.json).map(compactPos).filter(isBV).sort((a,b)=>(a.circulation||'').localeCompare(b.circulation||''));
+  return {...out,rows};
+}
+
+function extractFileUrl(j){
+  for(const r of normalizeResults(j)){
+    const f=r.file??r.fields?.file;
+    if(f?.url)return f.url;
+    if(typeof f==='string'){try{const o=JSON.parse(f);if(o?.url)return o.url}catch(_){}}
+  }
+  return null;
+}
+async function resolveRtUrls(force=false){
+  if(!force&&S.sourceUrls.vehicle&&S.sourceUrls.trip)return;
+  try{const r=await fetchJsonTry([VEH_META_V2,VEH_META_V1]);S.sourceUrls.vehicle=extractFileUrl(r.json)||S.sourceUrls.vehicle}catch(_){ }
+  try{const r=await fetchJsonTry([TRIP_META_V2,TRIP_META_V1]);S.sourceUrls.trip=extractFileUrl(r.json)||S.sourceUrls.trip}catch(_){ }
+}
+
+// Minimal GTFS-Realtime protobuf reader: only the standard fields needed by this diagnostic.
+function readVarint(b,o){let x=0n,s=0n,p=o;while(p<b.length){const c=BigInt(b[p++]);x|=(c&127n)<<s;if((c&128n)===0n)return [Number(x),p];s+=7n;if(s>70n)throw new Error('varint')};throw new Error('eof varint')}
+function readKey(b,o){const [k,p]=readVarint(b,o);return [k>>>3,k&7,p]}
+function readLen(b,o){const [n,p]=readVarint(b,o);return [b.subarray(p,p+n),p+n]}
+function skipField(b,o,w){if(w===0)return readVarint(b,o)[1];if(w===1)return o+8;if(w===2){const [n,p]=readVarint(b,o);return p+n}if(w===5)return o+4;throw new Error('wire '+w)}
+function text(b){return new TextDecoder().decode(b)}
+function f32(b,o){return new DataView(b.buffer,b.byteOffset+o,4).getFloat32(0,true)}
+function parseHeader(b){let o=0,t=null;while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if(f===3&&w===0){[t,o]=readVarint(b,o)}else o=skipField(b,o,w)}return t}
+function parseTripDesc(b){let o=0,r={trip_id:null,start_date:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===3)&&w===2){let s;[s,o]=readLen(b,o);if(f===1)r.trip_id=text(s);else r.start_date=text(s)}else o=skipField(b,o,w)}return r}
+function parsePosition(b){let o=0,r={lat:null,lon:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===2)&&w===5){const v=f32(b,o);o+=4;if(f===1)r.lat=v;else r.lon=v}else o=skipField(b,o,w)}return r}
+function parseVehicleDesc(b){let o=0,r={id:null,label:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===2)&&w===2){let s;[s,o]=readLen(b,o);if(f===1)r.id=text(s);else r.label=text(s)}else o=skipField(b,o,w)}return r}
+function parseVehicle(b){let o=0,r={trip:null,position:null,current_status:null,timestamp:null,stop_id:null,vehicle:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===2||f===8)&&w===2){let s;[s,o]=readLen(b,o);if(f===1)r.trip=parseTripDesc(s);else if(f===2)r.position=parsePosition(s);else r.vehicle=parseVehicleDesc(s)}else if((f===4||f===5)&&w===0){let v;[v,o]=readVarint(b,o);if(f===4)r.current_status=v;else r.timestamp=v}else if(f===7&&w===2){let s;[s,o]=readLen(b,o);r.stop_id=text(s)}else o=skipField(b,o,w)}return r}
+function parseStopEvent(b){let o=0,r={time:null,delay:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===2)&&w===0){let v;[v,o]=readVarint(b,o);if(f===1)r.delay=v;else r.time=v}else o=skipField(b,o,w)}return r}
+function parseStopUpdate(b){let o=0,r={stop_id:null,arrival:null,departure:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===2||f===3)&&w===2){let s;[s,o]=readLen(b,o);if(f===2)r.arrival=parseStopEvent(s);else r.departure=parseStopEvent(s)}else if(f===4&&w===2){let s;[s,o]=readLen(b,o);r.stop_id=text(s)}else o=skipField(b,o,w)}return r}
+function parseTripUpdate(b){let o=0,r={trip:null,stops:[],vehicle:null,timestamp:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===2||f===3)&&w===2){let s;[s,o]=readLen(b,o);if(f===1)r.trip=parseTripDesc(s);else if(f===2)r.stops.push(parseStopUpdate(s));else r.vehicle=parseVehicleDesc(s)}else if(f===4&&w===0){[r.timestamp,o]=readVarint(b,o)}else o=skipField(b,o,w)}return r}
+function parseEntity(b){let o=0,r={id:null,vehicle:null,trip_update:null};while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if(f===1&&w===2){let s;[s,o]=readLen(b,o);r.id=text(s)}else if((f===3||f===4)&&w===2){let s;[s,o]=readLen(b,o);if(f===3)r.trip_update=parseTripUpdate(s);else r.vehicle=parseVehicle(s)}else o=skipField(b,o,w)}return r}
+function parseFeed(ab){const b=new Uint8Array(ab);let o=0,header_timestamp=null,entities=[];while(o<b.length){let f,w;[f,w,o]=readKey(b,o);if((f===1||f===2)&&w===2){let s;[s,o]=readLen(b,o);if(f===1)header_timestamp=parseHeader(s);else entities.push(parseEntity(s))}else o=skipField(b,o,w)}return {header_timestamp,entities}}
+function statusName(v){return v===0?'INCOMING_AT':v===1?'STOPPED_AT':v===2?'IN_TRANSIT_TO':v==null?null:String(v)}
+async function fetchPb(url){
+  const t0=performance.now(),e0=Date.now();
+  const res=await fetch(addTs(url),{cache:'no-store',headers:{'Accept':'application/x-protobuf,application/octet-stream,*/*'}});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const ab=await res.arrayBuffer();
+  const parsed=parseFeed(ab);
+  return {parsed,bytes:ab.byteLength,latency_ms:Math.round(performance.now()-t0),request_epoch:e0,response_epoch:Date.now(),headers:{date:res.headers.get('date'),etag:res.headers.get('etag'),last_modified:res.headers.get('last-modified')}};
+}
+function compactVehicleEntity(e){
+  const v=e.vehicle;if(!v?.trip?.trip_id)return null;const circ=decodeCirc(v.trip.trip_id);if(!circ)return null;
+  return {trip_id:v.trip.trip_id,circulation:circ,status:statusName(v.current_status),stop_id:v.stop_id,timestamp:v.timestamp,lat:v.position?.lat??null,lon:v.position?.lon??null,vehicle_id:v.vehicle?.id??null,vehicle_label:v.vehicle?.label??null};
+}
+function compactTripEntity(e){
+  const t=e.trip_update;if(!t?.trip?.trip_id)return null;const circ=decodeCirc(t.trip.trip_id);if(!circ)return null;
+  return {trip_id:t.trip.trip_id,circulation:circ,start_date:t.trip.start_date,timestamp:t.timestamp,vehicle_id:t.vehicle?.id??null,stops:t.stops.map(s=>({stop_id:s.stop_id,arrival:s.arrival?.time??null,departure:s.departure?.time??null}))};
+}
+
+function event(msg,kind='info',epoch=Date.now()){
+  const e={epoch,iso:new Date(epoch).toISOString(),message:msg,kind};S.events.push(e);
+  if(S.events.length>1000)S.events.shift(); renderEvents();
+}
+function renderEvents(){
+  const a=S.events.slice(-35).reverse(); $('eventList').textContent=a.length?a.map(e=>localHms(e.epoch)+'  '+e.message).join('\n'):'Encara no hi ha canvis.';
+}
+function setSource(which,ok,detail,stamp){
+  $(which+'Detail').textContent=detail; const el=$(which+'State');el.textContent=stamp|| (ok?'OK':'ERROR');el.className='stamp '+(ok?'ok':'bad');
+}
+function updateFocusOptions(rows){
+  const sel=$('focus'),old=sel.value; const opts=['<option value="">TOTES LES CIRCULACIONS</option>'];
+  for(const r of rows)opts.push(`<option value="${r.trip_id.replaceAll('&','&amp;').replaceAll('"','&quot;')}">${r.circulation} · ${r.line||''} · ${r.origen||'?'}→${r.desti||'?'}</option>`);
+  sel.innerHTML=opts.join(''); if([...sel.options].some(o=>o.value===old))sel.value=old;
+}
+function renderTrains(rows){
+  const focus=$('focus').value; const show=focus?rows.filter(r=>r.trip_id===focus):rows;
+  $('activeCount').textContent=rows.length; $('lastLocal').textContent=localHms();
+  $('trainList').innerHTML=show.map(r=>{
+    const prev=S.lastByTrip.get(r.trip_id), d=prev?haversafe(prev,r):null;
+    const stationary=r.estacionat_a?`EST. ${r.estacionat_a}`:`→ ${r.next_stop||'?'}`;
+    return `<div class="train"><div class="circ">${r.circulation}</div><div>${r.line||''}</div><div class="state">${stationary}</div><div class="coords">${r.lat==null?'–':r.lat.toFixed(6)+', '+r.lon.toFixed(6)}</div><div class="delta">${d==null?'–':d.toFixed(1)+' m'}</div></div>`
+  }).join('')||'<div class="note">No hi ha cap circulació BV visible en aquesta consulta.</div>';
+}
+function haversafe(a,b){return hav(a.lat==null?null:{lat:a.lat,lon:a.lon},b.lat==null?null:{lat:b.lat,lon:b.lon})}
+
+function annotateChanges(rows,epoch){
+  for(const r of rows){
+    const p=S.lastByTrip.get(r.trip_id); const d=p?haversafe(p,r):null;
+    r.delta_m=d==null?null:+d.toFixed(3);
+    if(p){
+      const was=p.estacionat_a?`EST:${p.estacionat_a}`:`MOV:${p.next_stop||'?'}`;
+      const now=r.estacionat_a?`EST:${r.estacionat_a}`:`MOV:${r.next_stop||'?'}`;
+      if(was!==now)event(`${r.circulation}  ${was} → ${now}`,'state',epoch);
+      if(d!=null&&d>=1 && p.estacionat_a && r.estacionat_a===p.estacionat_a) event(`${r.circulation}  coordenada +${d.toFixed(1)} m mentre estacionat_a=${r.estacionat_a}`,'geo',epoch);
+    }
+  }
+  const currentIds=new Set(rows.map(r=>r.trip_id));
+  for(const [id,p] of S.lastByTrip){if(!currentIds.has(id))event(`${p.circulation}  desapareix del posicionament`,'gone',epoch)}
+  S.lastByTrip=new Map(rows.map(r=>[r.trip_id,{...r}]));
+}
+
+async function pollPos(manual=false){
+  if(S.posBusy)return; S.posBusy=true;
+  try{
+    const out=await fetchPositioning();
+    const epoch=out.response_epoch; annotateChanges(out.rows,epoch); renderTrains(out.rows); updateFocusOptions(out.rows);
+    setSource('pos',true,`${out.rows.length} BV · ${out.latency_ms} ms`,localHms(epoch));
+    if(S.recording){
+      S.seq++; S.posSamples.push({seq:S.seq,request_epoch:out.request_epoch,response_epoch:out.response_epoch,request_iso:new Date(out.request_epoch).toISOString(),response_iso:new Date(out.response_epoch).toISOString(),latency_ms:out.latency_ms,endpoint:out.url,http:out.headers,trains:out.rows});
+      $('sampleCount').textContent=S.posSamples.length;
+    }
+  }catch(e){setSource('pos',false,String(e.message||e),'ERROR');if(S.recording)event('POS ERROR: '+(e.message||e),'error')}
+  finally{S.posBusy=false}
+}
+async function pollRt(){
+  if(S.rtBusy)return;S.rtBusy=true;
+  const snap={epoch:Date.now(),iso:nowIso(),vehicle:null,trip_updates:null};
+  try{
+    await resolveRtUrls(false);
+    if(!S.sourceUrls.vehicle||!S.sourceUrls.trip)throw new Error('No s’han resolt les URL .pb');
+    try{
+      const o=await fetchPb(S.sourceUrls.vehicle); const h=o.parsed.header_timestamp; const bv=o.parsed.entities.map(compactVehicleEntity).filter(Boolean);
+      snap.vehicle={header_timestamp:h,header_iso:h?new Date(h*1000).toISOString():null,bytes:o.bytes,latency_ms:o.latency_ms,request_epoch:o.request_epoch,response_epoch:o.response_epoch,http:o.headers,trains:bv};
+      setSource('veh',true,`${bv.length} BV · feed ${h?localHms(h*1000):'?'} · ${o.latency_ms} ms`,h?localHms(h*1000):'OK');
+      if(S.recording&&h&&S.lastVehicleHeader&&h!==S.lastVehicleHeader)event(`VEHICLE RT nou feed: ${localHms(h*1000)}`,'rt');
+      if(h)S.lastVehicleHeader=h;
+    }catch(e){snap.vehicle={error:String(e.message||e)};setSource('veh',false,String(e.message||e),'ERROR')}
+    try{
+      const o=await fetchPb(S.sourceUrls.trip); const h=o.parsed.header_timestamp; const bv=o.parsed.entities.map(compactTripEntity).filter(Boolean);
+      snap.trip_updates={header_timestamp:h,header_iso:h?new Date(h*1000).toISOString():null,bytes:o.bytes,latency_ms:o.latency_ms,request_epoch:o.request_epoch,response_epoch:o.response_epoch,http:o.headers,trips:bv};
+      setSource('trip',true,`${bv.length} BV · feed ${h?localHms(h*1000):'?'} · ${o.latency_ms} ms`,h?localHms(h*1000):'OK');
+      if(S.recording&&h&&S.lastTripHeader&&h!==S.lastTripHeader)event(`TRIP UPDATE nou feed: ${localHms(h*1000)}`,'rt');
+      if(h)S.lastTripHeader=h;
+    }catch(e){snap.trip_updates={error:String(e.message||e)};setSource('trip',false,String(e.message||e),'ERROR')}
+    if(S.recording)S.rtSamples.push(snap);
+  }catch(e){setSource('veh',false,String(e.message||e),'ERROR');setSource('trip',false,String(e.message||e),'ERROR');if(S.recording)event('RT ERROR: '+(e.message||e),'error')}
+  finally{S.rtBusy=false}
+}
+
+function schedulePos(){
+  if(!S.recording)return; const interval=+$('interval').value; const now=performance.now();
+  if(!S.nextPosDue)S.nextPosDue=now; const wait=Math.max(0,S.nextPosDue-now);
+  S.posTimer=setTimeout(async()=>{const started=performance.now();await pollPos();S.nextPosDue+=interval;if(S.nextPosDue<started)S.nextPosDue=performance.now();schedulePos()},wait);
+}
+function scheduleRt(){
+  if(!S.recording)return; const interval=5000,now=performance.now();
+  if(!S.nextRtDue)S.nextRtDue=now; const wait=Math.max(0,S.nextRtDue-now);
+  S.rtTimer=setTimeout(async()=>{const started=performance.now();await pollRt();S.nextRtDue+=interval;if(S.nextRtDue<started)S.nextRtDue=performance.now();scheduleRt()},wait);
+}
+async function acquireWake(){try{if('wakeLock'in navigator)S.wakeLock=await navigator.wakeLock.request('screen')}catch(e){event('Wake Lock no disponible: '+(e.message||e),'warn')}}
+async function start(){
+  if(S.recording)return; S.recording=true;S.startEpoch=Date.now();S.endEpoch=null;S.seq=0;S.posSamples=[];S.rtSamples=[];S.events=[];S.lastByTrip=new Map();S.nextPosDue=performance.now();S.nextRtDue=performance.now();
+  $('recState').textContent='REGISTRANT';$('startBtn').disabled=true;$('stopBtn').disabled=false;$('exportBtn').disabled=true;$('loadBtn').disabled=true;$('interval').disabled=true;
+  event('Inici del registre','start',S.startEpoch);await acquireWake();schedulePos();scheduleRt();
+}
+function stop(){
+  if(!S.recording)return;S.recording=false;S.endEpoch=Date.now();clearTimeout(S.posTimer);clearTimeout(S.rtTimer);S.posTimer=S.rtTimer=null;
+  $('recState').textContent='ATURAT';$('startBtn').disabled=false;$('stopBtn').disabled=true;$('exportBtn').disabled=S.posSamples.length===0;$('loadBtn').disabled=false;$('interval').disabled=false;
+  event('Fi del registre','stop',S.endEpoch);try{S.wakeLock?.release()}catch(_){}S.wakeLock=null;
+}
+function fileStamp(ms){const d=new Date(ms),p=n=>String(n).padStart(2,'0');return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())}
+async function exportLog(){
+  const payload={format:'SIM+ diagnostic recorder',version:1,created_at:nowIso(),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone||null,user_agent:navigator.userAgent,config:{positioning_interval_ms:+$('interval').value,realtime_interval_ms:5000},session:{start_epoch:S.startEpoch,start_iso:S.startEpoch?new Date(S.startEpoch).toISOString():null,end_epoch:S.endEpoch||Date.now(),end_iso:new Date(S.endEpoch||Date.now()).toISOString()},source_urls:S.sourceUrls,events:S.events,positioning_samples:S.posSamples,realtime_samples:S.rtSamples};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const name='sim-diagnostic-'+fileStamp(S.startEpoch||Date.now())+'.json'; const file=new File([blob],name,{type:'application/json'});
+  try{if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'SIM+ diagnòstic'});return}}catch(e){if(e?.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000);
+}
+
+$('loadBtn').addEventListener('click',async()=>{await pollPos(true);await pollRt()});
+$('startBtn').addEventListener('click',start);$('stopBtn').addEventListener('click',stop);$('exportBtn').addEventListener('click',exportLog);
+$('focus').addEventListener('change',async()=>{try{const out=await fetchPositioning();renderTrains(out.rows)}catch(_){}});
+document.addEventListener('visibilitychange',()=>{if(S.recording)event('Safari '+(document.hidden?'passa a segon pla':'torna a primer pla'),'visibility')});
+window.addEventListener('offline',()=>{if(S.recording)event('Sense connexió','network')});window.addEventListener('online',()=>{if(S.recording)event('Connexió recuperada','network')});
+setInterval(()=>{$('clock').textContent=localHms();if(S.startEpoch)$('elapsed').textContent=fmtElapsed((S.recording?Date.now():S.endEpoch||Date.now())-S.startEpoch)},250);
+$('clock').textContent=localHms();
+</script>
+</body>
+</html>
