@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#000000">
   <title>SIM+</title>
-  <link rel="stylesheet" href="css/sim.css?v=3.8.0">
+  <link rel="stylesheet" href="css/sim.css?v=3.10.0">
 </head>
 <body>
 <div id="app">
@@ -36,6 +36,7 @@
         <span id="queryStatus" class="query-status" hidden></span>
         <span id="queryUnit" class="query-unit" hidden></span>
         <span id="queryOccupancy" class="query-occupancy occupancy" hidden></span>
+        <span id="queryDelay" class="query-delay" hidden></span>
       </div>
     </div>
   </header>
@@ -58,13 +59,13 @@
       <div id="plasticStatus" class="plastic-status" aria-live="polite">ESPERANT DADES</div>
 
       <div class="plastic-directions">
-        <section class="plastic-direction">
-          <h2 class="direction-title">ASCENDENTS <span id="ascCount" class="direction-count">0 UTs</span></h2>
+        <section id="ascDirection" class="plastic-direction">
+          <h2 class="direction-title"><span id="ascLabel">ASCENDENTS</span> <span id="ascCount" class="direction-count">0 UTs</span></h2>
           <div id="ascList"></div>
           <div id="ascEmpty" class="empty" hidden></div>
         </section>
 
-        <section class="plastic-direction">
+        <section id="descDirection" class="plastic-direction">
           <h2 class="direction-title">DESCENDENTS <span id="descCount" class="direction-count">0 UTs</span></h2>
           <div id="descList"></div>
           <div id="descEmpty" class="empty" hidden></div>
@@ -93,6 +94,6 @@
   </dialog>
 </div>
 
-<script type="module" src="js/app.js?v=3.8.0"></script>
+<script type="module" src="js/app.js?v=3.10.0"></script>
 </body>
 </html>

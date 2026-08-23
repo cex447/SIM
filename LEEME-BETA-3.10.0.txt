@@ -1,0 +1,14 @@
+SIM+ · BETA 3.10.0
+
+Cambios respecto a Beta 3.9.0
+--------------------------------
+- LIT: se añade el retraso +N inmediatamente después de la ocupación de la UT.
+- El retraso solo se muestra cuando posicionament-dels-trens informa en_hora=false.
+- El retraso se expresa únicamente en minutos enteros, sin segundos.
+- UT, ocupación y retraso comparten exactamente el mismo gap horizontal unificado de la fila.
+- En circulación, la referencia temporal es la llegada prevista a la estación objetivo; estacionado, la salida prevista de la estación actual.
+- Se conservan íntegramente las correcciones y comportamiento de Beta 3.9.0.
+
+Nota
+----
+SIM+ sigue utilizando las fuentes FGC y las reglas de filtrado/decodificación ya establecidas para Barcelona-Vallès.
