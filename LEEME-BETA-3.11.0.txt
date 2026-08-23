@@ -1,0 +1,25 @@
+SIM+ · BETA 3.11.0
+
+Cambios respecto a Beta 3.10.0
+--------------------------------
+- Se integra el icono oficial de SIM+ suministrado por el usuario.
+- Se añade favicon para las pestañas y favoritos del navegador.
+- Se añaden favicon PNG 16×16, 32×32 y 48×48.
+- Se añade apple-touch-icon de 180×180 para iPhone/iPad.
+- Se añade manifest web con iconos 192×192 y 512×512 para accesos instalables/PWA.
+- Se mantienen íntegramente todas las funciones y modificaciones de Beta 3.10.0.
+
+Archivos de icono
+-----------------
+assets/icons/favicon.ico
+assets/icons/favicon-16x16.png
+assets/icons/favicon-32x32.png
+assets/icons/favicon-48x48.png
+assets/icons/apple-touch-icon.png
+assets/icons/icon-192.png
+assets/icons/icon-512.png
+site.webmanifest
+
+Nota iOS
+--------
+Safari puede conservar en caché iconos de favoritos o accesos ya creados. Si un acceso antiguo mantiene el icono anterior, elimínalo y vuelve a añadirlo después de publicar esta versión.
