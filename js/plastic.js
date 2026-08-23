@@ -1,11 +1,11 @@
-import { getTripBundle } from "./gtfs.js?v=3.7.1";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.7.1";
-import { countdownState, formatCountdown } from "./time.js?v=3.7.1";
+import { getTripBundle } from "./gtfs.js?v=3.7.2";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.7.2";
+import { countdownState, formatCountdown } from "./time.js?v=3.7.2";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.7.1";
+} from "./operations.js?v=3.7.2";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -112,7 +112,8 @@ function lineButton(S, family) {
 }
 
 function unitButton(S, series) {
-  const button = make("button", "text-filter ut-filter dimmed", series);
+  const button = make("button", "text-filter ut-filter dimmed");
+  button.appendChild(make("span", "plate-label", series));
   button.type = "button";
   button.dataset.series = series;
   button.setAttribute("aria-pressed", "false");
@@ -156,6 +157,10 @@ export function wirePLASTIC(S, { onSelectTrain } = {}) {
   syncFilterVisuals(S);
 }
 
+function unitCountText(count) {
+  return `${count} ${count === 1 ? "UT" : "UTs"}`;
+}
+
 function groupKey(direction, family) {
   return `${direction}:${family}`;
 }
@@ -189,7 +194,7 @@ function ensureLineGroup(S, direction, family) {
     fallback.hidden = false;
   });
 
-  const count = make("span", "line-group-count", "· 0");
+  const count = make("span", "line-group-count", "0 UTs");
   heading.append(image, fallback, count);
 
   const rows = make("div", "plastic-line-rows");
@@ -252,6 +257,12 @@ function appendStation(where, code) {
   where.appendChild(make("strong", "station-token", code || "—"));
 }
 
+function appendRouteArrow(where, moving) {
+  const arrow = make("span", `route-arrow${moving ? " moving" : ""}`, "→");
+  arrow.setAttribute("aria-hidden", "true");
+  where.appendChild(arrow);
+}
+
 function updateWhere(model, train) {
   model.where.replaceChildren();
 
@@ -259,15 +270,20 @@ function updateWhere(model, train) {
     model.where.appendChild(make("strong", "state-token", "est."));
     model.where.appendChild(document.createTextNode(" "));
     appendStation(model.where, train.stationed);
-    model.where.appendChild(document.createTextNode(" → "));
+    model.where.appendChild(document.createTextNode(" "));
+    appendRouteArrow(model.where, false);
+    model.where.appendChild(document.createTextNode(" "));
     appendStation(model.where, train.destination);
     return;
   }
 
-  model.where.appendChild(make("strong", "state-token", "dir."));
+  // En movimiento se oculta “est.”, pero se conserva exactamente su anchura.
+  model.where.appendChild(make("strong", "state-token state-spacer", "est."));
   model.where.appendChild(document.createTextNode(" "));
   appendStation(model.where, train.nextStop);
-  model.where.appendChild(document.createTextNode(" → "));
+  model.where.appendChild(document.createTextNode(" "));
+  appendRouteArrow(model.where, true);
+  model.where.appendChild(document.createTextNode(" "));
   appendStation(model.where, train.destination);
 }
 
@@ -384,7 +400,7 @@ function statusText(S, count) {
 
   if (!S.lastFetch) return "ESPERANT DADES";
 
-  return `ACTUALITZAT ${S.lastFetch.toLocaleTimeString("es-ES", { hour12: false })} · ${count} UT`;
+  return `ACTUALITZAT ${S.lastFetch.toLocaleTimeString("es-ES", { hour12: false })} · ${unitCountText(count)}`;
 }
 
 function reconcileDirection(S, direction, trains) {
@@ -396,7 +412,7 @@ function reconcileDirection(S, direction, trains) {
   for (const family of FAMILY_ORDER) {
     const lineTrains = grouped.get(family);
     const group = ensureLineGroup(S, direction, family);
-    group.count.textContent = `· ${lineTrains.length}`;
+    group.count.textContent = unitCountText(lineTrains.length);
 
     if (!lineTrains.length) {
       group.group.hidden = true;
@@ -439,8 +455,8 @@ export function renderPLASTIC(S) {
   reconcileDirection(S, "asc", asc);
   reconcileDirection(S, "desc", desc);
 
-  document.querySelector("#ascCount").textContent = `· ${asc.length}`;
-  document.querySelector("#descCount").textContent = `· ${desc.length}`;
+  document.querySelector("#ascCount").textContent = unitCountText(asc.length);
+  document.querySelector("#descCount").textContent = unitCountText(desc.length);
 
   const status = document.querySelector("#plasticStatus");
   status.textContent = statusText(S, filtered.length);
