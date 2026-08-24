@@ -3,8 +3,19 @@
   "gtfsZipIndexUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/gtfs_zip/records?limit=20",
   "refreshMs": 5000,
   "requestTimeoutMs": 8000,
-  "allowedLines": ["S1", "S2", "L6", "L7", "L12"],
-  "allowedUnitSeries": ["112", "113", "114", "115"],
+  "allowedLines": [
+    "S1",
+    "S2",
+    "L6",
+    "L7",
+    "L12"
+  ],
+  "allowedUnitSeries": [
+    "112",
+    "113",
+    "114",
+    "115"
+  ],
   "idPrefix": "6c4bdae",
   "udPrefix": "1f2cc",
   "lineAssets": {
@@ -20,5 +31,12 @@
     "githubOwner": "cex447",
     "githubRepo": "SIM",
     "githubBranch": "main"
+  },
+  "isic": {
+    "enabled": true,
+    "urlTemplate": "https://geotren.fgc.cat/isic/{station}",
+    "refreshMs": 5000,
+    "timeoutMs": 5000,
+    "staleMs": 30000
   }
 }
