@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.10.0";
+import { getTripBundle } from "./gtfs.js?v=3.12.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.10.0";
+} from "./time.js?v=3.12.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.10.0";
+} from "./operations.js?v=3.12.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -109,7 +109,8 @@ function collectTechnicalLines(segment, context) {
 
 function createPointerSvg({ moving = false, delayed = false } = {}) {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("viewBox", moving ? "0 0 18 20" : "0 0 20 18");
+  svg.setAttribute("viewBox", "0 0 18 18");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
   svg.setAttribute("aria-hidden", "true");
   svg.classList.add("pointer-marker");
   if (moving) svg.classList.add("moving");
@@ -117,19 +118,24 @@ function createPointerSvg({ moving = false, delayed = false } = {}) {
 
   const polygon = document.createElementNS(SVG_NS, "polygon");
 
+  /*
+   * Geometría estrictamente equilátera. Con lado 14, la altura es
+   * 14·√3/2 = 12,124355..., por lo que los tres ángulos son 60°.
+   */
   if (moving) {
-    /* En marcha: triángulo de contorno apuntando hacia abajo. */
-    polygon.setAttribute("points", "1,2 17,2 9,18");
+    /* En marcha: triángulo equilátero de contorno apuntando hacia abajo. */
+    polygon.setAttribute("points", "2,2 16,2 9,14.12435565");
     polygon.setAttribute("fill", "none");
   } else {
-    /* Estacionado: triángulo relleno apuntando hacia la derecha. */
-    polygon.setAttribute("points", "2,1 18,9 2,17");
+    /* Estacionado: triángulo equilátero relleno apuntando hacia la derecha. */
+    polygon.setAttribute("points", "2,2 14.12435565,9 2,16");
     polygon.setAttribute("fill", "currentColor");
   }
 
   polygon.setAttribute("stroke", "currentColor");
-  polygon.setAttribute("stroke-width", "2");
-  polygon.setAttribute("stroke-linejoin", "round");
+  polygon.setAttribute("stroke-width", "1.8");
+  polygon.setAttribute("stroke-linejoin", "miter");
+  polygon.setAttribute("shape-rendering", "geometricPrecision");
 
   svg.appendChild(polygon);
   return svg;

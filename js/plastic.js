@@ -1,11 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.10.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.10.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.10.0";
+import { getTripBundle } from "./gtfs.js?v=3.12.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.12.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.12.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.10.0";
+} from "./operations.js?v=3.12.0";
+import {
+  cachedOriginPlatform,
+  resolveOriginPlatform
+} from "./platform.js?v=3.12.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -13,7 +17,7 @@ const familyRank = new Map(FAMILY_ORDER.map((family, index) => [family, index]))
 
 const rowNodes = new Map();
 const lineGroups = new Map();
-const originScheduleCache = new Map();
+const tripContextCache = new Map();
 let onSelectTrainHandler = null;
 
 function make(tag, className, text) {
@@ -215,11 +219,25 @@ function createTrainRow(direction, train) {
   const unit = make("span", "train-unit");
   const circulation = make("span", "train-circulation");
   const occupancy = make("span", "occupancy occupancy-compact");
-  const where = make("span", "train-where");
+  const state = make("span", "train-state state-token");
+  const current = make("span", "train-current station-token");
+  const arrow = make("span", "route-arrow");
+  arrow.setAttribute("aria-hidden", "true");
+  const destination = make("span", "train-destination");
+  const operational = make("span", "plastic-operational");
   const countdown = make("span", "plastic-countdown");
-  countdown.hidden = true;
 
-  row.append(unit, circulation, occupancy, where, countdown);
+  row.append(
+    unit,
+    circulation,
+    occupancy,
+    state,
+    current,
+    arrow,
+    destination,
+    operational,
+    countdown
+  );
 
   row.addEventListener("click", () => {
     if (onSelectTrainHandler) onSelectTrainHandler(train.circulation);
@@ -230,7 +248,11 @@ function createTrainRow(direction, train) {
     unit,
     circulation,
     occupancy,
-    where,
+    state,
+    current,
+    arrow,
+    destination,
+    operational,
     countdown,
     fingerprint: "",
     tripId: train.id
@@ -253,87 +275,113 @@ function fingerprint(train) {
   ].join("|");
 }
 
-function appendStation(where, code) {
-  where.appendChild(make("strong", "station-token", code || "—"));
+function setDestination(cell, code, parenthesized = false) {
+  cell.replaceChildren();
+  const station = make(
+    "strong",
+    `station-token destination-code${parenthesized ? " parenthesized" : ""}`,
+    code || "—"
+  );
+  cell.appendChild(station);
 }
 
-function appendRouteArrow(where, moving) {
-  const arrow = make("span", `route-arrow${moving ? " moving" : ""}`, "→");
-  arrow.setAttribute("aria-hidden", "true");
-  where.appendChild(arrow);
+function updateRouteCells(model, train) {
+  const stationed = Boolean(train.stationed);
+
+  model.state.textContent = "est.";
+  model.state.classList.toggle("state-spacer", !stationed);
+
+  model.current.textContent = stationed
+    ? (train.stationed || "—")
+    : (train.nextStop || "—");
+
+  model.arrow.textContent = "→";
+  model.arrow.className = stationed
+    ? "route-arrow route-arrow-placeholder"
+    : "route-arrow moving";
+
+  setDestination(model.destination, train.destination, stationed);
 }
 
-function updateWhere(model, train) {
-  model.where.replaceChildren();
-
-  if (train.stationed) {
-    model.where.appendChild(make("strong", "state-token", "est."));
-    model.where.appendChild(document.createTextNode(" "));
-    appendStation(model.where, train.stationed);
-    model.where.appendChild(document.createTextNode(" "));
-
-    /*
-     * Estacionado: no se muestra flecha. Conservamos exactamente su caja
-     * para que la estación de destino no cambie de posición al pasar a marcha.
-     */
-    const reservedArrow = make("span", "route-arrow route-arrow-placeholder", "→");
-    reservedArrow.setAttribute("aria-hidden", "true");
-    model.where.appendChild(reservedArrow);
-
-    model.where.appendChild(document.createTextNode(" "));
-    /* El destino final estacionado se mantiene en la misma columna visual,
-       pero se diferencia entre paréntesis. */
-    appendStation(model.where, train.destination ? `(${train.destination})` : "(—)");
-    return;
-  }
-
-  // En movimiento se oculta “est.”, pero se conserva exactamente su anchura.
-  model.where.appendChild(make("strong", "state-token state-spacer", "est."));
-  model.where.appendChild(document.createTextNode(" "));
-  appendStation(model.where, train.nextStop);
-  model.where.appendChild(document.createTextNode(" "));
-  appendRouteArrow(model.where, true);
-  model.where.appendChild(document.createTextNode(" "));
-  appendStation(model.where, train.destination);
-}
-
-
-async function ensureOriginDeparture(S, train) {
+async function ensureTripContext(S, train) {
   if (!train?.id) return null;
 
-  const cached = originScheduleCache.get(train.id);
-  if (cached?.state === "ready") return cached.departure;
+  const cached = tripContextCache.get(train.id);
+  if (cached?.state === "ready") return cached.value;
   if (cached?.state === "failed") return null;
   if (cached?.promise) return cached.promise;
 
   const promise = getTripBundle(S.config.gtfsZipIndexUrl, train.id)
     .then(bundle => {
       const origin = String(train.origin || "");
-      const stop = bundle.times.find((candidate, index) =>
+      const originStop = bundle.times.find((candidate, index) =>
         parentCode(candidate) === origin &&
         (index === 0 || Number(candidate.stop_sequence) === 1)
       ) || bundle.times.find(candidate => parentCode(candidate) === origin);
 
-      const departure = stop?.departure_time || stop?.arrival_time || null;
-      originScheduleCache.set(train.id, { state: "ready", departure });
-      return departure;
+      const value = {
+        departure: originStop?.departure_time || originStop?.arrival_time || null,
+        headsign: bundle.trip?.trip_headsign || "",
+        times: bundle.times
+      };
+
+      tripContextCache.set(train.id, { state: "ready", value });
+      return value;
     })
     .catch(error => {
-      console.warn("SIM+ PLASTIC: no s'ha pogut carregar la sortida de capçalera", train.circulation, error);
-      originScheduleCache.set(train.id, { state: "failed", departure: null });
+      console.warn(
+        "SIM+ PLASTIC: no s'ha pogut carregar el context horari",
+        train.circulation,
+        error
+      );
+      tripContextCache.set(train.id, { state: "failed", value: null });
       return null;
     });
 
-  originScheduleCache.set(train.id, { state: "pending", promise });
+  tripContextCache.set(train.id, { state: "pending", promise });
   return promise;
 }
 
+function cachedTripContext(train) {
+  const cached = tripContextCache.get(train?.id);
+  return cached?.state === "ready" ? cached.value : null;
+}
+
+function operationalReferenceTime(context, train) {
+  if (!context?.times?.length) return null;
+
+  if (train.stationed) {
+    const stop = context.times.find(candidate =>
+      parentCode(candidate) === String(train.stationed)
+    );
+    return stop?.departure_time || stop?.arrival_time || null;
+  }
+
+  if (train.nextStop) {
+    const stop = context.times.find(candidate =>
+      parentCode(candidate) === String(train.nextStop)
+    );
+    return stop?.arrival_time || stop?.departure_time || null;
+  }
+
+  return null;
+}
+
+function delayMinutes(context, train) {
+  if (train.onTime !== false) return null;
+  const reference = operationalReferenceTime(context, train);
+  if (!reference) return null;
+
+  const state = countdownState(reference, Date.now());
+  if (!state) return null;
+  return Math.max(0, Math.floor(Math.max(0, -state.diffMs) / 60000));
+}
+
 function updateOriginCountdown(model, train) {
-  const cached = originScheduleCache.get(train.id);
-  const departure = cached?.state === "ready" ? cached.departure : null;
+  const context = cachedTripContext(train);
+  const departure = context?.departure || null;
 
   if (!isOriginHold(train) || !departure) {
-    model.countdown.hidden = true;
     model.countdown.textContent = "";
     model.countdown.className = "plastic-countdown";
     return;
@@ -341,25 +389,8 @@ function updateOriginCountdown(model, train) {
 
   const state = countdownState(departure, Date.now());
   if (!state) {
-    model.countdown.hidden = true;
-    return;
-  }
-
-  const delayedByPositioning = train.onTime === false;
-
-  model.countdown.hidden = false;
-  model.countdown.className = "plastic-countdown";
-
-  if (delayedByPositioning) {
-    /*
-     * PLASTIC: el modo retraso se activa EXCLUSIVAMENTE por el bit/flag de
-     * posicionament-dels-trens (en_hora=false). El valor mostrado es el
-     * retraso transcurrido en minutos enteros respecto a la salida programada.
-     * No se muestra ningún segundo.
-     */
-    const delayMinutes = Math.max(0, Math.floor(Math.max(0, -state.diffMs) / 60000));
-    model.countdown.textContent = `+${delayMinutes}`;
-    model.countdown.classList.add("red", "delay-minutes");
+    model.countdown.textContent = "";
+    model.countdown.className = "plastic-countdown";
     return;
   }
 
@@ -367,8 +398,53 @@ function updateOriginCountdown(model, train) {
   const red = state.overdue || state.seconds <= threshold;
 
   model.countdown.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
+  model.countdown.className = "plastic-countdown";
   model.countdown.classList.toggle("red", red);
   model.countdown.classList.toggle("overdue", state.overdue);
+}
+
+function updateOperationalFromCache(model, train) {
+  model.operational.textContent = "";
+  model.operational.className = "plastic-operational";
+  model.operational.removeAttribute("data-source");
+
+  if (isOriginHold(train)) {
+    const result = cachedOriginPlatform(train);
+    if (!result?.platform) return;
+
+    model.operational.textContent = `VÍA ${result.platform}`;
+    model.operational.dataset.source = result.source || "unknown";
+    model.operational.classList.toggle("red", train.onTime === false);
+    return;
+  }
+
+  if (train.onTime !== false) return;
+
+  const minutes = delayMinutes(cachedTripContext(train), train);
+  if (minutes === null) return;
+
+  model.operational.textContent = `+${minutes}`;
+  model.operational.classList.add("red", "delay-minutes");
+}
+
+function ensureOperationalData(model, train, S) {
+  const needsContext = isOriginHold(train) || train.onTime === false;
+  if (!needsContext) return;
+
+  ensureTripContext(S, train).then(context => {
+    const live = (S.trains || []).find(item => item.id === train.id);
+    if (!live) return;
+
+    updateOriginCountdown(model, live);
+    updateOperationalFromCache(model, live);
+
+    if (!isOriginHold(live) || !context) return;
+
+    resolveOriginPlatform(S, live, context).then(() => {
+      const current = (S.trains || []).find(item => item.id === train.id);
+      if (current) updateOperationalFromCache(model, current);
+    });
+  });
 }
 
 function updateTrainRow(model, train, S) {
@@ -386,18 +462,17 @@ function updateTrainRow(model, train, S) {
     model.unit.classList.toggle("delayed-text", delayed);
     model.circulation.classList.toggle("delayed-text", delayed);
 
-    updateOccupancy(model.occupancy, train.occupancy, { compact: true, delayed });
-    updateWhere(model, train);
-  }
-
-  if (isOriginHold(train)) {
-    ensureOriginDeparture(S, train).then(() => {
-      const live = (S.trains || []).find(item => item.id === train.id);
-      if (live) updateOriginCountdown(model, live);
+    updateOccupancy(model.occupancy, train.occupancy, {
+      compact: true,
+      delayed,
+      unit: train.unit
     });
+    updateRouteCells(model, train);
   }
 
   updateOriginCountdown(model, train);
+  updateOperationalFromCache(model, train);
+  ensureOperationalData(model, train, S);
 }
 
 function emptyMessage(S) {
@@ -524,6 +599,7 @@ export function tickPLASTIC(S) {
     const train = (S.trains || []).find(item => item.id === model.tripId);
     if (!train) continue;
     updateOriginCountdown(model, train);
+    updateOperationalFromCache(model, train);
   }
 }
 

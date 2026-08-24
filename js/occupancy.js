@@ -1,16 +1,36 @@
 /*
  * SIM+ · ocupación por coche
  *
- * FGC expone cuatro campos históricos (M1, MI, RI, M2), pero las UT que
- * representamos en SIM+ son composiciones de tres coches. Para no perder
- * información, MI y RI se condensan en el coche central: si existen ambos,
- * se muestra su media; si sólo existe uno, se usa ese valor.
+ * Regla visual vigente:
+ * - UT 112 / 113 / 115: 4 coches (M1, MI, RI, M2).
+ * - UT 114: 3 coches (M1, coche central, M2). Para la 114, MI y RI se
+ *   condensan en el coche central para conservar la información disponible.
+ *
+ * El número de cuadros depende SIEMPRE de la serie, aunque no exista dato de
+ * ocupación: en ese caso se dibujan los cuadros vacíos con su contorno.
  */
-const DISPLAY_CARS = Object.freeze([
+
+const FOUR_CAR_DISPLAY = Object.freeze([
+  ["m1", "M1"],
+  ["mi", "MI"],
+  ["ri", "RI"],
+  ["m2", "M2"]
+]);
+
+const THREE_CAR_DISPLAY = Object.freeze([
   ["m1", "M1"],
   ["middle", "CENTRE"],
   ["m2", "M2"]
 ]);
+
+function unitSeries(unit) {
+  const match = String(unit || "").match(/^(112|113|114|115)(?:\.|$)/);
+  return match?.[1] || null;
+}
+
+function displayCars(unit) {
+  return unitSeries(unit) === "114" ? THREE_CAR_DISPLAY : FOUR_CAR_DISPLAY;
+}
 
 function level(percent) {
   if (percent === null || percent === undefined || Number.isNaN(Number(percent))) {
@@ -46,28 +66,42 @@ export function readOccupancy(raw = {}) {
 
   return {
     m1: read("m1"),
-    middle: meanAvailable(mi, ri),
-    m2: read("m2"),
-    /* Conservamos los campos fuente por si se necesitan en diagnóstico. */
     mi,
-    ri
+    ri,
+    middle: meanAvailable(mi, ri),
+    m2: read("m2")
   };
 }
 
 export function occupancyFingerprint(occupancy) {
-  return DISPLAY_CARS.map(([key]) => occupancy?.[key] ?? "x").join("|");
+  return ["m1", "mi", "ri", "middle", "m2"]
+    .map(key => occupancy?.[key] ?? "x")
+    .join("|");
 }
 
-export function updateOccupancy(container, occupancy, { compact = false, delayed = false } = {}) {
+export function updateOccupancy(
+  container,
+  occupancy,
+  { compact = false, delayed = false, unit = "" } = {}
+) {
   if (!container) return;
+
+  const cars = displayCars(unit);
+  const series = unitSeries(unit) || "unknown";
 
   container.classList.toggle("occupancy-compact", compact);
   container.classList.toggle("delayed", delayed);
+  container.dataset.series = series;
 
-  if (container.children.length !== DISPLAY_CARS.length) {
+  const currentLabels = [...container.children]
+    .map(child => child.dataset.car || "")
+    .join("|");
+  const wantedLabels = cars.map(([, label]) => label).join("|");
+
+  if (container.children.length !== cars.length || currentLabels !== wantedLabels) {
     container.replaceChildren();
 
-    for (const [, label] of DISPLAY_CARS) {
+    for (const [, label] of cars) {
       const car = document.createElement("span");
       car.className = "occ-car occ-unknown";
       car.dataset.car = label;
@@ -78,7 +112,7 @@ export function updateOccupancy(container, occupancy, { compact = false, delayed
 
   const parts = [];
 
-  DISPLAY_CARS.forEach(([key, label], index) => {
+  cars.forEach(([key, label], index) => {
     const percent = occupancy?.[key] ?? null;
     const car = container.children[index];
     car.className = `occ-car occ-${level(percent)}`;

@@ -1,23 +1,23 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.10.0";
+} from "./fgc-api.js?v=3.12.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.10.0";
+} from "./plastic.js?v=3.12.0";
 
 import {
   clearLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.10.0";
+} from "./lit.js?v=3.12.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.10.0";
-import { BackgroundAudio } from "./audio.js?v=3.10.0";
+import { updateOccupancy } from "./occupancy.js?v=3.12.0";
+import { BackgroundAudio } from "./audio.js?v=3.12.0";
 
 const S = {
   config: null,
@@ -31,7 +31,7 @@ const S = {
   lastError: null,
   lastLatencyMs: null,
 
-  activeView: "lit",
+  activeView: "plastic",
   selected: null,
 
   plasticFilters: {
@@ -86,8 +86,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.10.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.10.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.12.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.12.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -156,7 +156,8 @@ function renderQuery() {
 
   occupancy.hidden = false;
   updateOccupancy(occupancy, train.occupancy, {
-    delayed: train.onTime === false
+    delayed: train.onTime === false,
+    unit: train.unit
   });
 
   /* El valor +N de LIT lo actualiza lit.js cada segundo con el contexto
@@ -456,7 +457,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.10.0",
+      "SIM+ Beta 3.12.0",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
