@@ -1,0 +1,23 @@
+SIM+ · BETA 3.13.0
+
+Cambios respecto a Beta 3.12.0
+--------------------------------
+- Se mantiene íntegramente la interfaz, lógica operativa y comportamiento ya aprobados en Beta 3.12.0.
+- Se mejora la obtención dinámica de la vía de salida desde las pantallas públicas iSIC/Geotren.
+- iSIC se usa exclusivamente como autoridad de la vía; su cuenta atrás no sustituye ni altera ninguna cronometría de SIM+.
+- Como iSIC no muestra el número de circulación, SIM+ identifica cada salida por estación de origen + línea + destino.
+- Si en una misma pantalla hay más de una salida posible con la misma línea/destino, SIM+ usa internamente el tiempo restante mostrado por iSIC y lo cruza con la hora programada de salida de la circulación para escoger la fila correspondiente.
+- La lectura admite la estructura real de la pantalla iSIC, donde la cabecera muestra «Via» y la celda de cada salida puede contener únicamente el número de vía.
+- Se añade un segundo método de lectura para pantallas construidas como retículas/campos de texto sin una fila HTML semántica.
+- Ante una coincidencia ambigua, SIM+ no asigna una vía: evita mostrar un dato potencialmente incorrecto.
+- Se mantiene la histéresis de la última vía válida para evitar parpadeos durante fallos breves de consulta.
+- Reglas fijas conservadas: Tibidabo (TB) = VÍA 1; L12 con origen Sarrià (SR) = VÍA 4.
+- En origen, VÍA n continúa teniendo prioridad aunque el tren salga con retraso; en ese caso se muestra en rojo. Fuera del origen, la misma columna recupera el +N de retraso.
+
+Importante sobre iSIC
+---------------------
+La lectura dinámica depende de que el navegador pueda obtener el contenido público de https://geotren.fgc.cat/isic/{estacion}. Si el servidor bloquea una consulta concreta por política de navegador/CORS o no existe una coincidencia fiable, SIM+ deja la celda vacía en lugar de inventar una vía. Las reglas fijas de TB y L12/SR no dependen de la consulta web.
+
+Sin cambios de publicación/privacidad
+-------------------------------------
+Esta beta mantiene el mismo modelo de despliegue que la versión anterior. No incorpora todavía repositorio privado, autenticación, backend ni ofuscación.
