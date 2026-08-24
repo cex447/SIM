@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.12.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.12.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.12.0";
+import { getTripBundle } from "./gtfs.js?v=3.13.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.13.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.13.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.12.0";
+} from "./operations.js?v=3.13.0";
 import {
   cachedOriginPlatform,
   resolveOriginPlatform
-} from "./platform.js?v=3.12.0";
+} from "./platform.js?v=3.13.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -319,9 +319,12 @@ async function ensureTripContext(S, train) {
         (index === 0 || Number(candidate.stop_sequence) === 1)
       ) || bundle.times.find(candidate => parentCode(candidate) === origin);
 
+      const destinationStop = bundle.times[bundle.times.length - 1] || null;
+
       const value = {
         departure: originStop?.departure_time || originStop?.arrival_time || null,
         headsign: bundle.trip?.trip_headsign || "",
+        destinationName: destinationStop?.stop_name || bundle.trip?.trip_headsign || "",
         times: bundle.times
       };
 

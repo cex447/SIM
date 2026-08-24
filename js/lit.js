@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.12.0";
+import { getTripBundle } from "./gtfs.js?v=3.13.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.12.0";
+} from "./time.js?v=3.13.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.12.0";
+} from "./operations.js?v=3.13.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const SVG_NS = "http://www.w3.org/2000/svg";

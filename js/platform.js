@@ -6,12 +6,19 @@
  *   1) regles operatives fixes aprovades;
  *   2) monitor públic iSIC/Geotren de l'estació d'origen.
  *
+ * iSIC no mostra el número de circulació. Per això SIM+ identifica la sortida
+ * combinant línia + destí i, quan hi ha més d'una coincidència possible,
+ * utilitza el camp de temps restant d'iSIC únicament com a clau de matching
+ * contra l'hora de sortida programada. Aquest temps NO substitueix ni modifica
+ * les cronometries de SIM+.
+ *
  * Si iSIC no permet obtenir una coincidència prou fiable, SIM+ no inventa cap
- * via: conserva breument l'últim valor i després deixa la cel·la buida.
+ * via: conserva breument l'últim valor vàlid i després deixa la cel·la buida.
  */
 
 const platformByTrip = new Map();
 const stationDocumentCache = new Map();
+const VALID_LINES = new Set(["L6", "L7", "L12", "S1", "S2"]);
 
 function normalize(value) {
   return String(value || "")
@@ -26,6 +33,18 @@ function hhmm(value) {
   const match = String(value || "").match(/(\d{1,2}):(\d{2})/);
   if (!match) return "";
   return `${String(Number(match[1]) % 24).padStart(2, "0")}:${match[2]}`;
+}
+
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function containsToken(text, token) {
+  const needle = normalize(token);
+  if (!needle) return false;
+  return new RegExp(`(^|[^A-Z0-9])${escapeRegExp(needle)}([^A-Z0-9]|$)`).test(
+    normalize(text)
+  );
 }
 
 function fixedPlatform(train) {
@@ -48,7 +67,91 @@ function platformFromText(text) {
   return labelled?.[1] || null;
 }
 
-function platformFromElement(element) {
+function relativeMinutesFromText(text) {
+  const value = normalize(text);
+  if (!value) return null;
+
+  if (/\b(?:SORTINT|SORTIENDO|SALIENDO|DEPARTING|NOW)\b/.test(value)) {
+    return 0;
+  }
+
+  if (/\b(?:MENYS|MENOS|LESS)\s+(?:D['’]?|DE\s+|THAN\s+)?1\s*MIN/.test(value)) {
+    return 0;
+  }
+
+  const match = value.match(/\b(\d{1,3})\s*(?:MIN|MINS|MINUT|MINUTS|MINUTO|MINUTOS|MINUTE|MINUTES)\b/);
+  return match ? Number(match[1]) : null;
+}
+
+function parseGtfsSeconds(value) {
+  const parts = String(value || "").trim().split(":").map(Number);
+  if (parts.length < 2 || parts.length > 3) return null;
+
+  const [hours, minutes, seconds = 0] = parts;
+  if (
+    !Number.isFinite(hours) || hours < 0 ||
+    !Number.isFinite(minutes) || minutes < 0 || minutes > 59 ||
+    !Number.isFinite(seconds) || seconds < 0 || seconds > 59
+  ) {
+    return null;
+  }
+
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+function localMidnight(nowMs, dayOffset) {
+  const date = new Date(nowMs);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + dayOffset);
+  return date.getTime();
+}
+
+function expectedMinutesUntilDeparture(value, nowMs = Date.now()) {
+  const seconds = parseGtfsSeconds(value);
+  if (seconds === null) return null;
+
+  const candidates = [-1, 0, 1].map(dayOffset =>
+    localMidnight(nowMs, dayOffset) + seconds * 1000
+  );
+  const target = candidates.reduce((best, candidate) =>
+    Math.abs(candidate - nowMs) < Math.abs(best - nowMs) ? candidate : best
+  );
+
+  /* iSIC mostra minuts sencers. Per al matching ens interessa l'ordre de
+     magnitud, no reproduir la seva regla exacta d'arrodoniment. */
+  return Math.max(0, (target - nowMs) / 60000);
+}
+
+function normalizedDestinations(context) {
+  return [
+    context.headsign,
+    context.destinationName,
+    context.destination
+  ]
+    .map(normalize)
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
+}
+
+function lineMatches(text, context) {
+  const line = normalize(context.line);
+  return Boolean(line && containsToken(text, line));
+}
+
+function destinationMatches(text, context) {
+  const haystack = normalize(text);
+  const names = normalizedDestinations(context);
+
+  /* Els noms complets/headsign tenen prioritat sobre el codi curt d'estació,
+     perquè iSIC mostra noms com "Sarrià" i no necessàriament "SR". */
+  const longNames = names.filter(value => value.length >= 3);
+  if (longNames.some(value => haystack.includes(value))) return true;
+
+  const code = normalize(context.destination);
+  return Boolean(code && containsToken(haystack, code));
+}
+
+function standalonePlatformFromElement(element) {
   if (!element) return null;
 
   for (const name of [
@@ -56,7 +159,7 @@ function platformFromElement(element) {
     "platform", "via", "track"
   ]) {
     const raw = element.getAttribute?.(name);
-    const match = String(raw || "").match(/\b(\d{1,2})\b/);
+    const match = String(raw || "").match(/^\s*(\d{1,2})\s*$/);
     if (match) return match[1];
   }
 
@@ -69,59 +172,184 @@ function platformFromElement(element) {
     if (match) return match[1];
   }
 
-  return platformFromText(element.textContent || "");
+  const labelled = platformFromText(element.textContent || "");
+  if (labelled) return labelled;
+
+  /* La pantalla iSIC real té una capçalera "Via" i a cada fila la cel·la
+     conté només el número (p. ex. 2). Busquem una fulla numèrica començant
+     pel final de la fila, evitant confondre-la amb "8 min". */
+  const leaves = [...element.querySelectorAll?.("*") || []]
+    .filter(node => node.children?.length === 0)
+    .reverse();
+
+  for (const node of leaves) {
+    const text = String(node.textContent || "").replace(/\s+/g, " ").trim();
+    const match = text.match(/^(\d{1,2})$/);
+    if (!match) continue;
+    const value = Number(match[1]);
+    if (value >= 1 && value <= 20) return match[1];
+  }
+
+  return null;
 }
 
-function scoreCandidate(text, context) {
-  const haystack = normalize(text);
-  let score = 0;
+function candidateFromElement(element, context) {
+  const text = String(element?.textContent || "").replace(/\s+/g, " ").trim();
+  if (!text || text.length > 1200) return null;
+  if (!lineMatches(text, context) || !destinationMatches(text, context)) return null;
 
-  const circulation = normalize(context.circulation);
-  const departure = hhmm(context.departure);
-  const headsign = normalize(context.headsign);
-  const destination = normalize(context.destination);
+  const platform = standalonePlatformFromElement(element);
+  if (!platform) return null;
 
-  if (circulation && new RegExp(`(^|[^A-Z0-9])${circulation}([^A-Z0-9]|$)`).test(haystack)) {
-    score += 10;
+  return {
+    platform,
+    text,
+    relativeMinutes: relativeMinutesFromText(text),
+    length: text.length
+  };
+}
+
+function tokenValue(element) {
+  if (!element) return "";
+  const text = String(element.textContent || "").replace(/\s+/g, " ").trim();
+  if (text) return text;
+  return String(
+    element.getAttribute?.("alt") ||
+    element.getAttribute?.("aria-label") ||
+    element.getAttribute?.("title") ||
+    ""
+  ).replace(/\s+/g, " ").trim();
+}
+
+function leafTokens(document) {
+  return [...document.querySelectorAll("body *")]
+    .filter(element => element.children.length === 0)
+    .map(tokenValue)
+    .filter(Boolean);
+}
+
+function candidatesFromTokens(document, context) {
+  const tokens = leafTokens(document);
+  const out = [];
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = normalize(tokens[index]);
+    if (!VALID_LINES.has(token)) continue;
+    if (token !== normalize(context.line)) continue;
+
+    let end = Math.min(tokens.length, index + 14);
+    for (let cursor = index + 1; cursor < end; cursor += 1) {
+      if (VALID_LINES.has(normalize(tokens[cursor]))) {
+        end = cursor;
+        break;
+      }
+    }
+
+    const slice = tokens.slice(index, end);
+    const text = slice.join(" ");
+    if (!destinationMatches(text, context)) continue;
+
+    let platform = platformFromText(text);
+    if (!platform) {
+      for (let cursor = slice.length - 1; cursor >= 1; cursor -= 1) {
+        const match = String(slice[cursor]).trim().match(/^(\d{1,2})$/);
+        if (!match) continue;
+        const value = Number(match[1]);
+        if (value >= 1 && value <= 20) {
+          platform = match[1];
+          break;
+        }
+      }
+    }
+
+    if (!platform) continue;
+    out.push({
+      platform,
+      text,
+      relativeMinutes: relativeMinutesFromText(text),
+      length: text.length
+    });
   }
 
-  if (departure && haystack.includes(departure)) score += 5;
+  return out;
+}
 
-  if (headsign && headsign.length >= 3 && haystack.includes(headsign)) {
-    score += 4;
+function uniqueCandidates(candidates) {
+  const seen = new Set();
+  const out = [];
+
+  for (const candidate of candidates) {
+    const key = `${candidate.platform}|${normalize(candidate.text)}|${candidate.relativeMinutes ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(candidate);
   }
 
-  if (destination && new RegExp(`(^|[^A-Z0-9])${destination}([^A-Z0-9]|$)`).test(haystack)) {
-    score += 1;
+  return out;
+}
+
+function chooseCandidate(candidates, context) {
+  const list = uniqueCandidates(candidates);
+  if (!list.length) return null;
+  if (list.length === 1) return list[0].platform;
+
+  const expected = expectedMinutesUntilDeparture(
+    context.departure,
+    Number(context.nowMs) || Date.now()
+  );
+
+  if (expected !== null) {
+    const timed = list
+      .filter(candidate => Number.isFinite(candidate.relativeMinutes))
+      .map(candidate => ({
+        ...candidate,
+        delta: Math.abs(candidate.relativeMinutes - expected)
+      }))
+      .sort((a, b) => a.delta - b.delta || a.length - b.length);
+
+    if (timed.length) {
+      const best = timed[0];
+      const second = timed[1];
+
+      /* ±3 min cobreix l'arrodoniment del monitor i petites diferències entre
+         l'hora programada i el compte enrere operacional. Si dues files són
+         pràcticament igual d'apropades, preferim no assignar una via errònia. */
+      if (best.delta <= 3 && (!second || second.delta - best.delta >= 0.75)) {
+        return best.platform;
+      }
+    }
   }
 
-  return score;
+  /* Si diverses estructures DOM representen en realitat la mateixa sortida i
+     totes indiquen la mateixa via, la coincidència és segura. */
+  const platforms = [...new Set(list.map(candidate => candidate.platform))];
+  if (platforms.length === 1) return platforms[0];
+
+  return null;
 }
 
 export function parseIsicPlatform(html, context) {
   const raw = String(html || "");
   if (!raw.trim()) return null;
 
-  /* JSON/HTML embebido: si aparece la circulación, buscamos una clave de via
-     únicamente en su entorno inmediato. */
-  const circulation = String(context.circulation || "");
-  if (circulation) {
-    const upper = raw.toUpperCase();
-    let offset = upper.indexOf(circulation.toUpperCase());
-
-    while (offset >= 0) {
-      const keyedSlice = raw.slice(Math.max(0, offset - 600), offset + 800);
-      const keyed = keyedSlice.match(
-        /["']?(?:via|v[ií]a|platform|track|andana)["']?\s*[:=]\s*["']?(\d{1,2})\b/i
-      );
-      if (keyed) return keyed[1];
-
-      /* En HTML visible exigimos proximidad estrecha a la circulación para
-         evitar tomar la vía de la fila vecina del monitor. */
-      const labelledSlice = raw.slice(Math.max(0, offset - 220), offset + 320);
-      const labelled = platformFromText(labelledSlice);
-      if (labelled) return labelled;
-      offset = upper.indexOf(circulation.toUpperCase(), offset + circulation.length);
+  /* Compatibilitat amb respostes JSON/HTML que portin una clau explícita de
+     via prop de la línia/destí. No pressuposem que iSIC mostri circulació. */
+  const line = normalize(context.line);
+  const destinations = normalizedDestinations(context).filter(value => value.length >= 3);
+  if (line && destinations.length) {
+    const upper = normalize(raw);
+    for (const destination of destinations) {
+      let offset = upper.indexOf(destination);
+      while (offset >= 0) {
+        const slice = raw.slice(Math.max(0, offset - 800), offset + 1200);
+        if (containsToken(slice, line)) {
+          const keyed = slice.match(
+            /["']?(?:via|v[ií]a|platform|track|andana)["']?\s*[:=]\s*["']?(\d{1,2})\b/i
+          );
+          if (keyed) return keyed[1];
+        }
+        offset = upper.indexOf(destination, offset + destination.length);
+      }
     }
   }
 
@@ -135,24 +363,17 @@ export function parseIsicPlatform(html, context) {
     '[class*="row" i]', '[class*="item" i]'
   ].join(",");
 
-  const candidates = [...document.querySelectorAll(selector)];
-  let best = null;
-
-  for (const element of candidates) {
-    const text = String(element.textContent || "").replace(/\s+/g, " ").trim();
-    if (!text || text.length > 1200) continue;
-
-    const platform = platformFromElement(element);
-    if (!platform) continue;
-
-    const score = scoreCandidate(text, context);
-    if (!best || score > best.score) best = { score, platform };
+  const candidates = [];
+  for (const element of document.querySelectorAll(selector)) {
+    const candidate = candidateFromElement(element, context);
+    if (candidate) candidates.push(candidate);
   }
 
-  /* Una coincidència per circulació és concloent; hora+destí/capçalera també
-     és prou discriminant per a un monitor d'una única estació. */
-  if (best && best.score >= 5) return best.platform;
-  return null;
+  /* Fallback per a iSIC quan la pantalla està construïda com una graella de
+     camps de text sense un contenidor de fila semàntic. */
+  candidates.push(...candidatesFromTokens(document, context));
+
+  return chooseCandidate(candidates, context);
 }
 
 function stationUrl(config, station) {
@@ -253,9 +474,12 @@ export async function resolveOriginPlatform(S, train, context = {}) {
     const html = await fetchStationDocument(cfg, train.origin);
     const platform = parseIsicPlatform(html, {
       circulation: train.circulation,
+      line: train.line,
       departure: context.departure,
       headsign: context.headsign,
-      destination: train.destination
+      destinationName: context.destinationName,
+      destination: train.destination,
+      nowMs: Date.now()
     });
 
     if (!platform) {
