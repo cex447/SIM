@@ -1,0 +1,34 @@
+SIM+ · BETA 3.12.0
+
+Cambios respecto a Beta 3.11.0
+--------------------------------
+- PLASTIC pasa a ser el módulo de inicio por defecto.
+- PLASTIC adopta una retícula fija para mantener alineados UT, circulación, ocupación, estado, estación, flecha, destino, vía/retraso y cronometría.
+- Los códigos de destino entre paréntesis conservan el mismo eje central que los destinos sin paréntesis.
+- Todos los `est.` comparten una columna fija y quedan alineados entre sí.
+- Las flechas de PLASTIC quedan centradas en su propia columna sin desplazar estaciones ni destinos.
+- Los cuadros de ocupación quedan centrados en una columna fija.
+- Ocupación por serie: UT112=4 coches, UT113=4, UT114=3 y UT115=4, también cuando no existe dato de ocupación.
+- La columna de retraso queda situada entre destino final y cronometría; `+N` se mantiene alineado en todas las filas.
+- En la estación de origen, esa columna muestra `VÍA n` en lugar del retraso.
+- En origen con `en_hora=false`, `VÍA n` se conserva y se muestra en rojo; en hora usa el color normal de la interfaz.
+- Reglas fijas de vía: Tibidabo (TB) = VÍA 1; L12 con origen Sarrià (SR) = VÍA 4.
+- Para el resto de cabeceras se incorpora consulta del monitor público iSIC/Geotren con caché e histéresis: nunca se inventa una vía si no puede determinarse con fiabilidad.
+- El indicador de posición de LIT queda centrado en su columna y respecto a la línea horaria.
+- Los triángulos de LIT pasan a geometría equilátera estricta (60°): relleno a la derecha estacionado y contorno hacia abajo en movimiento.
+- Se conserva íntegramente el paquete de iconos/PWA y el resto de funciones de Beta 3.11.0.
+
+Nota sobre iSIC
+---------------
+La integración de vía está diseñada como mejor esfuerzo sobre la página pública de iSIC/Geotren. Si el navegador o el servidor impiden leer temporalmente el monitor, SIM+ conserva brevemente la última vía válida y después deja la celda vacía; no utiliza una vía supuesta. Las reglas fijas de TB y L12/SR no dependen de la consulta web.
+
+Archivos de icono conservados
+-----------------------------
+assets/icons/favicon.ico
+assets/icons/favicon-16x16.png
+assets/icons/favicon-32x32.png
+assets/icons/favicon-48x48.png
+assets/icons/apple-touch-icon.png
+assets/icons/icon-192.png
+assets/icons/icon-512.png
+site.webmanifest

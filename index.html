@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ca" data-view="lit">
+<html lang="ca" data-view="plastic">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/sim.css?v=3.11.0">
+  <link rel="stylesheet" href="css/sim.css?v=3.12.0">
 </head>
 <body>
 <div id="app">
@@ -23,8 +23,8 @@
     </div>
 
     <nav class="tabs tabs-portrait" aria-label="Mòduls SIM+">
-      <button data-view="plastic" class="tab" type="button"><span class="plate-label">PLASTIC</span></button>
-      <button data-view="lit" class="tab active" type="button"><span class="plate-label">LIT</span></button>
+      <button data-view="plastic" class="tab active" type="button"><span class="plate-label">PLASTIC</span></button>
+      <button data-view="lit" class="tab" type="button"><span class="plate-label">LIT</span></button>
       <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
     </nav>
 
@@ -49,11 +49,11 @@
   </header>
 
   <main>
-    <section id="view-lit" class="view active">
+    <section id="view-lit" class="view">
       <div id="litRoute" class="lit-route"></div>
     </section>
 
-    <section id="view-plastic" class="view">
+    <section id="view-plastic" class="view active">
       <div class="plastic-filters">
         <div id="lineFilters" class="line-filters" aria-label="Línies"></div>
         <div class="landscape-filter-gap" aria-hidden="true"></div>
@@ -86,8 +86,8 @@
   </main>
 
   <nav class="tabs tabs-landscape" aria-label="Mòduls SIM+ horitzontal">
-    <button data-view="plastic" class="tab" type="button"><span class="plate-label">PLASTIC</span></button>
-    <button data-view="lit" class="tab active" type="button"><span class="plate-label">LIT</span></button>
+    <button data-view="plastic" class="tab active" type="button"><span class="plate-label">PLASTIC</span></button>
+    <button data-view="lit" class="tab" type="button"><span class="plate-label">LIT</span></button>
     <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
   </nav>
 
@@ -101,6 +101,6 @@
   </dialog>
 </div>
 
-<script type="module" src="js/app.js?v=3.11.0"></script>
+<script type="module" src="js/app.js?v=3.12.0"></script>
 </body>
 </html>
