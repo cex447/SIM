@@ -1,21 +1,21 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.14.1";
+} from "./fgc-api.js?v=3.14.2";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.14.1";
+} from "./plastic.js?v=3.14.2";
 
 import {
   clearLIT,
   focusCurrentLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.14.1";
+} from "./lit.js?v=3.14.2";
 
 import {
   wireISIC,
@@ -23,10 +23,10 @@ import {
   refreshISIC,
   syncISICQuery,
   tickISIC
-} from "./isic-view.js?v=3.14.1";
+} from "./isic-view.js?v=3.14.2";
 
-import { updateOccupancy } from "./occupancy.js?v=3.14.1";
-import { BackgroundAudio } from "./audio.js?v=3.14.1";
+import { updateOccupancy } from "./occupancy.js?v=3.14.2";
+import { BackgroundAudio } from "./audio.js?v=3.14.2";
 
 const S = {
   config: null,
@@ -108,8 +108,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.14.1", { cache: "no-store" }),
-    fetch("data/network.json?v=3.14.1", { cache: "no-store" })
+    fetch("data/config.json?v=3.14.2", { cache: "no-store" }),
+    fetch("data/network.json?v=3.14.2", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -504,7 +504,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.14.1",
+      "SIM+ Beta 3.14.2",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,

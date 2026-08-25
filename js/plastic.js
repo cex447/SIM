@@ -1,19 +1,20 @@
-import { getTripBundle } from "./gtfs.js?v=3.14.1";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.14.1";
-import { countdownState, formatCountdown } from "./time.js?v=3.14.1";
+import { getTripBundle } from "./gtfs.js?v=3.14.2";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.14.2";
+import { countdownState, formatCountdown } from "./time.js?v=3.14.2";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.14.1";
+} from "./operations.js?v=3.14.2";
 import {
   cachedPlatform,
   clearPlatform,
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows,
+  normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.14.1";
+} from "./isic.js?v=3.14.2";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -427,9 +428,10 @@ function updateOperationalFromCache(model, train, S) {
       origin,
       S.config.isic?.staleMs || 30000
     );
-    if (!result?.platform) return;
+    const platform = normalizePlatformValue(result?.platform);
+    if (platform === null) return;
 
-    model.operational.textContent = `VÍA ${result.platform}`;
+    model.operational.textContent = `VÍA ${platform}`;
     model.operational.dataset.source = result.source || "unknown";
     model.operational.classList.toggle("red", train.onTime === false);
     return;
@@ -458,7 +460,7 @@ function refreshVisibleOperational(S) {
 async function refreshOriginPlatforms(S, { force = false } = {}) {
   if (platformRefreshRunning || !S.config?.isic?.enabled) return;
 
-  const interval = Math.max(5000, Number(S.config.isic?.refreshMs) || 10000);
+  const interval = Math.max(10000, Number(S.config.isic?.refreshMs) || 10000);
   if (!force && Date.now() - platformRefreshAt < interval) return;
 
   platformRefreshRunning = true;
@@ -511,7 +513,7 @@ async function refreshOriginPlatforms(S, { force = false } = {}) {
         const matches = matchContextsToRows(contexts, parsed.rows, parsed.fetchedAt);
         for (const { train } of items) {
           const match = matches.get(train.id);
-          if (match?.platform && (match.status === "safe" || match.status === "safe-delay")) {
+          if (normalizePlatformValue(match?.platform) !== null && (match.status === "safe" || match.status === "safe-delay")) {
             rememberPlatform(train.id, station, match.platform, "isic", {
               circulation:train.circulation,
               row:match.row,

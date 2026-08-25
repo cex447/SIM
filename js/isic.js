@@ -1,4 +1,4 @@
-import { resolveGtfsTimestamp } from "./time.js?v=3.14.1";
+import { resolveGtfsTimestamp } from "./time.js?v=3.14.2";
 
 /*
  * SIM+ · iSIC visual parser + matching seguro
@@ -30,6 +30,21 @@ const LINE_COLORS = Object.freeze({
 
 const stationImageCache = new Map();
 const platformCache = new Map();
+
+/*
+ * VÍA 0 es un valor ferroviario válido en algunas situaciones excepcionales.
+ * null/undefined/"" significan, en cambio, "vía todavía no confirmada".
+ * Nunca usar Number(value) directamente para comprobar existencia porque
+ * Number(null) === 0.
+ */
+export function normalizePlatformValue(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 0) return null;
+  return numeric;
+}
 
 const templates = Object.fromEntries(
   Object.entries(templatesB64).map(([digit,value]) => [digit, unpackTemplate(value)])
@@ -444,7 +459,8 @@ export function pairAssessment(context, row, nowMs = Date.now()) {
   const platformConfidence = Number(row?.platform?.confidence ?? 0);
   const timeConfidence = Number(row?.time?.confidence ?? 0);
   const platformMinimum = row?.platformMode === "panel" ? 0.72 : 0.78;
-  if (!Number.isFinite(Number(row?.platform?.value))) eligible = false;
+  const platformValue = normalizePlatformValue(row?.platform?.value);
+  if (platformValue === null) eligible = false;
   if (platformConfidence < platformMinimum || timeConfidence < 0.65) eligible = false;
   if (eligible && timeConfidence < 0.80) cost += 0.25;
 
@@ -533,7 +549,7 @@ export function matchContextsToRows(contexts, rows, nowMs = Date.now()) {
     const safe = contextGap >= 0.60 && rowGap >= 0.60;
     results.set(item.context.key ?? item.index, {
       status:safe ? (chosen.mode === "delayed-overdue" ? "safe-delay" : "safe") : "ambiguous",
-      platform:safe ? Number(rows[rowIndex].platform.value) : null,
+      platform:safe ? normalizePlatformValue(rows[rowIndex].platform.value) : null,
       row:rows[rowIndex],
       assessment:chosen,
       ambiguityGap:Number.isFinite(contextGap) ? +contextGap.toFixed(3) : null,
@@ -555,11 +571,12 @@ function platformKey(tripId, station) {
 }
 
 export function rememberPlatform(tripId, station, platform, source = "isic", meta = {}) {
-  if (!tripId || !Number.isFinite(Number(platform))) return null;
+  const normalized = normalizePlatformValue(platform);
+  if (!tripId || normalized === null) return null;
   const value = {
     tripId:String(tripId),
     station:String(station || "").toUpperCase(),
-    platform:Number(platform),
+    platform:normalized,
     source,
     confirmedAt:Date.now(),
     ...meta

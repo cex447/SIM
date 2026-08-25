@@ -1,17 +1,18 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.14.1";
+import { decodeCirculation } from "./fgc-api.js?v=3.14.2";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.14.1";
-import { updateOccupancy } from "./occupancy.js?v=3.14.1";
-import { countdownState, formatCountdown } from "./time.js?v=3.14.1";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.14.1";
+} from "./gtfs.js?v=3.14.2";
+import { updateOccupancy } from "./occupancy.js?v=3.14.2";
+import { countdownState, formatCountdown } from "./time.js?v=3.14.2";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.14.2";
 import {
   fetchIsicStation,
   fixedPlatformFor,
-  matchContextsToRows
-} from "./isic.js?v=3.14.1";
+  matchContextsToRows,
+  normalizePlatformValue
+} from "./isic.js?v=3.14.2";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
@@ -191,8 +192,9 @@ function createRow(S, item) {
   button.classList.toggle("delayed-row", delayed);
   routeCells(row, item);
 
-  if (Number.isFinite(Number(item.platform))) {
-    row.operational.textContent = `VÍA ${Number(item.platform)}`;
+  const platform = normalizePlatformValue(item.platform);
+  if (platform !== null) {
+    row.operational.textContent = `VÍA ${platform}`;
     row.operational.classList.toggle("red", delayed);
   } else {
     row.operational.textContent = "";
@@ -423,7 +425,7 @@ export async function refreshISIC(S, { force = false } = {}) {
   if (S.activeView !== "isic" && !force) return;
   if (state.refreshRunning) return state.refreshPromise;
 
-  const interval = Math.max(7000, Number(S.config.isic?.viewRefreshMs) || 10000);
+  const interval = Math.max(10000, Number(S.config.isic?.viewRefreshMs) || 10000);
   if (!force && state.lastAttempt && Date.now() - state.lastAttempt < interval) return;
 
   state.lastAttempt = Date.now();
@@ -461,12 +463,13 @@ export async function refreshISIC(S, { force = false } = {}) {
 
       for (const record of departures) {
         const match = matches.get(record.key);
-        if (!match?.platform || (match.status !== "safe" && match.status !== "safe-delay")) continue;
+        const platform = normalizePlatformValue(match?.platform);
+        if (platform === null || (match.status !== "safe" && match.status !== "safe-delay")) continue;
 
         matchedIds.add(record.id);
         matchedItems.push({
           ...record,
-          platform:match.platform,
+          platform,
           isicTime:match.row?.time || null,
           platformMode:match.row?.platformMode || null,
           source:"isic"

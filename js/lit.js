@@ -1,27 +1,28 @@
-import { getTripBundle } from "./gtfs.js?v=3.14.1";
+import { getTripBundle } from "./gtfs.js?v=3.14.2";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.14.1";
+} from "./time.js?v=3.14.2";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.14.1";
+} from "./operations.js?v=3.14.2";
 import {
   cachedPlatform,
   clearPlatform,
   fetchIsicStation,
   fixedPlatformFor,
   matchContextToRows,
+  normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.14.1";
+} from "./isic.js?v=3.14.2";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
-const LIT_PLATFORM_NEAR_MS = 12000;
-const LIT_PLATFORM_FAR_MS = 45000;
+const LIT_PLATFORM_NEAR_MS = 10000;
+const LIT_PLATFORM_FAR_MS = 10000;
 const LIT_PLATFORM_NEAR_COUNT = 3;
 const LIT_PLATFORM_FAR_COUNT = 1;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -60,9 +61,10 @@ function setPlatformCode(item, code, platform = null) {
 
   const base = cell.querySelector(".platform-base");
   const slot = cell.querySelector(".platform-slot");
+  const normalized = normalizePlatformValue(platform);
   if (base) base.textContent = code || "";
-  if (slot) slot.textContent = Number.isFinite(Number(platform)) ? String(Number(platform)) : "";
-  cell.dataset.platform = Number.isFinite(Number(platform)) ? String(Number(platform)) : "";
+  if (slot) slot.textContent = normalized === null ? "" : String(normalized);
+  cell.dataset.platform = normalized === null ? "" : String(normalized);
 }
 
 
@@ -520,12 +522,26 @@ function maybeAutoScroll(S, location, force) {
   if (!S.selected || !location) return;
 
   const view = $("#view-lit");
-  const item = document.querySelector(`.lit-item[data-i="${location.targetIndex}"]`);
-  if (!view || !item) return;
+
+  /*
+   * Regla operativa Beta 3.14.2:
+   * - estacionado: la estación actual queda arriba;
+   * - circulando: queda arriba la estación que el tren acaba de dejar.
+   *
+   * locateOperationalTarget() señala, en marcha, la PRÓXIMA estación. Por
+   * eso el ancla visual es targetIndex - 1. El triángulo móvil mantiene su
+   * lógica propia y sigue representando la interestación hacia targetIndex.
+   */
+  const followIndex = location.type === "moving"
+    ? Math.max(0, Number(location.targetIndex) - 1)
+    : Number(location.targetIndex);
+
+  const item = document.querySelector(`.lit-item[data-i="${followIndex}"]`);
+  if (!view || !item || !Number.isInteger(followIndex)) return;
 
   if (!force && performance.now() < (S.selected.manualHoldUntil || 0)) return;
 
-  const key = `${location.type}:${location.targetIndex}`;
+  const key = `${location.type}:${location.targetIndex}:anchor:${followIndex}`;
   if (!force && key === S.selected.lastFollowKey) return;
 
   S.selected.autoScrolling = true;
@@ -534,8 +550,7 @@ function maybeAutoScroll(S, location, force) {
   /*
    * No usamos scrollIntoView: en Safari/iOS puede escoger el viewport de la
    * página en vez del contenedor interno de LIT. Calculamos directamente el
-   * scrollTop del #view-lit para que la estación objetivo quede EXACTAMENTE
-   * arriba de la zona desplazable, bajo la cabecera fija.
+   * scrollTop del #view-lit para colocar el ancla EXACTAMENTE arriba.
    */
   const placeAtTop = () => {
     if (!S.selected || S.selected.lastFollowKey !== key) return;
@@ -575,15 +590,16 @@ function estimateDelayAdjustmentMinutes(S, nowMs = Date.now()) {
 }
 
 function applySelectedPlatform(S, index, platform, source = "isic") {
-  if (!S.selected || !Number.isFinite(Number(platform))) return;
+  const normalized = normalizePlatformValue(platform);
+  if (!S.selected || normalized === null) return;
   S.selected.platforms.set(index, {
-    platform:Number(platform),
+    platform:normalized,
     source,
     confirmedAt:Date.now()
   });
   const stop = S.selected.stops[index];
   const item = document.querySelector(`.lit-item[data-i="${index}"]`);
-  setPlatformCode(item, parentCode(stop), Number(platform));
+  setPlatformCode(item, parentCode(stop), normalized);
 }
 
 function clearSelectedPlatform(S, index) {
@@ -618,7 +634,7 @@ function seedKnownPlatforms(S) {
     }
 
     const cached = cachedPlatform(live.id, station, S.config.isic?.staleMs || 30000);
-    if (cached?.platform) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+    if (normalizePlatformValue(cached?.platform) !== null) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
   });
 }
 
@@ -663,7 +679,7 @@ async function queryLITStationPlatform(S, index, force = false) {
     };
 
     const match = matchContextToRows(context, parsed.rows, parsed.fetchedAt);
-    if (match?.platform && (match.status === "safe" || match.status === "safe-delay")) {
+    if (normalizePlatformValue(match?.platform) !== null && (match.status === "safe" || match.status === "safe-delay")) {
       rememberPlatform(selected.live.id, station, match.platform, "isic", {
         circulation:selected.circulation,
         row:match.row,
@@ -678,7 +694,7 @@ async function queryLITStationPlatform(S, index, force = false) {
   } catch (error) {
     console.warn(`SIM+ LIT: iSIC ${station}`, error);
     const cached = cachedPlatform(selected.live.id, station, S.config.isic?.staleMs || 30000);
-    if (cached?.platform) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+    if (normalizePlatformValue(cached?.platform) !== null) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
   }
 }
 
