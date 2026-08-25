@@ -36,9 +36,9 @@
     "enabled": true,
     "proxyUrl": "https://sim-isic-proxy2.cex447.workers.dev/",
     "urlTemplate": "https://geotren.fgc.cat/isic/{station}",
-    "refreshMs": 5000,
+    "refreshMs": 10000,
     "viewRefreshMs": 10000,
-    "cacheMs": 7000,
+    "cacheMs": 9000,
     "timeoutMs": 7000,
     "staleMs": 30000
   }
