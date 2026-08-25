@@ -13,11 +13,12 @@ export function isSpecialCountdownStation(stationCode) {
   return SPECIAL_COUNTDOWN_STATIONS.has(String(stationCode || ""));
 }
 
-export function isOriginHold(train) {
+export function isOriginHold(train, effectiveOrigin = null) {
+  const origin = effectiveOrigin || train?.origin || null;
   return Boolean(
-    train?.origin &&
+    origin &&
     train?.stationed &&
-    String(train.origin) === String(train.stationed)
+    String(origin) === String(train.stationed)
   );
 }
 

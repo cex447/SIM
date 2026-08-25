@@ -1,0 +1,507 @@
+import { decodeCirculation } from "./fgc-api.js?v=3.14.0";
+import {
+  getStationCatalog,
+  getStationDepartures,
+  getTripBundle
+} from "./gtfs.js?v=3.14.0";
+import { updateOccupancy } from "./occupancy.js?v=3.14.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.14.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.14.0";
+import {
+  fetchIsicStation,
+  fixedPlatformFor,
+  matchContextsToRows
+} from "./isic.js?v=3.14.0";
+
+const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
+const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
+const EXTRA_SCHEDULE_ROWS = 4;
+
+const $ = selector => document.querySelector(selector);
+let onSelectTrainHandler = null;
+let catalogPromise = null;
+
+function make(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function unitCountText(count) {
+  return `${count} ${count === 1 ? "UT" : "UTs"}`;
+}
+
+function normalizeStationInput(value) {
+  return String(value || "")
+    .replace(/[^a-zA-Z]/g, "")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+async function stationCatalog(S) {
+  if (!catalogPromise) catalogPromise = getStationCatalog(S.config.gtfsZipIndexUrl);
+  return catalogPromise;
+}
+
+function liveByTrip(S, tripId, circulation) {
+  return (S.trains || []).find(train => train.id === tripId) ||
+    (S.trains || []).find(train => train.circulation === circulation) || null;
+}
+
+async function delayAdjustmentForLive(S, live, nowMs) {
+  if (!live || live.onTime !== false) return 0;
+
+  try {
+    const bundle = await getTripBundle(S.config.gtfsZipIndexUrl, live.id);
+    const location = locateOperationalTarget(bundle.times, live);
+    if (!location || location.final) return 0;
+
+    const stop = bundle.times[location.targetIndex];
+    const reference = location.type === "moving"
+      ? (stop.arrival_time || stop.departure_time)
+      : (stop.departure_time || stop.arrival_time);
+    const state = countdownState(reference, nowMs);
+    if (!state) return 0;
+    return Math.max(0, -state.diffMs / 60000);
+  } catch {
+    return 0;
+  }
+}
+
+function buildScheduleRecord(S, departure) {
+  const circulation = decodeCirculation(departure.trip_id);
+  if (!circulation) return null;
+
+  const family = circulation[0];
+  const line = LINE_BY_FAMILY[family];
+  if (!line || !S.config.allowedLines.includes(line)) return null;
+
+  const effectiveOrigin = departure.firstStop?.code || "";
+  const effectiveDestination = departure.lastStop?.code || "";
+  const live = liveByTrip(S, departure.trip_id, circulation);
+
+  return {
+    key:departure.trip_id,
+    id:departure.trip_id,
+    circulation,
+    family,
+    line,
+    ascending:Number(circulation.slice(-1)) % 2 === 1,
+    station:departure.station,
+    departure:departure.departure_time || departure.arrival_time,
+    targetMs:departure.targetMs,
+    headsign:departure.trip_headsign || "",
+    effectiveOrigin,
+    effectiveDestination,
+    destinationName:departure.lastStop?.name || departure.trip_headsign || "",
+    live,
+    source:"schedule"
+  };
+}
+
+async function buildMatchContexts(S, records, station, nowMs) {
+  return Promise.all(records.map(async record => {
+    const delayAdjustmentMinutes = await delayAdjustmentForLive(S, record.live, nowMs);
+    return {
+      key:record.key,
+      id:record.id,
+      circulation:record.circulation,
+      line:record.line,
+      onTime:record.live?.onTime ?? null,
+      station,
+      effectiveOrigin:record.effectiveOrigin,
+      departure:record.departure,
+      delayAdjustmentMinutes,
+      originHold:Boolean(
+        record.live &&
+        station === record.effectiveOrigin &&
+        String(record.live.stationed || "") === record.effectiveOrigin
+      )
+    };
+  }));
+}
+
+function routeCells(row, item) {
+  const live = item.live;
+  const stationed = Boolean(live?.stationed);
+
+  row.state.textContent = "est.";
+  row.state.classList.toggle("state-spacer", !stationed);
+
+  if (live) {
+    row.current.textContent = stationed
+      ? (live.stationed || item.station)
+      : (live.nextStop || item.station);
+    row.arrow.textContent = "→";
+    row.arrow.className = stationed
+      ? "route-arrow route-arrow-placeholder"
+      : "route-arrow moving";
+  } else {
+    row.current.textContent = item.station;
+    row.arrow.textContent = "→";
+    row.arrow.className = "route-arrow route-arrow-placeholder";
+  }
+
+  row.destination.replaceChildren();
+  const code = make("strong", "station-token destination-code", item.effectiveDestination || "—");
+  row.destination.appendChild(code);
+}
+
+function createRow(S, item) {
+  const button = make("button", "trainrow isic-trainrow");
+  button.type = "button";
+  button.dataset.tripId = item.id;
+  button.dataset.circulation = item.circulation;
+
+  const row = {
+    button,
+    unit:make("span", "train-unit"),
+    circulation:make("span", "train-circulation"),
+    occupancy:make("span", "occupancy occupancy-compact"),
+    state:make("span", "train-state state-token"),
+    current:make("span", "train-current station-token"),
+    arrow:make("span", "route-arrow"),
+    destination:make("span", "train-destination"),
+    operational:make("span", "plastic-operational"),
+    countdown:make("span", "plastic-countdown")
+  };
+
+  button.append(
+    row.unit, row.circulation, row.occupancy, row.state, row.current,
+    row.arrow, row.destination, row.operational, row.countdown
+  );
+
+  const live = item.live;
+  const delayed = live?.onTime === false;
+  row.unit.textContent = live?.unit || "";
+  row.circulation.textContent = item.circulation;
+
+  if (live?.unit) {
+    updateOccupancy(row.occupancy, live.occupancy, {
+      compact:true,
+      delayed,
+      unit:live.unit
+    });
+  } else {
+    row.occupancy.replaceChildren();
+    row.occupancy.removeAttribute("aria-label");
+  }
+
+  button.classList.toggle("delayed-row", delayed);
+  routeCells(row, item);
+
+  if (Number.isFinite(Number(item.platform))) {
+    row.operational.textContent = `VÍA ${Number(item.platform)}`;
+    row.operational.classList.toggle("red", delayed);
+  } else {
+    row.operational.textContent = "";
+  }
+
+  const state = countdownState(item.departure, Date.now());
+  if (state) {
+    const red = state.overdue || state.seconds <= countdownRedThreshold(item.station);
+    row.countdown.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
+    row.countdown.classList.toggle("red", red);
+    row.countdown.classList.toggle("overdue", state.overdue);
+  }
+
+  if (live && onSelectTrainHandler) {
+    button.addEventListener("click", () => onSelectTrainHandler(item.circulation));
+  } else {
+    button.setAttribute("aria-disabled", "true");
+  }
+
+  return button;
+}
+
+function lineHeading(S, family, count) {
+  const heading = make("div", "plastic-line-heading");
+  const line = LINE_BY_FAMILY[family];
+  const image = document.createElement("img");
+  image.src = S.config.lineAssets?.[line] || "";
+  image.alt = line;
+  image.decoding = "async";
+  image.loading = "lazy";
+
+  const fallback = make("span", "plastic-line-fallback", line);
+  fallback.hidden = true;
+  image.addEventListener("error", () => {
+    image.hidden = true;
+    fallback.hidden = false;
+  });
+
+  heading.append(image, fallback, make("span", "line-group-count", unitCountText(count)));
+  return heading;
+}
+
+function renderDirection(S, direction, items) {
+  const host = $(direction === "asc" ? "#isicAscList" : "#isicDescList");
+  const empty = $(direction === "asc" ? "#isicAscEmpty" : "#isicDescEmpty");
+  host.replaceChildren();
+
+  const grouped = new Map(FAMILY_ORDER.map(family => [family, []]));
+  for (const item of items) grouped.get(item.family)?.push(item);
+
+  for (const family of FAMILY_ORDER) {
+    const groupItems = grouped.get(family);
+    if (!groupItems.length) continue;
+
+    groupItems.sort((a, b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
+    const group = make("section", "plastic-line-group");
+    group.appendChild(lineHeading(S, family, groupItems.length));
+    const rows = make("div", "plastic-line-rows");
+    groupItems.forEach(item => rows.appendChild(createRow(S, item)));
+    group.appendChild(rows);
+    host.appendChild(group);
+  }
+
+  empty.hidden = items.length !== 0;
+  empty.textContent = items.length ? "" : "CAP CIRCULACIÓ";
+}
+
+export function renderISIC(S) {
+  const state = S.isicView;
+  const status = $("#isicStatus");
+  const directions = $("#isicDirections");
+  const ascDirection = $("#isicAscDirection");
+  const descDirection = $("#isicDescDirection");
+  const ascLabel = $("#isicAscLabel");
+  const ascCount = $("#isicAscCount");
+  const descCount = $("#isicDescCount");
+
+  if (!state?.station) {
+    status.textContent = "INTRODUEIX EL CODI D'ESTACIÓ";
+    status.classList.remove("error");
+    directions.classList.remove("no-service");
+    ascDirection.hidden = false;
+    descDirection.hidden = false;
+    ascLabel.textContent = "ASCENDENTS";
+    ascCount.hidden = false;
+    renderDirection(S, "asc", []);
+    renderDirection(S, "desc", []);
+    ascCount.textContent = "0 UTs";
+    descCount.textContent = "0 UTs";
+    return;
+  }
+
+  if (state.state === "invalid") {
+    status.textContent = "ESTACIÓ NO VÀLIDA";
+    status.classList.add("error");
+    renderDirection(S, "asc", []);
+    renderDirection(S, "desc", []);
+    return;
+  }
+
+  if (state.state === "loading" && !state.items.length) {
+    status.textContent = "CARREGANT iSIC";
+    status.classList.remove("error");
+  } else if (state.lastError) {
+    status.textContent = state.lastFetch
+      ? `DADES CONSERVADES ${state.lastFetch.toLocaleTimeString("es-ES", {hour12:false})}`
+      : "iSIC NO DISPONIBLE";
+    status.classList.add("error");
+  } else if (state.lastFetch) {
+    status.textContent = `ACTUALITZAT ${state.lastFetch.toLocaleTimeString("es-ES", {hour12:false})}`;
+    status.classList.remove("error");
+  } else {
+    status.textContent = "ESPERANT DADES";
+    status.classList.remove("error");
+  }
+
+  const items = state.items || [];
+  const noService = state.state === "ready" && items.length === 0 && !state.lastError;
+  directions.classList.toggle("no-service", noService);
+  ascDirection.hidden = false;
+  descDirection.hidden = noService;
+  ascLabel.textContent = noService ? "SENSE SERVEI COMERCIAL" : "ASCENDENTS";
+  ascCount.hidden = noService;
+
+  if (noService) {
+    renderDirection(S, "asc", []);
+    renderDirection(S, "desc", []);
+    return;
+  }
+
+  const asc = items.filter(item => item.ascending);
+  const desc = items.filter(item => !item.ascending);
+  renderDirection(S, "asc", asc);
+  renderDirection(S, "desc", desc);
+  ascCount.textContent = unitCountText(asc.length);
+  descCount.textContent = unitCountText(desc.length);
+}
+
+async function resolveStation(S, code) {
+  const requestId = ++S.isicView.requestId;
+  S.isicView.station = code;
+  S.isicView.stationName = "";
+  S.isicView.state = "loading";
+  S.isicView.lastError = null;
+  $("#stationName").textContent = "";
+  renderISIC(S);
+
+  try {
+    const catalog = await stationCatalog(S);
+    if (requestId !== S.isicView.requestId) return;
+
+    const name = catalog.get(code);
+    const bvStation = (S.network?.segments || []).some(segment =>
+      segment.from === code || segment.to === code
+    );
+    if (!name || !bvStation) {
+      S.isicView.state = "invalid";
+      S.isicView.items = [];
+      renderISIC(S);
+      return;
+    }
+
+    S.isicView.stationName = name;
+    $("#stationName").textContent = name.toLocaleUpperCase("ca-ES");
+    await refreshISIC(S, { force:true });
+  } catch (error) {
+    if (requestId !== S.isicView.requestId) return;
+    S.isicView.lastError = String(error?.message || error);
+    S.isicView.state = "error";
+    renderISIC(S);
+  }
+}
+
+export function wireISIC(S, { onSelectTrain } = {}) {
+  onSelectTrainHandler = onSelectTrain || null;
+  const input = $("#stationInput");
+
+  input.addEventListener("input", () => {
+    const code = normalizeStationInput(input.value);
+    input.value = code;
+
+    if (code.length < 2) {
+      S.isicView.requestId += 1;
+      S.isicView.station = code;
+      S.isicView.stationName = "";
+      S.isicView.state = "empty";
+      S.isicView.items = [];
+      $("#stationName").textContent = "";
+      renderISIC(S);
+      return;
+    }
+
+    resolveStation(S, code);
+    input.blur();
+  });
+}
+
+export async function refreshISIC(S, { force = false } = {}) {
+  const state = S.isicView;
+  if (!state?.station || state.station.length !== 2 || state.state === "invalid") return;
+  if (S.activeView !== "isic" && !force) return;
+  if (state.refreshRunning) return state.refreshPromise;
+
+  const interval = Math.max(7000, Number(S.config.isic?.viewRefreshMs) || 10000);
+  if (!force && state.lastAttempt && Date.now() - state.lastAttempt < interval) return;
+
+  state.lastAttempt = Date.now();
+  state.refreshRunning = true;
+  const requestId = state.requestId;
+
+  state.refreshPromise = (async () => {
+    const nowMs = Date.now();
+    let parsed = null;
+    let isicError = null;
+
+    const departures = (await getStationDepartures(
+      S.config.gtfsZipIndexUrl,
+      state.station,
+      nowMs,
+      { fromMinutes:-180, toMinutes:180, limit:120 }
+    ))
+      .map(departure => buildScheduleRecord(S, departure))
+      .filter(Boolean);
+
+    try {
+      parsed = await fetchIsicStation(S.config.isic, state.station, { force });
+    } catch (error) {
+      isicError = error;
+    }
+
+    if (requestId !== state.requestId) return;
+
+    const matchedItems = [];
+    const matchedIds = new Set();
+
+    if (parsed) {
+      const contexts = await buildMatchContexts(S, departures, state.station, parsed.fetchedAt);
+      const matches = matchContextsToRows(contexts, parsed.rows, parsed.fetchedAt);
+
+      for (const record of departures) {
+        const match = matches.get(record.key);
+        if (!match?.platform || (match.status !== "safe" && match.status !== "safe-delay")) continue;
+
+        matchedIds.add(record.id);
+        matchedItems.push({
+          ...record,
+          platform:match.platform,
+          isicTime:match.row?.time || null,
+          platformMode:match.row?.platformMode || null,
+          source:"isic"
+        });
+      }
+    }
+
+    const extras = departures
+      .filter(record => !matchedIds.has(record.id) && record.targetMs >= nowMs - 60000)
+      .sort((a, b) => a.targetMs - b.targetMs)
+      .slice(0, EXTRA_SCHEDULE_ROWS)
+      .map(record => {
+        const fixed = fixedPlatformFor({
+          line:record.line,
+          station:record.station,
+          effectiveOrigin:record.effectiveOrigin
+        });
+        return {
+          ...record,
+          platform:fixed?.platform ?? null,
+          source:fixed ? "fixed" : "schedule"
+        };
+      });
+
+    const byId = new Map();
+    [...matchedItems, ...extras].forEach(item => byId.set(item.id, item));
+    state.items = [...byId.values()];
+    state.lastFetch = parsed ? new Date(parsed.fetchedAt) : new Date();
+    state.lastError = isicError ? String(isicError?.message || isicError) : null;
+    state.state = "ready";
+    renderISIC(S);
+  })().catch(error => {
+    if (requestId === state.requestId) {
+      state.lastError = String(error?.message || error);
+      state.state = "error";
+      renderISIC(S);
+    }
+  }).finally(() => {
+    if (requestId === state.requestId) {
+      state.refreshRunning = false;
+      state.refreshPromise = null;
+    }
+  });
+
+  return state.refreshPromise;
+}
+
+export function tickISIC(S) {
+  if (S.activeView !== "isic") return;
+  refreshISIC(S);
+
+  /* La cronometria visible pot canviar sense reconstruir tota la consulta. */
+  document.querySelectorAll("#view-isic .isic-trainrow").forEach(button => {
+    const tripId = button.dataset.tripId;
+    const item = S.isicView.items.find(candidate => candidate.id === tripId);
+    if (!item) return;
+    const cell = button.querySelector(".plastic-countdown");
+    const state = countdownState(item.departure, Date.now());
+    if (!cell || !state) return;
+    const red = state.overdue || state.seconds <= countdownRedThreshold(item.station);
+    cell.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
+    cell.classList.toggle("red", red);
+    cell.classList.toggle("overdue", state.overdue);
+  });
+}

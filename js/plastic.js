@@ -1,15 +1,19 @@
-import { getTripBundle } from "./gtfs.js?v=3.13.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.13.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.13.0";
+import { getTripBundle } from "./gtfs.js?v=3.14.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.14.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.14.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.13.0";
+} from "./operations.js?v=3.14.0";
 import {
-  cachedOriginPlatform,
-  resolveOriginPlatform
-} from "./platform.js?v=3.13.0";
+  cachedPlatform,
+  clearPlatform,
+  fetchIsicStation,
+  fixedPlatformFor,
+  matchContextsToRows,
+  rememberPlatform
+} from "./isic.js?v=3.14.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -19,6 +23,8 @@ const rowNodes = new Map();
 const lineGroups = new Map();
 const tripContextCache = new Map();
 let onSelectTrainHandler = null;
+let platformRefreshRunning = false;
+let platformRefreshAt = 0;
 
 function make(tag, className, text) {
   const node = document.createElement(tag);
@@ -285,7 +291,7 @@ function setDestination(cell, code, parenthesized = false) {
   cell.appendChild(station);
 }
 
-function updateRouteCells(model, train) {
+function updateRouteCells(model, train, context = null) {
   const stationed = Boolean(train.stationed);
 
   model.state.textContent = "est.";
@@ -300,7 +306,8 @@ function updateRouteCells(model, train) {
     ? "route-arrow route-arrow-placeholder"
     : "route-arrow moving";
 
-  setDestination(model.destination, train.destination, stationed);
+  const destination = context?.effectiveDestination || train.destination || "—";
+  setDestination(model.destination, destination, stationed);
 }
 
 async function ensureTripContext(S, train) {
@@ -313,18 +320,17 @@ async function ensureTripContext(S, train) {
 
   const promise = getTripBundle(S.config.gtfsZipIndexUrl, train.id)
     .then(bundle => {
-      const origin = String(train.origin || "");
-      const originStop = bundle.times.find((candidate, index) =>
-        parentCode(candidate) === origin &&
-        (index === 0 || Number(candidate.stop_sequence) === 1)
-      ) || bundle.times.find(candidate => parentCode(candidate) === origin);
-
+      const firstStop = bundle.times[0] || null;
       const destinationStop = bundle.times[bundle.times.length - 1] || null;
+      const effectiveOrigin = parentCode(firstStop);
+      const effectiveDestination = parentCode(destinationStop);
 
       const value = {
-        departure: originStop?.departure_time || originStop?.arrival_time || null,
+        departure: firstStop?.departure_time || firstStop?.arrival_time || null,
         headsign: bundle.trip?.trip_headsign || "",
         destinationName: destinationStop?.stop_name || bundle.trip?.trip_headsign || "",
+        effectiveOrigin,
+        effectiveDestination,
         times: bundle.times
       };
 
@@ -383,8 +389,9 @@ function delayMinutes(context, train) {
 function updateOriginCountdown(model, train) {
   const context = cachedTripContext(train);
   const departure = context?.departure || null;
+  const origin = context?.effectiveOrigin || train.origin;
 
-  if (!isOriginHold(train) || !departure) {
+  if (!isOriginHold(train, origin) || !departure) {
     model.countdown.textContent = "";
     model.countdown.className = "plastic-countdown";
     return;
@@ -397,7 +404,7 @@ function updateOriginCountdown(model, train) {
     return;
   }
 
-  const threshold = countdownRedThreshold(train.origin);
+  const threshold = countdownRedThreshold(origin);
   const red = state.overdue || state.seconds <= threshold;
 
   model.countdown.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
@@ -406,13 +413,20 @@ function updateOriginCountdown(model, train) {
   model.countdown.classList.toggle("overdue", state.overdue);
 }
 
-function updateOperationalFromCache(model, train) {
+function updateOperationalFromCache(model, train, S) {
   model.operational.textContent = "";
   model.operational.className = "plastic-operational";
   model.operational.removeAttribute("data-source");
 
-  if (isOriginHold(train)) {
-    const result = cachedOriginPlatform(train);
+  const context = cachedTripContext(train);
+  const origin = context?.effectiveOrigin || train.origin;
+
+  if (context && isOriginHold(train, origin)) {
+    const result = cachedPlatform(
+      train.id,
+      origin,
+      S.config.isic?.staleMs || 30000
+    );
     if (!result?.platform) return;
 
     model.operational.textContent = `VÍA ${result.platform}`;
@@ -423,30 +437,117 @@ function updateOperationalFromCache(model, train) {
 
   if (train.onTime !== false) return;
 
-  const minutes = delayMinutes(cachedTripContext(train), train);
+  const minutes = delayMinutes(context, train);
   if (minutes === null) return;
 
   model.operational.textContent = `+${minutes}`;
   model.operational.classList.add("red", "delay-minutes");
 }
 
+function refreshVisibleOperational(S) {
+  for (const model of rowNodes.values()) {
+    const train = (S.trains || []).find(item => item.id === model.tripId);
+    if (!train) continue;
+    const context = cachedTripContext(train);
+    if (context) updateRouteCells(model, train, context);
+    updateOriginCountdown(model, train);
+    updateOperationalFromCache(model, train, S);
+  }
+}
+
+async function refreshOriginPlatforms(S, { force = false } = {}) {
+  if (platformRefreshRunning || !S.config?.isic?.enabled) return;
+
+  const interval = Math.max(5000, Number(S.config.isic?.refreshMs) || 10000);
+  if (!force && Date.now() - platformRefreshAt < interval) return;
+
+  platformRefreshRunning = true;
+  platformRefreshAt = Date.now();
+
+  try {
+    const trains = S.trains || [];
+    const pairs = await Promise.all(
+      trains.map(async train => ({ train, context:await ensureTripContext(S, train) }))
+    );
+
+    const groups = new Map();
+
+    for (const { train, context } of pairs) {
+      if (!context?.effectiveOrigin || !isOriginHold(train, context.effectiveOrigin)) continue;
+
+      const fixed = fixedPlatformFor({
+        line:train.line,
+        station:context.effectiveOrigin,
+        effectiveOrigin:context.effectiveOrigin
+      });
+
+      if (fixed) {
+        rememberPlatform(train.id, context.effectiveOrigin, fixed.platform, "fixed", {
+          circulation:train.circulation,
+          reason:fixed.reason
+        });
+        continue;
+      }
+
+      if (!groups.has(context.effectiveOrigin)) groups.set(context.effectiveOrigin, []);
+      groups.get(context.effectiveOrigin).push({ train, context });
+    }
+
+    await Promise.all([...groups.entries()].map(async ([station, items]) => {
+      try {
+        const parsed = await fetchIsicStation(S.config.isic, station, { force });
+        const contexts = items.map(({ train, context }) => ({
+          key:train.id,
+          id:train.id,
+          circulation:train.circulation,
+          line:train.line,
+          onTime:train.onTime,
+          station,
+          effectiveOrigin:context.effectiveOrigin,
+          departure:context.departure,
+          originHold:true
+        }));
+
+        const matches = matchContextsToRows(contexts, parsed.rows, parsed.fetchedAt);
+        for (const { train } of items) {
+          const match = matches.get(train.id);
+          if (match?.platform && (match.status === "safe" || match.status === "safe-delay")) {
+            rememberPlatform(train.id, station, match.platform, "isic", {
+              circulation:train.circulation,
+              row:match.row,
+              assessment:match.assessment,
+              imageFetchedAt:parsed.fetchedAt
+            });
+          } else {
+            /* Captura iSIC válida pero sin correspondencia segura: nunca
+               conservamos una vía anterior como si siguiera confirmada. */
+            clearPlatform(train.id, station);
+          }
+        }
+      } catch (error) {
+        /* En error de red mantenemos únicamente la caché muy reciente; la
+           función cachedPlatform aplica staleMs y luego la oculta. */
+        console.warn(`SIM+ PLASTIC: iSIC ${station}`, error);
+      }
+    }));
+  } finally {
+    platformRefreshRunning = false;
+    refreshVisibleOperational(S);
+  }
+}
+
 function ensureOperationalData(model, train, S) {
-  const needsContext = isOriginHold(train) || train.onTime === false;
+  const needsContext = Boolean(train?.id);
   if (!needsContext) return;
 
   ensureTripContext(S, train).then(context => {
     const live = (S.trains || []).find(item => item.id === train.id);
-    if (!live) return;
+    if (!live || !context) return;
 
+    updateRouteCells(model, live, context);
     updateOriginCountdown(model, live);
-    updateOperationalFromCache(model, live);
-
-    if (!isOriginHold(live) || !context) return;
-
-    resolveOriginPlatform(S, live, context).then(() => {
-      const current = (S.trains || []).find(item => item.id === train.id);
-      if (current) updateOperationalFromCache(model, current);
-    });
+    updateOperationalFromCache(model, live, S);
+    refreshOriginPlatforms(S);
   });
 }
 
@@ -474,7 +575,7 @@ function updateTrainRow(model, train, S) {
   }
 
   updateOriginCountdown(model, train);
-  updateOperationalFromCache(model, train);
+  updateOperationalFromCache(model, train, S);
   ensureOperationalData(model, train, S);
 }
 
@@ -595,6 +696,7 @@ export function renderPLASTIC(S) {
   status.classList.toggle("error", Boolean(S.lastError));
 
   syncFilterVisuals(S);
+  refreshOriginPlatforms(S);
 }
 
 export function tickPLASTIC(S) {
@@ -602,7 +704,7 @@ export function tickPLASTIC(S) {
     const train = (S.trains || []).find(item => item.id === model.tripId);
     if (!train) continue;
     updateOriginCountdown(model, train);
-    updateOperationalFromCache(model, train);
+    updateOperationalFromCache(model, train, S);
   }
 }
 

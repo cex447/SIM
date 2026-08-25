@@ -1,23 +1,31 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.13.0";
+} from "./fgc-api.js?v=3.14.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.13.0";
+} from "./plastic.js?v=3.14.0";
 
 import {
   clearLIT,
+  focusCurrentLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.13.0";
+} from "./lit.js?v=3.14.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.13.0";
-import { BackgroundAudio } from "./audio.js?v=3.13.0";
+import {
+  wireISIC,
+  renderISIC,
+  refreshISIC,
+  tickISIC
+} from "./isic-view.js?v=3.14.0";
+
+import { updateOccupancy } from "./occupancy.js?v=3.14.0";
+import { BackgroundAudio } from "./audio.js?v=3.14.0";
 
 const S = {
   config: null,
@@ -37,6 +45,19 @@ const S = {
   plasticFilters: {
     lines: new Set(),
     units: new Set()
+  },
+
+  isicView: {
+    station: "",
+    stationName: "",
+    state: "empty",
+    requestId: 0,
+    items: [],
+    lastFetch: null,
+    lastAttempt: 0,
+    lastError: null,
+    refreshRunning: false,
+    refreshPromise: null
   },
 
   query: {
@@ -86,8 +107,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.13.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.13.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.14.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.14.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -321,6 +342,11 @@ async function activateView(name, { clearQuery = true } = {}) {
   }
 
   if (name === "plastic") renderPLASTIC(S);
+  if (name === "isic") {
+    renderISIC(S);
+    refreshISIC(S);
+  }
+  if (name === "lit") focusCurrentLIT(S);
 }
 
 async function openCirculationFromPlastic(code) {
@@ -412,6 +438,7 @@ async function refreshPositioning({ reschedule = true } = {}) {
 
       syncActiveQueryAfterRefresh();
       renderPLASTIC(S);
+      if (S.activeView === "isic") refreshISIC(S);
     } catch (error) {
       if (error?.name !== "AbortError") {
         S.lastError = String(error?.message || error);
@@ -457,7 +484,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.13.0",
+      "SIM+ Beta 3.14.0",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
@@ -470,6 +497,9 @@ function setupDiagnostics() {
       `Refresc: ${S.config.refreshMs} ms`,
       `Consulta: ${S.query.code || "—"}`,
       `Estat consulta: ${S.query.state}`,
+      `Estació iSIC: ${S.isicView.station || "—"}`,
+      `Nom iSIC: ${S.isicView.stationName || "—"}`,
+      `Error iSIC: ${S.isicView.lastError || "—"}`,
       `MP3 detectats: ${audioState.tracks ?? 0}`,
       `Àudio carregat: ${audioState.loaded ? "sí" : "no"}`,
       `Àudio reproduint: ${audioState.playing ? "sí" : "no"}`,
@@ -508,18 +538,21 @@ async function init() {
   setupSearch();
   setupDiagnostics();
   wirePLASTIC(S, { onSelectTrain: openCirculationFromPlastic });
+  wireISIC(S, { onSelectTrain: openCirculationFromPlastic });
   setupConnectivity();
   setupAudio();
 
   document.documentElement.dataset.view = S.activeView;
   renderQuery();
   renderPLASTIC(S);
+  renderISIC(S);
 
   await refreshPositioning();
 
   setInterval(() => {
     tickLIT(S);
     tickPLASTIC(S);
+    tickISIC(S);
   }, 250);
 }
 

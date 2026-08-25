@@ -1,17 +1,29 @@
-import { getTripBundle } from "./gtfs.js?v=3.13.0";
+import { getTripBundle } from "./gtfs.js?v=3.14.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.13.0";
+} from "./time.js?v=3.14.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.13.0";
+} from "./operations.js?v=3.14.0";
+import {
+  cachedPlatform,
+  clearPlatform,
+  fetchIsicStation,
+  fixedPlatformFor,
+  matchContextToRows,
+  rememberPlatform
+} from "./isic.js?v=3.14.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
+const LIT_PLATFORM_NEAR_MS = 12000;
+const LIT_PLATFORM_FAR_MS = 45000;
+const LIT_PLATFORM_NEAR_COUNT = 3;
+const LIT_PLATFORM_FAR_COUNT = 1;
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /*
@@ -38,9 +50,21 @@ function stationName(stop) {
     .toLocaleUpperCase("ca-ES");
 }
 
-function platformCode(stop) {
-  return String(stop?.stop_id || "");
+function stationCode(stop) {
+  return parentCode(stop);
 }
+
+function setPlatformCode(item, code, platform = null) {
+  const cell = item?.querySelector?.(".platform-code");
+  if (!cell) return;
+
+  const base = cell.querySelector(".platform-base");
+  const slot = cell.querySelector(".platform-slot");
+  if (base) base.textContent = code || "";
+  if (slot) slot.textContent = Number.isFinite(Number(platform)) ? String(Number(platform)) : "";
+  cell.dataset.platform = Number.isFinite(Number(platform)) ? String(Number(platform)) : "";
+}
+
 
 function parityOf(train) {
   const last = Number(String(train?.circulation || "").slice(-1));
@@ -288,7 +312,15 @@ function createStationItem(S, stop, nextStop, index, isLast) {
 
   const platform = document.createElement("div");
   platform.className = "platform-code";
-  platform.textContent = platformCode(stop);
+  const platformInner = document.createElement("span");
+  platformInner.className = "platform-code-inner";
+  const platformBase = document.createElement("span");
+  platformBase.className = "platform-base";
+  platformBase.textContent = stationCode(stop);
+  const platformSlot = document.createElement("span");
+  platformSlot.className = "platform-slot";
+  platformInner.append(platformBase, platformSlot);
+  platform.appendChild(platformInner);
 
   const technical = document.createElement("div");
   technical.className = "technical";
@@ -348,7 +380,10 @@ export async function loadLIT(S, circulation, liveTrain) {
     stops: [],
     lastFollowKey: null,
     manualHoldUntil: 0,
-    autoScrolling: false
+    autoScrolling: false,
+    platforms: new Map(),
+    platformAttempts: new Map(),
+    platformRefreshRunning: false
   };
 
   const bundle = await getTripBundle(S.config.gtfsZipIndexUrl, liveTrain.id);
@@ -361,7 +396,9 @@ export async function loadLIT(S, circulation, liveTrain) {
   S.selected.stops = bundle.times;
 
   render(S);
+  seedKnownPlatforms(S);
   updateCurrent(S, true);
+  refreshLITPlatforms(S, { force:true });
   return true;
 }
 
@@ -492,17 +529,196 @@ function maybeAutoScroll(S, location, force) {
 
   S.selected.autoScrolling = true;
 
-  item.scrollIntoView({
-    block: "center",
-    behavior: force ? "auto" : "smooth"
-  });
-
+  /* Posició vigent sempre a la part superior de la zona LIT. No animem el
+     desplaçament: és una recol·locació operacional, no un efecte gràfic. */
+  item.scrollIntoView({ block:"start", behavior:"auto" });
   S.selected.lastFollowKey = key;
 
-  setTimeout(() => {
+  requestAnimationFrame(() => {
     if (S.selected) S.selected.autoScrolling = false;
-  }, 320);
+  });
 }
+
+function estimateDelayAdjustmentMinutes(S, nowMs = Date.now()) {
+  const live = S.selected?.live;
+  if (live?.onTime !== false) return 0;
+
+  const location = locateOperationalTarget(S.selected?.stops || [], live);
+  if (!location || location.final) return 0;
+  const stop = S.selected.stops[location.targetIndex];
+  if (!stop) return 0;
+
+  const reference = location.type === "moving"
+    ? (stop.arrival_time || stop.departure_time)
+    : (stop.departure_time || stop.arrival_time);
+  const state = countdownState(reference, nowMs);
+  if (!state) return 0;
+  return Math.max(0, -state.diffMs / 60000);
+}
+
+function applySelectedPlatform(S, index, platform, source = "isic") {
+  if (!S.selected || !Number.isFinite(Number(platform))) return;
+  S.selected.platforms.set(index, {
+    platform:Number(platform),
+    source,
+    confirmedAt:Date.now()
+  });
+  const stop = S.selected.stops[index];
+  const item = document.querySelector(`.lit-item[data-i="${index}"]`);
+  setPlatformCode(item, parentCode(stop), Number(platform));
+}
+
+function clearSelectedPlatform(S, index) {
+  if (!S.selected) return;
+  const existing = S.selected.platforms.get(index);
+  if (existing?.source === "fixed") return;
+  S.selected.platforms.delete(index);
+  const stop = S.selected.stops[index];
+  const item = document.querySelector(`.lit-item[data-i="${index}"]`);
+  setPlatformCode(item, parentCode(stop), null);
+}
+
+function seedKnownPlatforms(S) {
+  if (!S.selected?.stops?.length || !S.selected?.live) return;
+
+  const stops = S.selected.stops;
+  const live = S.selected.live;
+  const effectiveOrigin = parentCode(stops[0]);
+
+  stops.forEach((stop, index) => {
+    const station = parentCode(stop);
+
+    const fixed = fixedPlatformFor({
+      line:live.line,
+      station,
+      effectiveOrigin
+    });
+    if (index === 0 && fixed) {
+      rememberPlatform(live.id, station, fixed.platform, "fixed", { circulation:live.circulation });
+      applySelectedPlatform(S, index, fixed.platform, "fixed");
+      return;
+    }
+
+    const cached = cachedPlatform(live.id, station, S.config.isic?.staleMs || 30000);
+    if (cached?.platform) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+  });
+}
+
+async function queryLITStationPlatform(S, index, force = false) {
+  const selected = S.selected;
+  if (!selected?.stops?.[index] || !selected.live) return;
+  if (index >= selected.stops.length - 1) return; // el destí final no té sortida pròpia garantida
+
+  const stop = selected.stops[index];
+  const station = parentCode(stop);
+  const effectiveOrigin = parentCode(selected.stops[0]);
+  const fixed = index === 0 ? fixedPlatformFor({
+    line:selected.live.line,
+    station,
+    effectiveOrigin
+  }) : null;
+
+  if (fixed) {
+    rememberPlatform(selected.live.id, station, fixed.platform, "fixed", { circulation:selected.live.circulation });
+    applySelectedPlatform(S, index, fixed.platform, "fixed");
+    return;
+  }
+
+  const selectionKey = `${selected.live.id}|${selected.circulation}`;
+
+  try {
+    const parsed = await fetchIsicStation(S.config.isic, station, { force });
+    if (!S.selected || `${S.selected.live?.id}|${S.selected.circulation}` !== selectionKey) return;
+
+    const delayAdjustmentMinutes = estimateDelayAdjustmentMinutes(S, parsed.fetchedAt);
+    const context = {
+      key:selected.live.id,
+      id:selected.live.id,
+      circulation:selected.circulation,
+      line:selected.live.line,
+      onTime:selected.live.onTime,
+      station,
+      effectiveOrigin,
+      departure:stop.departure_time || stop.arrival_time,
+      delayAdjustmentMinutes,
+      originHold:index === 0 && String(selected.live.stationed || "") === effectiveOrigin
+    };
+
+    const match = matchContextToRows(context, parsed.rows, parsed.fetchedAt);
+    if (match?.platform && (match.status === "safe" || match.status === "safe-delay")) {
+      rememberPlatform(selected.live.id, station, match.platform, "isic", {
+        circulation:selected.circulation,
+        row:match.row,
+        assessment:match.assessment,
+        imageFetchedAt:parsed.fetchedAt
+      });
+      applySelectedPlatform(S, index, match.platform, "isic");
+    } else {
+      clearPlatform(selected.live.id, station);
+      clearSelectedPlatform(S, index);
+    }
+  } catch (error) {
+    console.warn(`SIM+ LIT: iSIC ${station}`, error);
+    const cached = cachedPlatform(selected.live.id, station, S.config.isic?.staleMs || 30000);
+    if (cached?.platform) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+  }
+}
+
+export async function refreshLITPlatforms(S, { force = false } = {}) {
+  const selected = S.selected;
+  if (!selected?.stops?.length || !selected.live || !S.config?.isic?.enabled) return;
+  if (S.activeView !== "lit" && !force) return;
+  if (selected.platformRefreshRunning) return;
+
+  const location = locateOperationalTarget(selected.stops, selected.live);
+  if (!location) return;
+
+  const anchor = Math.max(0, location.targetIndex);
+  const now = Date.now();
+  const near = [];
+  const far = [];
+
+  for (let offset = 0; offset < LIT_PLATFORM_NEAR_COUNT; offset += 1) {
+    const index = anchor + offset;
+    if (index < selected.stops.length - 1) near.push(index);
+  }
+  for (let offset = LIT_PLATFORM_NEAR_COUNT;
+       offset < LIT_PLATFORM_NEAR_COUNT + LIT_PLATFORM_FAR_COUNT;
+       offset += 1) {
+    const index = anchor + offset;
+    if (index < selected.stops.length - 1) far.push(index);
+  }
+
+  const due = [];
+  for (const index of near) {
+    const last = selected.platformAttempts.get(index) || 0;
+    if (force || now - last >= LIT_PLATFORM_NEAR_MS) due.push(index);
+  }
+  for (const index of far) {
+    const last = selected.platformAttempts.get(index) || 0;
+    if (force || now - last >= LIT_PLATFORM_FAR_MS) due.push(index);
+  }
+
+  if (!due.length) return;
+  selected.platformRefreshRunning = true;
+
+  try {
+    /* Seqüencial per no descarregar diverses captures PNG alhora. */
+    for (const index of due) {
+      if (!S.selected || S.selected !== selected) break;
+      selected.platformAttempts.set(index, Date.now());
+      await queryLITStationPlatform(S, index, force);
+    }
+  } finally {
+    if (S.selected === selected) selected.platformRefreshRunning = false;
+  }
+}
+
+export function focusCurrentLIT(S) {
+  if (!S.selected?.stops?.length) return;
+  updateCurrent(S, true);
+}
+
 
 export function updateCurrent(S, forceScroll = false) {
   if (!S.selected?.stops?.length) return;
@@ -546,4 +762,5 @@ export function updateCurrent(S, forceScroll = false) {
 
 export function tickLIT(S) {
   updateCurrent(S, false);
+  refreshLITPlatforms(S);
 }
