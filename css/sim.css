@@ -242,8 +242,9 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .delayed-text{ color:var(--red) !important; }
 
 .lit-query-bar,.isic-query-bar{ display:none; }
-html[data-view="lit"] .lit-query-bar{ display:grid; }
-html[data-view="isic"] .isic-query-bar{ display:grid; }
+.query-bar[hidden]{ display:none !important; }
+html[data-view="lit"] .lit-query-bar:not([hidden]){ display:grid; }
+html[data-view="isic"] .isic-query-bar:not([hidden]){ display:grid; }
 
 /* =========================================================
    OCUPACIÓN
