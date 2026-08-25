@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SIM+ · Matcher iSIC diagnóstico v2</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark}
+body{margin:0;padding:20px;max-width:1200px}
+h1{font-size:26px;margin:0 0 8px} p{line-height:1.45}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+button{font:inherit;padding:10px 12px;cursor:pointer}
+.card{border:1px solid #8886;border-radius:12px;padding:14px;margin:12px 0}
+.ok{border-color:#3a5} .bad{border-color:#c44}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #8884;border-radius:8px;padding:12px;font-size:11px;line-height:1.35}
+.tablewrap{overflow:auto}
+table{border-collapse:collapse;width:100%;min-width:850px;font-variant-numeric:tabular-nums}
+th,td{padding:7px;border-bottom:1px solid #8884;text-align:left;white-space:nowrap}
+.oktxt{color:#198754} .warntxt{color:#b77900} .badtxt{color:#c33}
+small{opacity:.7}
+</style>
+</head>
+<body>
+<h1>SIM+ · Matcher iSIC ↔ circulación · v2</h1>
+<p>
+Segunda prueba de robustez antes de integrar las vías en PLASTIC. Detecta las circulaciones BV
+estacionadas en el <b>origen efectivo de su trip</b>, lee iSIC y asigna una vía solo
+cuando la correspondencia es suficientemente segura.
+</p>
+<div class="controls">
+<button id="run">Ejecutar matcher</button>
+<button id="copy">Copiar JSON</button>
+<button id="clearMemory">Borrar memoria diagnóstica</button>
+</div>
+<div id="status" class="card">Preparado.</div>
+<div class="card tablewrap"><div id="table"></div></div>
+<h2>Resultado técnico</h2>
+<pre id="raw">Pulsa «Ejecutar matcher».</pre>
+
+<script type="module">
+import { fetchPositioning, normalizeTrain } from "./js/fgc-api.js?v=3.13.0";
+import { getTripBundle } from "./js/gtfs.js?v=3.13.0";
+import { parentCode } from "./js/operations.js?v=3.13.0";
+
+
+const PROXY = "https://sim-isic-proxy2.cex447.workers.dev/";
+const PANEL_W = 1920, PANEL_H = 1080;
+const ROW_TOP = 200, ROW_H = 200, ROWS = 4;
+const TEMPLATE_W = 60, TEMPLATE_H = 70;
+const templatesB64 = {"1": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8AAAAAAAAB8AAAAAAAAH+AAAAAAAAP+AAAAAAAAf+AAAAAAAB/+AAAAAAAD/+AAAAAAAH/+AAAAAAAf/+AAAAAAA/7+AAAAAAB/z+AAAAAAD/j+AAAAAAP+D+AAAAAAf8D+AAAAAA/4D+AAAAAAfwD+AAAAAAPAD+AAAAAAOAD+AAAAAAEAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "4": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwAAAAAAAAfwAAAAAAAA/wAAAAAAAB/wAAAAAAAB/wAAAAAAAD/wAAAAAAAH/wAAAAAAAP/wAAAAAAAPvwAAAAAAAfvwAAAAAAB/PwAAAAAAB/PwAAAAAAD+PwAAAAAAH+PwAAAAAAP8PwAAAAAAP4PwAAAAAAf4PwAAAAAA/wPwAAAAAA/gPwAAAAAB+APwAAAAAD+APwAAAAAD8APwAAAAAH4APwAAAAAP4APwAAAAAfwAPwAAAAAfgAPwAAAAA/AAPwAAAAB/AAPwAAAAB+AAPwAAAAD8AAPwAAAAH8AAPwAAAAP4AAPwAAAAPwAAPwAAAAPwAAPwAAAAfgAAPwAAAA/gAAPwAAAA/AAAPwAAAB+AAAPwAAAD+AAAPwAAAD8AAAPwAAAH4AAAPwAAAP4AAAPwAAAfwAAAPwAAAfgAAAP4AAB////////AB////////AB////////AB////////AB////////AB////////AAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "8": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4AAAAAAAB//wAAAAAAP//+AAAAAA////gAAAAB////wAAAAD////4AAAAH/gB/8AAAAP+AAP+AAAAf8AAH+AAAAf4AAD/AAAAfwAAB/AAAA/gAAB/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAAfgAAB/AAAAfwAAB/AAAAf4AAD+AAAAP4AAD+AAAAP8AAH8AAAAH/AAf4AAAAD/gA/wAAAAB/4D/gAAAAA/+P/AAAAAAf//8AAAAAAH//4AAAAAAB//gAAAAAAB//wAAAAAAH//8AAAAAAf///AAAAAA/8f/gAAAAD/wH/4AAAAH/AB/8AAAAP8AAf+AAAAf4AAH/AAAA/wAAD/AAAA/gAAB/gAAB/AAAA/wAAB/AAAAfwAAB+AAAAfwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAfwAAB/AAAAfwAAB/AAAA/wAAB/gAAB/gAAA/wAAD/gAAAf8AAH/AAAAf/AAf+AAAAP////8AAAAH////4AAAAB////wAAAAAf///AAAAAAH//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "2": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AAAAAAAH//gAAAAAA///4AAAAAD///+AAAAAP////AAAAAf////gAAAB//AH/wAAAD/4AB/4AAAB/gAAf8AAAA+AAAP8AAAAcAAAH+AAAAQAAAH+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAB/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAA/wAAAAAAAA/gAAAAAAAB/AAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/wAAAAAAAB/gAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/gAAAAAAAD/gAAAAAAAH//////wAAH//////wAAH//////wAAH//////wAAH//////wAAH//////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "7": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////4AAP//////4AAP//////4AAP//////4AAP//////4AAP//////4AAP//////4AAAAAAAAPwAAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAH4AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/gAAAAAAAB/AAAAAAAAD/AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAf4AAAAAAAAfwAAAAAAAA/wAAAAAAAA/gAAAAAAAB/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD+AAAAAAAAD+AAAAAAAAH+AAAAAAAAH8AAAAAAAAP8AAAAAAAAP4AAAAAAAAf4AAAAAAAAfwAAAAAAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "3": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf8AAAAAAAH//4AAAAAA///+AAAAAH////gAAAAP////wAAAA/////4AAAB//AB/8AAAB/4AAf+AAAA/gAAP+AAAA+AAAH/AAAAYAAAD/AAAAAAAAB/AAAAAAAAB/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD/AAAAAAAAD+AAAAAAAAH+AAAAAAAAP8AAAAAAAA/4AAAAAAAD/wAAAAAAAf/gAAAAAP//+AAAAAAP//wAAAAAAP//AAAAAAAP//4AAAAAAP///AAAAAAP///wAAAAAAAH/8AAAAAAAAf+AAAAAAAAH/AAAAAAAAD/gAAAAAAAB/gAAAAAAAA/wAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAA/wAAAAAAAA/wAAAAAAAB/gAACAAAAD/gAADgAAAH/AAAD8AAAf+AAAD/wAD/8AAAD/////4AAAD/////wAAAD/////AAAAA////8AAAAAD///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "6": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/gAAAAAAA//+AAAAAAH//+AAAAAAf//+AAAAAB///+AAAAAD///+AAAAAP/4AGAAAAAf/AAAAAAAA/8AAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAAfwAAAAAAAAfgAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/AAAAAAAAA/AAAAAAAAB/AB/gAAAAB/AP/+AAAAB/A///gAAAB/D///wAAAB+H///8AAAB+P/H/+AAAB+fwAP/AAAB+/AAH/AAAB/8AAB/gAAB/4AAA/gAAB/wAAA/wAAD/gAAAfwAAD/gAAAfwAAD/AAAAPwAAB/AAAAPwAAB/AAAAPwAAB+AAAAPwAAB+AAAAHwAAB+AAAAHwAAB+AAAAHwAAB/AAAAHwAAB/AAAAPwAAA/AAAAPwAAA/AAAAPwAAA/gAAAPwAAA/gAAAPwAAAfwAAAfwAAAfwAAAfwAAAP4AAA/wAAAP8AAA/gAAAH8AAB/gAAAH/AAD/AAAAD/gAP+AAAAB/4A/+AAAAA////8AAAAAf///4AAAAAP///gAAAAAD///AAAAAAA//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "0": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH8AAAAAAAB//wAAAAAAH//8AAAAAAf//+AAAAAA////gAAAAB////wAAAAD/4D/wAAAAH/AA/4AAAAH+AAP8AAAAP8AAH8AAAAP4AAD+AAAAfwAAD+AAAAfwAAB/AAAA/gAAB/AAAA/gAAA/gAAA/gAAA/gAAA/AAAA/gAAB/AAAAfgAAB/AAAAfwAAB/AAAAfwAAB/AAAAfwAAB+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAB+AAAAPwAAB+AAAAPwAAB/AAAAfwAAB/AAAAfwAAB/AAAAfwAAA/AAAAfwAAA/AAAA/gAAA/gAAA/gAAA/gAAA/gAAAfgAAB/AAAAfwAAB/AAAAfwAAD/AAAAP4AAD+AAAAH8AAH+AAAAH+AAP8AAAAD/AAf8AAAAD/4D/4AAAAB////wAAAAA////gAAAAAP///AAAAAAH//8AAAAAAB//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "5": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH4AAAAAAAAP4AAAAAAAAP4AAAAAAAAP4AAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfgAAAAAAAAfgAAAAAAAAfg/8AAAAAAf///4AAAAAf///+AAAAAf////gAAAAf////wAAAAP////4AAAAHgAD/8AAAAAAAAf+AAAAAAAAH/AAAAAAAAD/AAAAAAAAB/gAAAAAAAB/gAAAAAAAA/wAAAAAAAA/wAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/gAAAAAAAD/AAADAAAAH/AAADwAAAP+AAAD+AAA/8AAAD/4AH/4AAAD/////wAAAD/////gAAAD////+AAAAAf///4AAAAAD///gAAAAAAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "9": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//AAAAAAA///wAAAAAB///8AAAAAH///+AAAAAP////AAAAAf/AH/gAAAAf8AB/wAAAA/wAA/4AAAB/gAAP4AAAB/AAAP8AAAD/AAAH8AAAD+AAAD+AAAD+AAAD+AAAD8AAAB/AAAD8AAAB/AAAD8AAAA/AAAD8AAAA/AAAD8AAAA/gAAD4AAAA/gAAD4AAAAfgAAD4AAAAfgAAD4AAAAfgAAD8AAAAfgAAD8AAAA/gAAD8AAAA/gAAD8AAAA/wAAD+AAAB/wAAD+AAAB/wAAD/AAAD/gAAB/AAAH/gAAB/gAAP/gAAA/4AA/fgAAA/8AD+fgAAAf/4/8fgAAAP///4fgAAAD///w/gAAAB///A/gAAAAf/8A/gAAAAB/gA/gAAAAAAAA/AAAAAAAAA/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB+AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAP/AAAAAAAA/+AAAAAYAH/8AAAAAf///wAAAAAf///gAAAAAf//+AAAAAAf//4AAAAAAf//AAAAAAAB/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"};
+
+const LINE_COLORS = {
+  L12:[191,190,224],
+  L6:[128,127,195],
+  L7:[180,97,38],
+  S1:[253,115,45],
+  S2:[81,191,68]
+};
+
+const templates = Object.fromEntries(
+  Object.entries(templatesB64).map(([k,v]) => [k, unpackTemplate(v)])
+);
+
+function unpackTemplate(b64){
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const out = new Uint8Array(TEMPLATE_W*TEMPLATE_H);
+  let bit=0;
+  for(let i=0;i<out.length;i++,bit++){
+    const byte=bytes[bit>>3];
+    out[i]=(byte >> (7-(bit&7))) & 1;
+  }
+  return out;
+}
+
+function rgbaAt(data,w,x,y){
+  const i=(y*w+x)*4;
+  return [data[i],data[i+1],data[i+2],data[i+3]];
+}
+
+function makeMask(data,imgW,x0,y0,w,h,pred){
+  const m=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){
+    let src=((y0+y)*imgW+x0)*4;
+    let dst=y*w;
+    for(let x=0;x<w;x++,src+=4, dst++){
+      if(pred(data[src],data[src+1],data[src+2],data[src+3])) m[dst]=1;
+    }
+  }
+  return m;
+}
+
+function connected(mask,w,h){
+  const seen=new Uint8Array(mask.length), comps=[];
+  const stackX=new Int32Array(mask.length), stackY=new Int32Array(mask.length);
+  const dirs=[-1,-1,0,-1,1,-1,-1,0,1,0,-1,1,0,1,1,1];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const idx=y*w+x;
+    if(!mask[idx]||seen[idx]) continue;
+    let sp=0; stackX[sp]=x; stackY[sp]=y; sp++; seen[idx]=1;
+    let minX=x,maxX=x,minY=y,maxY=y,area=0;
+    const pts=[];
+    while(sp){
+      sp--; const cx=stackX[sp], cy=stackY[sp];
+      pts.push([cx,cy]); area++;
+      if(cx<minX)minX=cx;if(cx>maxX)maxX=cx;if(cy<minY)minY=cy;if(cy>maxY)maxY=cy;
+      for(let d=0;d<dirs.length;d+=2){
+        const nx=cx+dirs[d], ny=cy+dirs[d+1];
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+        const ni=ny*w+nx;
+        if(mask[ni]&&!seen[ni]){
+          seen[ni]=1; stackX[sp]=nx; stackY[sp]=ny; sp++;
+        }
+      }
+    }
+    const cw=maxX-minX+1,ch=maxY-minY+1;
+    const local=new Uint8Array(cw*ch);
+    for(const [px,py] of pts)local[(py-minY)*cw+(px-minX)]=1;
+    comps.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+  }
+  return comps;
+}
+
+function normalizeComp(c){
+  const targetH=64;
+  const nw=Math.max(1,Math.round(c.w*targetH/c.h));
+  const out=new Uint8Array(TEMPLATE_W*TEMPLATE_H);
+  const ox=Math.floor((TEMPLATE_W-nw)/2), oy=Math.floor((TEMPLATE_H-targetH)/2);
+  for(let y=0;y<targetH;y++){
+    const sy=Math.min(c.h-1,Math.floor(y*c.h/targetH));
+    for(let x=0;x<nw;x++){
+      const sx=Math.min(c.w-1,Math.floor(x*c.w/nw));
+      const dx=ox+x,dy=oy+y;
+      if(dx>=0&&dx<TEMPLATE_W&&c.mask[sy*c.w+sx]) out[dy*TEMPLATE_W+dx]=1;
+    }
+  }
+  return out;
+}
+
+function iou(a,b){
+  let inter=0,uni=0;
+  for(let i=0;i<a.length;i++){
+    const A=a[i],B=b[i];
+    if(A||B)uni++;
+    if(A&&B)inter++;
+  }
+  return uni?inter/uni:0;
+}
+
+function classifyDigit(c){
+  const n=normalizeComp(c);
+  let best=null,bestScore=-1;
+  for(const [d,t] of Object.entries(templates)){
+    const s=iou(n,t);
+    if(s>bestScore){best=d;bestScore=s}
+  }
+  return {digit:best,score:bestScore};
+}
+
+function lineForRow(data,imgW,panel,row){
+  const x0=panel*PANEL_W, y0=ROW_TOP+row*ROW_H;
+  const scores=Object.fromEntries(Object.keys(LINE_COLORS).map(k=>[k,0]));
+  for(let y=y0;y<y0+ROW_H;y+=2){
+    for(let x=x0;x<x0+250;x+=2){
+      const i=(y*imgW+x)*4, r=data[i],g=data[i+1],b=data[i+2];
+      const max=Math.max(r,g,b),min=Math.min(r,g,b);
+      if(max-min<=30||max<=80) continue;
+      for(const [k,c] of Object.entries(LINE_COLORS)){
+        const dr=r-c[0],dg=g-c[1],db=b-c[2];
+        if(dr*dr+dg*dg+db*db<625)scores[k]++;
+      }
+    }
+  }
+  let best=null,bestN=0;
+  for(const [k,n] of Object.entries(scores))if(n>bestN){best=k;bestN=n}
+  return bestN>120?{line:best,score:bestN}:null;
+}
+
+function parseTime(data,imgW,panel,row){
+  /*
+   * Los minutos están alineados por la derecha. La v1 empezaba en x=1240,
+   * suficiente para 1–2 dígitos pero capaz de recortar el primer dígito de
+   * tiempos de 3 cifras (p. ej. 102 min). Ampliamos la ventana hacia la
+   * izquierda sin invadir la palabra "min".
+   */
+  const x0=panel*PANEL_W+1160, y0=ROW_TOP+row*ROW_H;
+  const regionW=200;
+  const m=makeMask(data,imgW,x0,y0,regionW,200,(r,g,b)=>r>180&&g>180&&b>180);
+  let cs=connected(m,regionW,200)
+    .filter(c=>c.area>100&&c.h>=58)
+    .sort((a,b)=>a.x-b.x);
+
+  if(cs.length){
+    // Conservamos como máximo los 3 dígitos más a la derecha.
+    cs=cs.slice(-3);
+    let s="",confidence=1,details=[];
+    for(const c of cs){
+      const q=classifyDigit(c);
+      s+=q.digit;
+      confidence=Math.min(confidence,q.score);
+      details.push({
+        digit:q.digit,
+        score:+q.score.toFixed(3),
+        x:c.x+x0,
+        w:c.w,h:c.h,area:c.area
+      });
+    }
+    return {
+      kind:"minutes",
+      value:Number(s),
+      confidence:+confidence.toFixed(3),
+      digitCount:cs.length,
+      details
+    };
+  }
+
+  const wide=makeMask(
+    data,imgW,panel*PANEL_W+1160,y0,460,200,
+    (r,g,b)=>r>180&&g>180&&b>180
+  );
+  let amount=0;
+  for(let y=40;y<130;y++)for(let x=0;x<460;x++)amount+=wide[y*460+x];
+  if(amount>1800)return {kind:"sortint",value:null,confidence:1,whitePixels:amount};
+  return null;
+}
+
+function rowPlatform(data,imgW,panel,row){
+  const x0=panel*PANEL_W+1600, y0=ROW_TOP+row*ROW_H;
+  const m=makeMask(data,imgW,x0,y0,280,200,(r,g,b)=>r>180&&g>180&&b>180);
+  const cs=connected(m,280,200)
+    .filter(c=>c.area>100&&c.h>45)
+    .sort((a,b)=>a.x-b.x);
+  if(!cs.length)return null;
+  let s="",confidence=1,details=[];
+  for(const c of cs){
+    const q=classifyDigit(c);
+    s+=q.digit;confidence=Math.min(confidence,q.score);
+    details.push({digit:q.digit,score:+q.score.toFixed(3),w:c.w,h:c.h,area:c.area});
+  }
+  return {value:Number(s),confidence:+confidence.toFixed(3),details};
+}
+
+function panelPlatform(data,imgW,panel){
+  const baseX=panel*PANEL_W+1500;
+  const yellow=makeMask(data,imgW,baseX,0,420,200,(r,g,b)=>r>220&&g>200&&b<120);
+  const big=connected(yellow,420,200)
+    .filter(c=>c.area>10000&&c.h>150)
+    .sort((a,b)=>b.area-a.area)[0];
+  if(!big)return null;
+
+  const dark=makeMask(
+    data,imgW,baseX+big.x,big.y,big.w,big.h,
+    (r,g,b)=>r<100&&g<100&&b<100
+  );
+  // Clear a 5px frame.
+  for(let y=0;y<big.h;y++)for(let x=0;x<big.w;x++){
+    if(x<5||y<5||x>=big.w-5||y>=big.h-5)dark[y*big.w+x]=0;
+  }
+  const c=connected(dark,big.w,big.h)
+    .filter(c=>c.area>100&&c.h>50)
+    .sort((a,b)=>b.area-a.area)[0];
+  if(!c)return null;
+  const q=classifyDigit(c);
+  return {value:Number(q.digit),confidence:+q.score.toFixed(3),mode:"panel"};
+}
+
+function parse(imgData){
+  const {data,width,height}=imgData;
+  if(height!==PANEL_H||width%PANEL_W!==0){
+    throw new Error(`Geometría iSIC inesperada: ${width}×${height}`);
+  }
+  const panels=width/PANEL_W, out=[];
+  for(let p=0;p<panels;p++){
+    const pp=panelPlatform(data,width,p);
+    for(let r=0;r<ROWS;r++){
+      const ln=lineForRow(data,width,p,r);
+      if(!ln)continue;
+      const time=parseTime(data,width,p,r);
+      const platform=pp || rowPlatform(data,width,p,r);
+      out.push({
+        panel:p+1,row:r+1,line:ln.line,
+        time,
+        platform,
+        platformMode:pp?"panel":"row"
+      });
+    }
+  }
+  return {width,height,panels,rows:out};
+}
+
+
+
+
+const $ = id => document.getElementById(id);
+
+async function loadConfig(){
+  const r = await fetch(`./data/config.json?_ts=${Date.now()}`, {cache:"no-store"});
+  if(!r.ok) throw new Error(`config.json HTTP ${r.status}`);
+  return r.json();
+}
+
+function parseGtfsSeconds(value){
+  const p=String(value||"").trim().split(":").map(Number);
+  if(p.length<2||p.length>3||p.some(v=>!Number.isFinite(v)))return null;
+  const [h,m,s=0]=p;
+  if(m<0||m>59||s<0||s>59)return null;
+  return h*3600+m*60+s;
+}
+
+function nearestDepartureMs(value, nowMs){
+  const sec=parseGtfsSeconds(value);
+  if(sec===null)return null;
+  const d=new Date(nowMs);
+  d.setHours(0,0,0,0);
+  const base=d.getTime();
+  const candidates=[-1,0,1].map(off=>base+off*86400000+sec*1000);
+  return candidates.reduce((best,x)=>
+    Math.abs(x-nowMs)<Math.abs(best-nowMs)?x:best
+  );
+}
+
+function fmtTime(ms){
+  if(!Number.isFinite(ms))return "—";
+  const d=new Date(ms);
+  return d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+}
+
+function fixedPlatformFor(context){
+  if(context.effectiveOrigin==="TB")return {platform:1,reason:"TB: única vía"};
+  if(context.line==="L12" && context.effectiveOrigin==="SR"){
+    return {platform:4,reason:"L12 en SR: regla fija"};
+  }
+  return null;
+}
+
+async function getTripContext(config, train){
+  const bundle=await getTripBundle(config.gtfsZipIndexUrl, train.id);
+  const first=bundle.times[0]||null;
+  const last=bundle.times[bundle.times.length-1]||null;
+  return {
+    id:train.id,
+    circulation:train.circulation,
+    unit:train.unit,
+    line:train.line,
+    onTime:train.onTime,
+    positionedOrigin:train.origin,
+    stationed:train.stationed,
+    effectiveOrigin: parentCode(first),
+    effectiveDestination: parentCode(last),
+    departure:first?.departure_time||first?.arrival_time||null,
+    headsign:bundle.trip?.trip_headsign||"",
+    firstStopName:first?.stop_name||"",
+    lastStopName:last?.stop_name||""
+  };
+}
+
+async function parseStationLive(station){
+  const u=`${PROXY}?station=${encodeURIComponent(station.toLowerCase())}&mode=image&v=${Date.now()}`;
+  const res=await fetch(u,{cache:"no-store"});
+  if(!res.ok)throw new Error(`iSIC ${station}: proxy HTTP ${res.status}`);
+  const blob=await res.blob();
+  if(!blob.type.startsWith("image/"))throw new Error(`iSIC ${station}: ${blob.type}`);
+  const bmp=await createImageBitmap(blob);
+  const canvas=document.createElement("canvas");
+  canvas.width=bmp.width; canvas.height=bmp.height;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  ctx.drawImage(bmp,0,0);
+  const parsed=parse(ctx.getImageData(0,0,canvas.width,canvas.height));
+  return {
+    station,
+    fetchedAt:Date.now(),
+    bytes:blob.size,
+    ...parsed
+  };
+}
+
+function rowMinute(row){
+  if(row?.time?.kind==="sortint")return 0;
+  if(row?.time?.kind==="minutes" && Number.isFinite(Number(row.time.value))){
+    return Number(row.time.value);
+  }
+  return null;
+}
+
+const MEMORY_KEY="sim-isic-matcher-memory-v2";
+const MEMORY_TTL_MS=10*60*1000;
+
+function loadMemory(){
+  try{
+    const obj=JSON.parse(localStorage.getItem(MEMORY_KEY)||"{}");
+    return obj&&typeof obj==="object"?obj:{};
+  }catch{return {}}
+}
+
+function saveMemory(memory){
+  try{localStorage.setItem(MEMORY_KEY,JSON.stringify(memory))}catch{}
+}
+
+function memoryKey(train){
+  return `${train.circulation}|${train.effectiveOrigin}`;
+}
+
+function rememberConfirmed(memory,item,nowMs){
+  const platform=item.fixed?.platform ?? item.result?.platform;
+  if(!Number.isFinite(Number(platform)))return;
+  memory[memoryKey(item)]={
+    circulation:item.circulation,
+    origin:item.effectiveOrigin,
+    line:item.line,
+    platform:Number(platform),
+    confirmedAt:nowMs,
+    departure:item.departure||null,
+    source:item.fixed?"fixed":"isic",
+    isicTime:item.result?.isicTime||null
+  };
+}
+
+function recentMemory(memory,train,nowMs){
+  const m=memory[memoryKey(train)];
+  if(!m)return null;
+  const ageMs=nowMs-Number(m.confirmedAt||0);
+  if(ageMs<0||ageMs>MEMORY_TTL_MS)return null;
+  return {...m,ageSeconds:Math.round(ageMs/1000)};
+}
+
+function intervalCost(expected,lo,hi){
+  if(expected<lo)return lo-expected;
+  if(expected>hi)return expected-hi;
+  // Dentro del intervalo: pequeño desempate hacia el centro, sin convertirlo
+  // en una igualdad rígida.
+  return Math.abs(expected-(lo+hi)/2)*0.05;
+}
+
+function pairAssessment(train,row,nowMs){
+  if(train.line!==row.line){
+    return {eligible:false,cost:Infinity,reason:"línea distinta"};
+  }
+
+  const departureMs=nearestDepartureMs(train.departure,nowMs);
+  const expected=departureMs===null?null:(departureMs-nowMs)/60000;
+  const rm=rowMinute(row);
+
+  if(expected===null || rm===null){
+    return {
+      eligible:false,cost:Infinity,
+      expectedMinutes:expected,rowMinutes:rm,
+      reason:"sin referencia temporal"
+    };
+  }
+
+  const delayed=train.onTime===false;
+  const overdue=expected < -0.5;
+  let cost, eligible, mode, window;
+
+  if(delayed && overdue){
+    /*
+     * El tren sigue físicamente en origen y FGC declara retraso. La hora
+     * programada deja de ser una igualdad válida: la fila operacional debe
+     * ser inmediata.
+     */
+    if(row.time.kind==="sortint"){
+      cost=0;
+      eligible=true;
+      window="sortint";
+    }else{
+      cost=rm+0.6;
+      eligible=rm<=5;
+      window="0–5 min por retraso";
+    }
+    mode="delayed-overdue";
+  }else{
+    /*
+     * iSIC expresa minutos enteros: n min representa aproximadamente el
+     * intervalo [n,n+1). "sortint" es la franja de salida inmediata.
+     */
+    let lo,hi;
+    if(row.time.kind==="sortint"){
+      lo=-0.35; hi=1.25;
+      window="sortint ≈ -0.35…1.25 min";
+    }else{
+      lo=rm-0.20; hi=rm+1.20;
+      window=`${lo.toFixed(2)}…${hi.toFixed(2)} min`;
+    }
+    cost=intervalCost(expected,lo,hi);
+    eligible=cost<=1.35 && expected>=-1.0;
+    mode="scheduled-window";
+  }
+
+  const platformConfidence=Number(row?.platform?.confidence ?? 0);
+  const timeConfidence=Number(row?.time?.confidence ?? 0);
+
+  // Vías deben ser especialmente fiables. Para tiempos admitimos 0.65:
+  // una lectura temporal dudosa puede ayudarnos a identificar una fila,
+  // pero nunca basta por sí sola para validar la vía.
+  if(platformConfidence<0.78 || timeConfidence<0.65)eligible=false;
+
+  // Penalización suave por lectura temporal de confianza moderada.
+  if(eligible && timeConfidence<0.80)cost+=0.35;
+
+  return {
+    eligible,
+    cost:+cost.toFixed(3),
+    expectedMinutes:+expected.toFixed(3),
+    rowMinutes:rm,
+    mode,
+    window,
+    platformConfidence,
+    timeConfidence
+  };
+}
+
+function classifyNoMatch(train,nowMs,memory){
+  const departureMs=nearestDepartureMs(train.departure,nowMs);
+  const expected=departureMs===null?null:(departureMs-nowMs)/60000;
+  const last=recentMemory(memory,train,nowMs);
+
+  let status="SIN MATCH SEGURO";
+  let diagnosticReason="No existe una fila iSIC temporalmente compatible.";
+
+  if(expected!==null && expected<-1.5 && train.onTime===true){
+    status="POSICIONAMIENTO PROBABLEMENTE OBSOLETO";
+    diagnosticReason=
+      `FGC mantiene el tren estacionado y en hora ${Math.abs(expected).toFixed(1)} min después de su salida programada, pero iSIC ya no muestra una salida compatible.`;
+  }else if(expected!==null && expected<-0.5 && train.onTime===false){
+    status="RETRASO SIN MATCH";
+    diagnosticReason=
+      "FGC declara retraso y el tren sigue en origen, pero iSIC no ofrece una fila inmediata inequívoca.";
+  }else if(expected!==null && expected<-2 && train.onTime===null){
+    status="POSICIONAMIENTO / HORARIO INCIERTO";
+    diagnosticReason=
+      "La salida programada ya pasó, pero no hay estado en_hora explícito para decidir si es retraso o snapshot obsoleto.";
+  }
+
+  return {
+    status,
+    diagnosticReason,
+    scheduledDeltaMinutes:expected===null?null:+expected.toFixed(3),
+    lastConfirmed:last
+  };
+}
+
+function solveAssignments(trains,rows,nowMs,memory){
+  const assessments=trains.map(t=>rows.map(r=>pairAssessment(t,r,nowMs)));
+  let best={matched:-1,cost:Infinity,assign:[]};
+
+  function rec(i,used,assign,matched,total){
+    if(i===trains.length){
+      if(matched>best.matched || (matched===best.matched && total<best.cost)){
+        best={matched,cost:total,assign:[...assign]};
+      }
+      return;
+    }
+
+    // Seguridad antes que cobertura: permitimos dejar una circulación sin vía.
+    assign.push(null);
+    rec(i+1,used,assign,matched,total+6);
+    assign.pop();
+
+    for(let j=0;j<rows.length;j++){
+      if(used.has(j))continue;
+      const a=assessments[i][j];
+      if(!a.eligible)continue;
+      used.add(j);
+      assign.push(j);
+      rec(i+1,used,assign,matched+1,total+a.cost);
+      assign.pop();
+      used.delete(j);
+    }
+  }
+  rec(0,new Set(),[],0,0);
+
+  return trains.map((train,i)=>{
+    const j=best.assign[i];
+
+    if(j===null || j===undefined){
+      const diag=classifyNoMatch(train,nowMs,memory);
+      return {
+        ...train,
+        result:null,
+        ...diag,
+        candidates:rows.map((r,k)=>({
+          row:k+1,
+          line:r.line,
+          platform:r.platform?.value??null,
+          time:r.time,
+          assessment:assessments[i][k]
+        })).filter(x=>x.assessment.eligible)
+      };
+    }
+
+    const chosen=assessments[i][j];
+    const alternatives=assessments[i]
+      .map((a,k)=>({a,k}))
+      .filter(x=>x.k!==j && x.a.eligible)
+      .sort((x,y)=>x.a.cost-y.a.cost);
+
+    const gap=alternatives.length
+      ? alternatives[0].a.cost-chosen.cost
+      : Infinity;
+
+    const parserConfidence=Math.min(
+      Number(rows[j]?.platform?.confidence ?? 0),
+      Number(rows[j]?.time?.confidence ?? 0)
+    );
+
+    let status="MATCH SEGURO";
+    if(chosen.mode==="delayed-overdue")status="MATCH RETRASO";
+    if(gap<0.60 || parserConfidence<0.78)status="MATCH A REVISAR";
+
+    const departureMs=nearestDepartureMs(train.departure,nowMs);
+
+    return {
+      ...train,
+      result:{
+        platform:rows[j].platform?.value??null,
+        isicPanel:rows[j].panel,
+        isicRow:rows[j].row,
+        isicLine:rows[j].line,
+        isicTime:rows[j].time,
+        platformMode:rows[j].platformMode,
+        assessment:chosen,
+        ambiguityGap:Number.isFinite(gap)?+gap.toFixed(3):null
+      },
+      scheduledDeltaMinutes:departureMs===null
+        ? null
+        : +((departureMs-nowMs)/60000).toFixed(3),
+      lastConfirmed:recentMemory(memory,train,nowMs),
+      status
+    };
+  });
+}
+
+function renderTable(items){
+  if(!items.length){
+    $("table").innerHTML="<p>No hay circulaciones estacionadas en el origen efectivo en este instante.</p>";
+    return;
+  }
+
+  $("table").innerHTML=`<table>
+  <thead><tr>
+    <th>Circulación</th><th>UT</th><th>Origen</th><th>Línea</th>
+    <th>Salida</th><th>Δ horario</th><th>FGC</th><th>iSIC</th>
+    <th>Vía</th><th>Memoria</th><th>Estado</th>
+  </tr></thead><tbody>${
+    items.map(x=>{
+      const r=x.result;
+      const fixed=x.fixed;
+      const via=fixed?.platform ?? r?.platform ?? "—";
+      const isic=fixed ? "regla fija" :
+        r ? (r.isicTime?.kind==="sortint"
+          ? "sortint"
+          : `${r.isicTime?.value} min`)
+        : "—";
+
+      const delta=Number.isFinite(Number(x.scheduledDeltaMinutes))
+        ? `${Number(x.scheduledDeltaMinutes)>=0?"+":""}${Number(x.scheduledDeltaMinutes).toFixed(1)} min`
+        : "—";
+
+      const mem=x.lastConfirmed
+        ? `VÍA ${x.lastConfirmed.platform} · ${x.lastConfirmed.ageSeconds}s`
+        : "—";
+
+      const cls=
+        x.status.includes("SEGURO")||
+        x.status.includes("FIJO")||
+        x.status.includes("RETRASO") && !x.status.includes("SIN MATCH")
+          ?"oktxt"
+          :(
+            x.status.includes("REVISAR")||
+            x.status.includes("OBSOLETO")||
+            x.status.includes("INCIERTO")
+              ?"warntxt"
+              :"badtxt"
+          );
+
+      return `<tr>
+        <td><b>${x.circulation}</b></td>
+        <td>${x.unit}</td>
+        <td>${x.effectiveOrigin}</td>
+        <td>${x.line}</td>
+        <td>${x.departure||"—"}</td>
+        <td>${delta}</td>
+        <td>${x.onTime===false?"retraso":x.onTime===true?"en hora":"?"}</td>
+        <td>${isic}</td>
+        <td><b>${via==="—"?"—":"VÍA "+via}</b></td>
+        <td>${mem}</td>
+        <td class="${cls}" title="${x.diagnosticReason||""}">${x.status}</td>
+      </tr>`;
+    }).join("")
+  }</tbody></table>`;
+}
+
+async function runMatcher(){
+  $("status").className="card";
+  $("status").textContent="Cargando posicionamiento, GTFS e iSIC…";
+  $("raw").textContent="Procesando…";
+  $("table").innerHTML="";
+  const nowMs=Date.now();
+  const memory=loadMemory();
+
+  try{
+    const config=await loadConfig();
+    const positioning=await fetchPositioning(config.positioningUrl);
+    const trains=positioning.rows
+      .map(row=>normalizeTrain(row,config))
+      .filter(Boolean);
+
+    const contexts=[];
+    const failures=[];
+    for(const train of trains){
+      try{
+        const c=await getTripContext(config,train);
+        // Cabecera dinámica: primera estación REAL del trip, no lista fija.
+        if(c.stationed && c.effectiveOrigin && c.stationed===c.effectiveOrigin){
+          contexts.push(c);
+        }
+      }catch(e){
+        failures.push({circulation:train.circulation,error:e.message});
+      }
+    }
+
+    const stationGroups=new Map();
+    const final=[];
+
+    for(const c of contexts){
+      const fixed=fixedPlatformFor(c);
+      if(fixed){
+        const depMs=nearestDepartureMs(c.departure,nowMs);
+        final.push({
+          ...c,
+          fixed,
+          status:"MATCH FIJO",
+          result:null,
+          scheduledDeltaMinutes:depMs===null?null:+((depMs-nowMs)/60000).toFixed(3),
+          lastConfirmed:recentMemory(memory,c,nowMs)
+        });
+      }else{
+        if(!stationGroups.has(c.effectiveOrigin))stationGroups.set(c.effectiveOrigin,[]);
+        stationGroups.get(c.effectiveOrigin).push(c);
+      }
+    }
+
+    const isic={};
+    for(const [station,stationTrains] of stationGroups){
+      try{
+        const parsed=await parseStationLive(station);
+        isic[station]=parsed;
+
+        // Resolver por línea para impedir que una fila pueda ser usada por dos trenes.
+        const lines=[...new Set(stationTrains.map(t=>t.line))];
+        for(const line of lines){
+          const t=stationTrains.filter(x=>x.line===line);
+          const rows=parsed.rows.filter(x=>x.line===line);
+          final.push(...solveAssignments(t,rows,parsed.fetchedAt||nowMs,memory));
+        }
+      }catch(e){
+        isic[station]={error:e.message};
+        for(const c of stationTrains){
+          final.push({
+            ...c,
+            result:null,
+            status:"ERROR iSIC",
+            error:e.message,
+            lastConfirmed:recentMemory(memory,c,nowMs)
+          });
+        }
+      }
+    }
+
+    final.sort((a,b)=>
+      String(a.effectiveOrigin).localeCompare(String(b.effectiveOrigin)) ||
+      String(a.line).localeCompare(String(b.line)) ||
+      String(a.departure).localeCompare(String(b.departure))
+    );
+
+    // Guardamos solo confirmaciones suficientemente fiables. Es memoria
+    // diagnóstica; nunca convierte por sí sola una vía antigua en dato actual.
+    for(const item of final){
+      if(
+        item.status==="MATCH SEGURO" ||
+        item.status==="MATCH RETRASO" ||
+        item.status==="MATCH FIJO"
+      ){
+        rememberConfirmed(memory,item,Date.now());
+      }
+    }
+
+    // Purgar entradas viejas.
+    const purgeNow=Date.now();
+    for(const [k,v] of Object.entries(memory)){
+      if(purgeNow-Number(v.confirmedAt||0)>MEMORY_TTL_MS)delete memory[k];
+    }
+    saveMemory(memory);
+
+    const report={
+      diagnostic:"SIM+ iSIC matcher v2",
+      matcherVersion:"2.0",
+      notes:[
+        "Ventana de minutos ampliada para 3 cifras.",
+        "Clasificación explícita de posicionamiento probablemente obsoleto.",
+        "Memoria diagnóstica de última vía confirmada durante 10 min; nunca se usa como match actual."
+      ],
+      fetchedAt:new Date(nowMs).toISOString(),
+      localTime:new Date(nowMs).toString(),
+      positioningRows:positioning.rows.length,
+      normalizedBVTrains:trains.length,
+      originHolds:contexts.length,
+      results:final,
+      isic,
+      tripFailures:failures
+    };
+
+    renderTable(final);
+    $("raw").textContent=JSON.stringify(report,null,2);
+    $("status").className="card ok";
+    $("status").innerHTML=`<b>Diagnóstico completado.</b> ${contexts.length} circulación(es) estacionadas en su origen efectivo; ${final.filter(x=>x.fixed||x.result).length} con vía asignada.`;
+  }catch(e){
+    $("status").className="card bad";
+    $("status").textContent=`Error: ${e.message}`;
+    $("raw").textContent=JSON.stringify({ok:false,error:e.message,stack:e.stack||""},null,2);
+  }
+}
+
+$("run").addEventListener("click",runMatcher);
+$("clearMemory").addEventListener("click",()=>{
+  try{localStorage.removeItem(MEMORY_KEY)}catch{}
+  $("status").className="card";
+  $("status").textContent="Memoria diagnóstica borrada.";
+});
+
+$("copy").addEventListener("click",async()=>{
+  try{
+    await navigator.clipboard.writeText($("raw").textContent);
+    $("copy").textContent="Copiado";
+    setTimeout(()=>$("copy").textContent="Copiar JSON",1200);
+  }catch{
+    alert("Safari no ha permitido copiar automáticamente. Mantén pulsado sobre el JSON y cópialo manualmente.");
+  }
+});
+
+</script>
+</body>
+</html>
