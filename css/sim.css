@@ -126,7 +126,7 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 }
 .tabs-portrait{
   min-height:48px;
-  gap:clamp(18px,5vw,34px);
+  gap:clamp(10px,3vw,22px);
 }
 .tabs-landscape{ display:none; }
 .tab{
@@ -177,9 +177,7 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   justify-content:center;
   min-height:var(--query-row-h);
 }
-#circulationInput{
-  width:4.3ch;
-  max-width:4.3ch;
+.query-code-input{
   -webkit-appearance:none;
   appearance:none;
   border:0;
@@ -197,6 +195,29 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   text-transform:uppercase;
   text-align:center;
   font-variant-numeric:tabular-nums;
+}
+.circulation-input{
+  width:4.3ch;
+  max-width:4.3ch;
+}
+.station-input{
+  width:3.0ch;
+  max-width:3.0ch;
+}
+.station-query-name{
+  grid-column:3 / 5;
+  min-height:var(--query-row-h);
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  color:var(--fg);
+  font-size:var(--lit-size);
+  font-weight:700;
+  font-style:italic;
+  line-height:1;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  text-transform:uppercase;
 }
 .query-meta{
   grid-column:3 / 5;
@@ -220,10 +241,9 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .query-delay{ color:var(--red); }
 .delayed-text{ color:var(--red) !important; }
 
-html[data-view="plastic"] .query-bar,
-html[data-view="siv"] .query-bar{
-  display:none;
-}
+.lit-query-bar,.isic-query-bar{ display:none; }
+html[data-view="lit"] .lit-query-bar{ display:grid; }
+html[data-view="isic"] .isic-query-bar{ display:grid; }
 
 /* =========================================================
    OCUPACIÓN
@@ -286,7 +306,7 @@ main{ min-height:0; overflow:hidden; }
 .lit-item{
   width:100%;
   max-width:100%;
-  scroll-margin-top:36px;
+  scroll-margin-top:0;
 }
 .lit-main-row,
 .lit-sub-row{
@@ -385,6 +405,17 @@ main{ min-height:0; overflow:hidden; }
   font-style:italic;
   line-height:1;
   white-space:nowrap;
+}
+.platform-code-inner{
+  display:inline-grid;
+  grid-template-columns:auto 1ch;
+  align-items:baseline;
+  justify-content:center;
+}
+.platform-slot{
+  display:inline-block;
+  width:1ch;
+  text-align:left;
 }
 .technical{
   grid-column:3 / 5;
@@ -701,6 +732,17 @@ main{ min-height:0; overflow:hidden; }
 }
 
 /* =========================================================
+   iSIC · PLASTIC per estació
+   ========================================================= */
+.isic-status{
+  margin-top:7px;
+  margin-bottom:2px;
+}
+.isic-trainrow[aria-disabled="true"]{
+  cursor:default;
+}
+
+/* =========================================================
    SIV · se desarrollará más adelante
    ========================================================= */
 .siv-placeholder{
@@ -832,9 +874,9 @@ pre{ white-space:pre-wrap; font-size:15px; }
   }
   :root{ --query-row-h:31px; }
   .query-bar{ min-height:var(--query-row-h); }
-  #circulationInput{ font-size:var(--lit-size); padding-bottom:2px; }
+  .query-code-input{ font-size:var(--lit-size); padding-bottom:2px; }
   .query-meta{ min-height:var(--query-row-h); padding-bottom:0; gap:15px; }
-  .query-status,.query-unit,.query-delay{ font-size:var(--lit-size); }
+  .query-status,.query-unit,.query-delay,.station-query-name{ font-size:var(--lit-size); }
   .occ-car{ width:12px; height:10px; }
 
   .view{
