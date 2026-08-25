@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/sim.css?v=3.14.0">
+  <link rel="stylesheet" href="css/sim.css?v=3.14.1">
 </head>
 <body>
 <div id="app">
@@ -29,7 +29,7 @@
       <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
     </nav>
 
-    <div id="litQueryBar" class="query-bar lit-query-bar">
+    <div id="litQueryBar" class="query-bar lit-query-bar" hidden>
       <div class="query-input-wrap">
         <input id="circulationInput" class="query-code-input circulation-input"
           inputmode="text"
@@ -48,7 +48,7 @@
       </div>
     </div>
 
-    <div id="isicQueryBar" class="query-bar isic-query-bar">
+    <div id="isicQueryBar" class="query-bar isic-query-bar" hidden>
       <div class="query-input-wrap">
         <input id="stationInput" class="query-code-input station-input"
           inputmode="text"
@@ -134,6 +134,6 @@
   </dialog>
 </div>
 
-<script type="module" src="js/app.js?v=3.14.0"></script>
+<script type="module" src="js/app.js?v=3.14.1"></script>
 </body>
 </html>

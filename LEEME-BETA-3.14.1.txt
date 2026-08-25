@@ -1,0 +1,96 @@
+SIM+ · BETA 3.14.1
+
+Base
+----
+Esta beta parte íntegramente de Beta 3.13.0 y conserva los módulos, estética,
+reglas de circulación, ocupación, retraso, cronometría, señalización técnica,
+PWA, audio y comportamiento previamente aprobados salvo los cambios expresos
+que se detallan a continuación.
+
+Navegación
+----------
+- Orden definitivo de pestañas: PLASTIC · iSIC · LIT · SIV.
+- PLASTIC continúa siendo la vista inicial.
+
+PLASTIC · vías iSIC reales
+--------------------------
+- Sustituido el antiguo intento de lectura HTML/CORS por el parser visual PNG
+  validado en los diagnósticos iSIC matcher v1-v3.
+- Las imágenes se obtienen a través del Worker:
+  https://sim-isic-proxy2.cex447.workers.dev/
+- El matching es línea + hora programada/operacional + ventana iSIC, con
+  asignación uno-a-uno y rechazo de cualquier asociación ambigua.
+- sortint usa la ventana empírica validada -1,60…+1,25 min.
+- Umbral de vía: fila >=0,78; cabecera/panel >=0,72.
+- La vía se muestra únicamente mientras la circulación está estacionada en su
+  origen efectivo del trip real. El origen no se deduce de una lista fija.
+- En origen con retraso se mantiene VÍA n en rojo; después de salir, la columna
+  vuelve a quedar vacía si va en hora o muestra +N si en_hora=false.
+- Reglas físicas fijas conservadas: origen TB = VÍA 1; L12 con origen SR = VÍA 4.
+- En una captura iSIC válida sin match seguro se deja la vía vacía. En un fallo
+  breve de red solo se tolera la caché reciente hasta staleMs; nunca se usa
+  memoria histórica para inventar una vía.
+- Destino efectivo y origen efectivo proceden del primer/último stop del trip.
+
+Nueva vista iSIC
+----------------
+- Nueva pestaña iSIC entre PLASTIC y LIT.
+- En la misma posición horizontal que el campo de circulación de LIT aparece
+  un campo de código de estación (PC, GR, SR, NA, PN...).
+- Junto al código se muestra automáticamente el nombre completo de la estación.
+- Solo se admiten estaciones de Barcelona-Vallès.
+- La pantalla reconstruye en estilo PLASTIC las circulaciones que aparecen en
+  el iSIC de esa estación y muestra su VÍA n cuando el match es seguro.
+- Se conservan los bloques ASCENDENTS y DESCENDENTS y las agrupaciones por línea.
+- Se añaden hasta 4 circulaciones programadas posteriores. Si todavía no están
+  presentes en iSIC, la vía queda vacía salvo las dos reglas físicas fijas.
+- Si ya no quedan circulaciones comerciales en la ventana de servicio, se
+  muestra SENSE SERVEI COMERCIAL.
+- La captura de una estación se refresca de forma contenida y comparte caché
+  con PLASTIC y LIT para evitar descargas duplicadas.
+
+LIT · vía real por estación
+---------------------------
+- El dígito que antes provenía del stop_id/dirección deja de tratarse como vía.
+- Cada código se muestra inicialmente como PC, PR, GR, etc., reservando siempre
+  el espacio del dígito para que el bloque no se desplace.
+- Cuando iSIC confirma la vía de esa circulación en una estación, el código se
+  actualiza a PC1, GR2, RB0, BT3, CF4, etc.
+- Nunca se conserva el antiguo 1/2 direccional como sustituto de una vía real.
+- El destino final puede permanecer sin dígito si no existe una salida iSIC de
+  esa misma circulación que permita identificar su vía con seguridad.
+- Las consultas son progresivas: próximas estaciones con frecuencia alta y
+  algunas posteriores con frecuencia menor, en secuencia, para no cargar el
+  navegador ni el Worker.
+- Las vías de estaciones ya pasadas no se vuelven a consultar durante esa vista.
+
+LIT · seguimiento automático
+-----------------------------
+- Al cargar LIT, volver a entrar en LIT o cambiar la posición conocida, el bloque
+  operacional vigente se coloca automáticamente arriba de la zona visible.
+- Si la posición no cambia, no se repite el scroll en cada refresco.
+- El desplazamiento es directo, sin animación lenta.
+
+Reglas visuales/operativas conservadas
+--------------------------------------
+- PLASTIC mantiene su retícula fija y estable, flecha oculta con espacio reservado
+  cuando está estacionado y barrido izquierda→derecha únicamente en movimiento.
+- Ocupación: 112/113/115 = 4 coches; 114 = 3 coches, también sin dato.
+- Destinos estacionados entre paréntesis, centrados por el código de estación.
+- LIT mantiene el triángulo estacionado relleno hacia la derecha y el triángulo
+  móvil equilátero de contorno hacia abajo, además de todas las reglas de retraso,
+  cuenta atrás, interestaciones, SK, M+30E, ATP, M1 y señalización ya existentes.
+- SIV permanece como módulo placeholder.
+
+Publicación
+-----------
+Se conserva la arquitectura actual de GitHub Pages. El único componente externo
+adicional utilizado por la lógica iSIC es el Worker CORS ya desplegado.
+
+
+CORRECCIONES 3.14.1
+- iSIC y LIT usan barras de consulta mutuamente exclusivas también mediante atributo hidden; no puede quedar visible el campo de otra vista.
+- iSIC sincroniza el valor restaurado por Safari/iOS con el estado interno y vuelve a resolver la estación al entrar en la pestaña.
+- Se mantienen código de estación y nombre completo en la única barra iSIC.
+- LIT posiciona directamente el contenedor #view-lit: la estación de la última posición conocida queda arriba de todo al cargar y cuando cambia la posición.
+- No se usa scrollIntoView para evitar el comportamiento inconsistente de Safari/iOS.
