@@ -1,0 +1,38 @@
+SIM+ · BETA 3.14.2
+
+Base: SIM+ Beta 3.14.1.
+Esta versión conserva íntegramente las funciones, recursos y decisiones acumuladas de las betas anteriores y añade/corrige únicamente lo siguiente.
+
+CAMBIOS 3.14.2
+
+1. ACTUALIZACIÓN DE VÍA CADA 10 SEGUNDOS
+- PLASTIC: la revalidación iSIC de la vía del origen efectivo se realiza con una cadencia mínima de 10 s.
+- iSIC: la reconstrucción de las salidas/vías de la estación consultada se realiza cada 10 s.
+- LIT: las estaciones candidatas de vía se revalidan cada 10 s. Se mantiene la cola secuencial y el máximo de 3 estaciones próximas + 1 adicional para no descargar varias capturas PNG simultáneamente.
+- La caché de una imagen iSIC queda en 9 s para que vistas simultáneas puedan compartir una captura muy reciente sin impedir una nueva lectura a los 10 s.
+
+2. CORRECCIÓN DEFINITIVA null -> VÍA 0
+- null, undefined y cadena vacía significan «vía no confirmada» y no muestran ningún dígito.
+- El valor numérico 0 sigue siendo una vía válida cuando iSIC la detecta realmente.
+- La normalización se aplica al parser/matcher, memoria de vía, PLASTIC, iSIC y LIT.
+- Se eliminan comprobaciones booleanas del tipo if(platform) que descartaban una VÍA 0 real.
+
+3. NUEVA REGLA DE AUTOPOSICIONAMIENTO EN LIT
+- Si el tren está estacionado, la estación actual queda arriba de la zona visible.
+- Si el tren circula entre dos estaciones, queda arriba la estación anterior, es decir, la que acaba de dejar.
+- El triángulo de posición conserva su lógica y representación aprobadas.
+- El desplazamiento automático solo se ejecuta al cargar/entrar en LIT o al cambiar realmente de estación/tramo; no se fuerza cada refresco.
+- Se mantiene el cálculo directo de scrollTop para Safari/iOS.
+
+4. CONSERVADO SIN CAMBIOS
+- Navegación PLASTIC -> iSIC -> LIT -> SIV.
+- iSIC con un único campo de estación y nombre completo.
+- Matcher visual iSIC v3 y Worker CORS.
+- Reglas fijas: TB origen -> VÍA 1; L12 con origen SR -> VÍA 4.
+- Vías dinámicas y progresivas en LIT; destino final sin vía inventada.
+- PLASTIC, ocupación por series, retrasos, flechas, destinos efectivos, filtros y contadores.
+- LIT: itinerarios, cronometría, señalización, SK, ATP/M1, geometría, triángulos y modo día/noche.
+- PWA, iconos, audio y resto de recursos de la Beta 3.14.1.
+
+NOTA DE SEGURIDAD DE DATOS
+Ante una vía no confirmada, SIM+ deja el campo vacío. Nunca sustituye un dato desconocido por la vía direccional histórica ni por un 0 artificial.
