@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SIM+ · Parser iSIC diagnóstico</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:light dark}
+body{margin:0;padding:20px;max-width:1000px}
+h1{font-size:26px;margin:0 0 8px}
+p{line-height:1.45}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
+input,button{font:inherit;padding:10px 12px}
+input{width:90px;text-transform:lowercase}
+button{cursor:pointer}
+.card{border:1px solid #8886;border-radius:12px;padding:14px;margin:12px 0}
+.ok{border-color:#3a5}.warn{border-color:#c90}.bad{border-color:#c44}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #8884;border-radius:8px;padding:12px;font-size:12px;line-height:1.35}
+#preview{width:100%;height:auto;border:1px solid #8884;border-radius:8px;background:#000}
+.muted{opacity:.7}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px;border-bottom:1px solid #8884}
+</style>
+</head>
+<body>
+<h1>SIM+ · Parser iSIC</h1>
+<p>
+Diagnóstico independiente. Lee el PNG iSIC a través del Worker y extrae por geometría
+<code>línea · minutos/sortint · vía</code>. No modifica SIM+.
+</p>
+
+<div class="controls">
+<label>Estación <input id="station" value="pc" maxlength="8" autocapitalize="none"></label>
+<button id="run">Analizar iSIC</button>
+<button id="copy">Copiar JSON</button>
+</div>
+
+<div id="status" class="card">Preparado.</div>
+<img id="preview" alt="Pantalla iSIC" hidden>
+
+<div class="card">
+<h2>Filas detectadas</h2>
+<div id="table"></div>
+</div>
+
+<h2>Resultado técnico</h2>
+<pre id="raw">Pulsa «Analizar iSIC».</pre>
+
+<script>
+const PROXY = "https://sim-isic-proxy2.cex447.workers.dev/";
+const PANEL_W = 1920, PANEL_H = 1080;
+const ROW_TOP = 200, ROW_H = 200, ROWS = 4;
+const TEMPLATE_W = 60, TEMPLATE_H = 70;
+const templatesB64 = {"1": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB8AAAAAAAAB8AAAAAAAAH+AAAAAAAAP+AAAAAAAAf+AAAAAAAB/+AAAAAAAD/+AAAAAAAH/+AAAAAAAf/+AAAAAAA/7+AAAAAAB/z+AAAAAAD/j+AAAAAAP+D+AAAAAAf8D+AAAAAA/4D+AAAAAAfwD+AAAAAAPAD+AAAAAAOAD+AAAAAAEAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "4": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfwAAAAAAAAfwAAAAAAAA/wAAAAAAAB/wAAAAAAAB/wAAAAAAAD/wAAAAAAAH/wAAAAAAAP/wAAAAAAAPvwAAAAAAAfvwAAAAAAB/PwAAAAAAB/PwAAAAAAD+PwAAAAAAH+PwAAAAAAP8PwAAAAAAP4PwAAAAAAf4PwAAAAAA/wPwAAAAAA/gPwAAAAAB+APwAAAAAD+APwAAAAAD8APwAAAAAH4APwAAAAAP4APwAAAAAfwAPwAAAAAfgAPwAAAAA/AAPwAAAAB/AAPwAAAAB+AAPwAAAAD8AAPwAAAAH8AAPwAAAAP4AAPwAAAAPwAAPwAAAAPwAAPwAAAAfgAAPwAAAA/gAAPwAAAA/AAAPwAAAB+AAAPwAAAD+AAAPwAAAD8AAAPwAAAH4AAAPwAAAP4AAAPwAAAfwAAAPwAAAfgAAAP4AAB////////AB////////AB////////AB////////AB////////AB////////AAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "8": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4AAAAAAAB//wAAAAAAP//+AAAAAA////gAAAAB////wAAAAD////4AAAAH/gB/8AAAAP+AAP+AAAAf8AAH+AAAAf4AAD/AAAAfwAAB/AAAA/gAAB/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAA/gAAAfgAAB/AAAAfwAAB/AAAAf4AAD+AAAAP4AAD+AAAAP8AAH8AAAAH/AAf4AAAAD/gA/wAAAAB/4D/gAAAAA/+P/AAAAAAf//8AAAAAAH//4AAAAAAB//gAAAAAAB//wAAAAAAH//8AAAAAAf///AAAAAA/8f/gAAAAD/wH/4AAAAH/AB/8AAAAP8AAf+AAAAf4AAH/AAAA/wAAD/AAAA/gAAB/gAAB/AAAA/wAAB/AAAAfwAAB+AAAAfwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAfwAAB/AAAAfwAAB/AAAA/wAAB/gAAB/gAAA/wAAD/gAAAf8AAH/AAAAf/AAf+AAAAP////8AAAAH////4AAAAB////wAAAAAf///AAAAAAH//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "2": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf4AAAAAAAH//gAAAAAA///4AAAAAD///+AAAAAP////AAAAAf////gAAAB//AH/wAAAD/4AB/4AAAB/gAAf8AAAA+AAAP8AAAAcAAAH+AAAAQAAAH+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAB/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAA/wAAAAAAAA/gAAAAAAAB/AAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/wAAAAAAAB/gAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAH+AAAAAAAAP8AAAAAAAAf4AAAAAAAA/wAAAAAAAB/gAAAAAAAD/gAAAAAAAH//////wAAH//////wAAH//////wAAH//////wAAH//////wAAH//////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "7": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//////4AAP//////4AAP//////4AAP//////4AAP//////4AAP//////4AAP//////4AAAAAAAAPwAAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAH4AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD+AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/gAAAAAAAB/AAAAAAAAD/AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAf4AAAAAAAAfwAAAAAAAA/wAAAAAAAA/gAAAAAAAB/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD+AAAAAAAAD+AAAAAAAAH+AAAAAAAAH8AAAAAAAAP8AAAAAAAAP4AAAAAAAAf4AAAAAAAAfwAAAAAAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "3": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf8AAAAAAAH//4AAAAAA///+AAAAAH////gAAAAP////wAAAA/////4AAAB//AB/8AAAB/4AAf+AAAA/gAAP+AAAA+AAAH/AAAAYAAAD/AAAAAAAAB/AAAAAAAAB/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAB/AAAAAAAAB/AAAAAAAAD/AAAAAAAAD+AAAAAAAAH+AAAAAAAAP8AAAAAAAA/4AAAAAAAD/wAAAAAAAf/gAAAAAP//+AAAAAAP//wAAAAAAP//AAAAAAAP//4AAAAAAP///AAAAAAP///wAAAAAAAH/8AAAAAAAAf+AAAAAAAAH/AAAAAAAAD/gAAAAAAAB/gAAAAAAAA/wAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAA/wAAAAAAAA/wAAAAAAAB/gAACAAAAD/gAADgAAAH/AAAD8AAAf+AAAD/wAD/8AAAD/////4AAAD/////wAAAD/////AAAAA////8AAAAAD///wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "6": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB/gAAAAAAA//+AAAAAAH//+AAAAAAf//+AAAAAB///+AAAAAD///+AAAAAP/4AGAAAAAf/AAAAAAAA/8AAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAAfwAAAAAAAAfgAAAAAAAA/gAAAAAAAA/gAAAAAAAA/gAAAAAAAA/AAAAAAAAA/AAAAAAAAB/AB/gAAAAB/AP/+AAAAB/A///gAAAB/D///wAAAB+H///8AAAB+P/H/+AAAB+fwAP/AAAB+/AAH/AAAB/8AAB/gAAB/4AAA/gAAB/wAAA/wAAD/gAAAfwAAD/gAAAfwAAD/AAAAPwAAB/AAAAPwAAB/AAAAPwAAB+AAAAPwAAB+AAAAHwAAB+AAAAHwAAB+AAAAHwAAB/AAAAHwAAB/AAAAPwAAA/AAAAPwAAA/AAAAPwAAA/gAAAPwAAA/gAAAPwAAAfwAAAfwAAAfwAAAfwAAAP4AAA/wAAAP8AAA/gAAAH8AAB/gAAAH/AAD/AAAAD/gAP+AAAAB/4A/+AAAAA////8AAAAAf///4AAAAAP///gAAAAAD///AAAAAAA//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "0": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH8AAAAAAAB//wAAAAAAH//8AAAAAAf//+AAAAAA////gAAAAB////wAAAAD/4D/wAAAAH/AA/4AAAAH+AAP8AAAAP8AAH8AAAAP4AAD+AAAAfwAAD+AAAAfwAAB/AAAA/gAAB/AAAA/gAAA/gAAA/gAAA/gAAA/AAAA/gAAB/AAAAfgAAB/AAAAfwAAB/AAAAfwAAB/AAAAfwAAB+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAD+AAAAPwAAB+AAAAPwAAB+AAAAPwAAB/AAAAfwAAB/AAAAfwAAB/AAAAfwAAA/AAAAfwAAA/AAAA/gAAA/gAAA/gAAA/gAAA/gAAAfgAAB/AAAAfwAAB/AAAAfwAAD/AAAAP4AAD+AAAAH8AAH+AAAAH+AAP8AAAAD/AAf8AAAAD/4D/4AAAAB////wAAAAA////gAAAAAP///AAAAAAH//8AAAAAAB//wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "5": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH////8AAAAH4AAAAAAAAP4AAAAAAAAP4AAAAAAAAP4AAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAPwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfgAAAAAAAAfgAAAAAAAAfg/8AAAAAAf///4AAAAAf///+AAAAAf////gAAAAf////wAAAAP////4AAAAHgAD/8AAAAAAAAf+AAAAAAAAH/AAAAAAAAD/AAAAAAAAB/gAAAAAAAB/gAAAAAAAA/wAAAAAAAA/wAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAAfwAAAAAAAA/gAAAAAAAA/gAAAAAAAB/gAAAAAAAD/AAADAAAAH/AAADwAAAP+AAAD+AAA/8AAAD/4AH/4AAAD/////wAAAD/////gAAAD////+AAAAAf///4AAAAAD///gAAAAAAD/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "9": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAH//AAAAAAA///wAAAAAB///8AAAAAH///+AAAAAP////AAAAAf/AH/gAAAAf8AB/wAAAA/wAA/4AAAB/gAAP4AAAB/AAAP8AAAD/AAAH8AAAD+AAAD+AAAD+AAAD+AAAD8AAAB/AAAD8AAAB/AAAD8AAAA/AAAD8AAAA/AAAD8AAAA/gAAD4AAAA/gAAD4AAAAfgAAD4AAAAfgAAD4AAAAfgAAD8AAAAfgAAD8AAAA/gAAD8AAAA/gAAD8AAAA/wAAD+AAAB/wAAD+AAAB/wAAD/AAAD/gAAB/AAAH/gAAB/gAAP/gAAA/4AA/fgAAA/8AD+fgAAAf/4/8fgAAAP///4fgAAAD///w/gAAAB///A/gAAAAf/8A/gAAAAB/gA/gAAAAAAAA/AAAAAAAAA/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB/AAAAAAAAB+AAAAAAAAD+AAAAAAAAD+AAAAAAAAH8AAAAAAAAH8AAAAAAAAP4AAAAAAAAP4AAAAAAAAfwAAAAAAAA/wAAAAAAAB/gAAAAAAAD/AAAAAAAAP/AAAAAAAA/+AAAAAYAH/8AAAAAf///wAAAAAf///gAAAAAf//+AAAAAAf//4AAAAAAf//AAAAAAAB/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"};
+
+const LINE_COLORS = {
+  L6:[128,127,195],
+  L7:[180,97,38],
+  S1:[253,115,45],
+  S2:[81,191,68]
+};
+
+const templates = Object.fromEntries(
+  Object.entries(templatesB64).map(([k,v]) => [k, unpackTemplate(v)])
+);
+
+function unpackTemplate(b64){
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const out = new Uint8Array(TEMPLATE_W*TEMPLATE_H);
+  let bit=0;
+  for(let i=0;i<out.length;i++,bit++){
+    const byte=bytes[bit>>3];
+    out[i]=(byte >> (7-(bit&7))) & 1;
+  }
+  return out;
+}
+
+function rgbaAt(data,w,x,y){
+  const i=(y*w+x)*4;
+  return [data[i],data[i+1],data[i+2],data[i+3]];
+}
+
+function makeMask(data,imgW,x0,y0,w,h,pred){
+  const m=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){
+    let src=((y0+y)*imgW+x0)*4;
+    let dst=y*w;
+    for(let x=0;x<w;x++,src+=4, dst++){
+      if(pred(data[src],data[src+1],data[src+2],data[src+3])) m[dst]=1;
+    }
+  }
+  return m;
+}
+
+function connected(mask,w,h){
+  const seen=new Uint8Array(mask.length), comps=[];
+  const stackX=new Int32Array(mask.length), stackY=new Int32Array(mask.length);
+  const dirs=[-1,-1,0,-1,1,-1,-1,0,1,0,-1,1,0,1,1,1];
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const idx=y*w+x;
+    if(!mask[idx]||seen[idx]) continue;
+    let sp=0; stackX[sp]=x; stackY[sp]=y; sp++; seen[idx]=1;
+    let minX=x,maxX=x,minY=y,maxY=y,area=0;
+    const pts=[];
+    while(sp){
+      sp--; const cx=stackX[sp], cy=stackY[sp];
+      pts.push([cx,cy]); area++;
+      if(cx<minX)minX=cx;if(cx>maxX)maxX=cx;if(cy<minY)minY=cy;if(cy>maxY)maxY=cy;
+      for(let d=0;d<dirs.length;d+=2){
+        const nx=cx+dirs[d], ny=cy+dirs[d+1];
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+        const ni=ny*w+nx;
+        if(mask[ni]&&!seen[ni]){
+          seen[ni]=1; stackX[sp]=nx; stackY[sp]=ny; sp++;
+        }
+      }
+    }
+    const cw=maxX-minX+1,ch=maxY-minY+1;
+    const local=new Uint8Array(cw*ch);
+    for(const [px,py] of pts)local[(py-minY)*cw+(px-minX)]=1;
+    comps.push({x:minX,y:minY,w:cw,h:ch,area,mask:local});
+  }
+  return comps;
+}
+
+function normalizeComp(c){
+  const targetH=64;
+  const nw=Math.max(1,Math.round(c.w*targetH/c.h));
+  const out=new Uint8Array(TEMPLATE_W*TEMPLATE_H);
+  const ox=Math.floor((TEMPLATE_W-nw)/2), oy=Math.floor((TEMPLATE_H-targetH)/2);
+  for(let y=0;y<targetH;y++){
+    const sy=Math.min(c.h-1,Math.floor(y*c.h/targetH));
+    for(let x=0;x<nw;x++){
+      const sx=Math.min(c.w-1,Math.floor(x*c.w/nw));
+      const dx=ox+x,dy=oy+y;
+      if(dx>=0&&dx<TEMPLATE_W&&c.mask[sy*c.w+sx]) out[dy*TEMPLATE_W+dx]=1;
+    }
+  }
+  return out;
+}
+
+function iou(a,b){
+  let inter=0,uni=0;
+  for(let i=0;i<a.length;i++){
+    const A=a[i],B=b[i];
+    if(A||B)uni++;
+    if(A&&B)inter++;
+  }
+  return uni?inter/uni:0;
+}
+
+function classifyDigit(c){
+  const n=normalizeComp(c);
+  let best=null,bestScore=-1;
+  for(const [d,t] of Object.entries(templates)){
+    const s=iou(n,t);
+    if(s>bestScore){best=d;bestScore=s}
+  }
+  return {digit:best,score:bestScore};
+}
+
+function lineForRow(data,imgW,panel,row){
+  const x0=panel*PANEL_W, y0=ROW_TOP+row*ROW_H;
+  const scores=Object.fromEntries(Object.keys(LINE_COLORS).map(k=>[k,0]));
+  for(let y=y0;y<y0+ROW_H;y+=2){
+    for(let x=x0;x<x0+250;x+=2){
+      const i=(y*imgW+x)*4, r=data[i],g=data[i+1],b=data[i+2];
+      const max=Math.max(r,g,b),min=Math.min(r,g,b);
+      if(max-min<=30||max<=80) continue;
+      for(const [k,c] of Object.entries(LINE_COLORS)){
+        const dr=r-c[0],dg=g-c[1],db=b-c[2];
+        if(dr*dr+dg*dg+db*db<625)scores[k]++;
+      }
+    }
+  }
+  let best=null,bestN=0;
+  for(const [k,n] of Object.entries(scores))if(n>bestN){best=k;bestN=n}
+  return bestN>120?{line:best,score:bestN}:null;
+}
+
+function parseTime(data,imgW,panel,row){
+  const x0=panel*PANEL_W+1240, y0=ROW_TOP+row*ROW_H;
+  const m=makeMask(data,imgW,x0,y0,130,200,(r,g,b)=>r>180&&g>180&&b>180);
+  let cs=connected(m,130,200)
+    .filter(c=>c.area>100&&c.h>=58)
+    .sort((a,b)=>a.x-b.x);
+  if(cs.length){
+    let s="",confidence=1,details=[];
+    for(const c of cs){
+      const q=classifyDigit(c);
+      s+=q.digit; confidence=Math.min(confidence,q.score);
+      details.push({digit:q.digit,score:+q.score.toFixed(3),w:c.w,h:c.h,area:c.area});
+    }
+    return {kind:"minutes",value:Number(s),confidence:+confidence.toFixed(3),details};
+  }
+
+  const wide=makeMask(data,imgW,panel*PANEL_W+1200,y0,400,200,(r,g,b)=>r>180&&g>180&&b>180);
+  let amount=0;
+  for(let y=40;y<130;y++)for(let x=0;x<400;x++)amount+=wide[y*400+x];
+  if(amount>1800)return {kind:"sortint",value:null,confidence:1,whitePixels:amount};
+  return null;
+}
+
+function rowPlatform(data,imgW,panel,row){
+  const x0=panel*PANEL_W+1600, y0=ROW_TOP+row*ROW_H;
+  const m=makeMask(data,imgW,x0,y0,280,200,(r,g,b)=>r>180&&g>180&&b>180);
+  const cs=connected(m,280,200)
+    .filter(c=>c.area>100&&c.h>45)
+    .sort((a,b)=>a.x-b.x);
+  if(!cs.length)return null;
+  let s="",confidence=1,details=[];
+  for(const c of cs){
+    const q=classifyDigit(c);
+    s+=q.digit;confidence=Math.min(confidence,q.score);
+    details.push({digit:q.digit,score:+q.score.toFixed(3),w:c.w,h:c.h,area:c.area});
+  }
+  return {value:Number(s),confidence:+confidence.toFixed(3),details};
+}
+
+function panelPlatform(data,imgW,panel){
+  const baseX=panel*PANEL_W+1500;
+  const yellow=makeMask(data,imgW,baseX,0,420,200,(r,g,b)=>r>220&&g>200&&b<120);
+  const big=connected(yellow,420,200)
+    .filter(c=>c.area>10000&&c.h>150)
+    .sort((a,b)=>b.area-a.area)[0];
+  if(!big)return null;
+
+  const dark=makeMask(
+    data,imgW,baseX+big.x,big.y,big.w,big.h,
+    (r,g,b)=>r<100&&g<100&&b<100
+  );
+  // Clear a 5px frame.
+  for(let y=0;y<big.h;y++)for(let x=0;x<big.w;x++){
+    if(x<5||y<5||x>=big.w-5||y>=big.h-5)dark[y*big.w+x]=0;
+  }
+  const c=connected(dark,big.w,big.h)
+    .filter(c=>c.area>100&&c.h>50)
+    .sort((a,b)=>b.area-a.area)[0];
+  if(!c)return null;
+  const q=classifyDigit(c);
+  return {value:Number(q.digit),confidence:+q.score.toFixed(3),mode:"panel"};
+}
+
+function parse(imgData){
+  const {data,width,height}=imgData;
+  if(height!==PANEL_H||width%PANEL_W!==0){
+    throw new Error(`Geometría iSIC inesperada: ${width}×${height}`);
+  }
+  const panels=width/PANEL_W, out=[];
+  for(let p=0;p<panels;p++){
+    const pp=panelPlatform(data,width,p);
+    for(let r=0;r<ROWS;r++){
+      const ln=lineForRow(data,width,p,r);
+      if(!ln)continue;
+      const time=parseTime(data,width,p,r);
+      const platform=pp || rowPlatform(data,width,p,r);
+      out.push({
+        panel:p+1,row:r+1,line:ln.line,
+        time,
+        platform,
+        platformMode:pp?"panel":"row"
+      });
+    }
+  }
+  return {width,height,panels,rows:out};
+}
+
+async function run(){
+  const station=document.getElementById("station").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g,"")||"pc";
+  const status=document.getElementById("status"), raw=document.getElementById("raw"), img=document.getElementById("preview");
+  status.className="card";status.textContent="Descargando PNG iSIC…";raw.textContent="Procesando…";
+  try{
+    const u=`${PROXY}?station=${encodeURIComponent(station)}&mode=image&v=${Date.now()}`;
+    const res=await fetch(u,{cache:"no-store"});
+    if(!res.ok)throw new Error(`Proxy HTTP ${res.status}`);
+    const blob=await res.blob();
+    if(!blob.type.startsWith("image/"))throw new Error(`Respuesta inesperada: ${blob.type}`);
+    const bmp=await createImageBitmap(blob);
+    const canvas=document.createElement("canvas");
+    canvas.width=bmp.width;canvas.height=bmp.height;
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(bmp,0,0);
+    const parsed=parse(ctx.getImageData(0,0,canvas.width,canvas.height));
+    parsed.station=station.toUpperCase();
+    parsed.fetchedAt=new Date().toISOString();
+    parsed.bytes=blob.size;
+    raw.textContent=JSON.stringify(parsed,null,2);
+    renderTable(parsed.rows);
+    img.src=URL.createObjectURL(blob);img.hidden=false;
+    status.className="card ok";
+    status.innerHTML=`<b>Lectura correcta.</b> ${parsed.rows.length} filas detectadas en ${parsed.panels} panel(es). PNG ${parsed.width}×${parsed.height}, ${blob.size} bytes.`;
+  }catch(e){
+    status.className="card bad";
+    status.textContent=`Error: ${e.message}`;
+    raw.textContent=JSON.stringify({ok:false,error:e.message,stack:e.stack||""},null,2);
+  }
+}
+
+function renderTable(rows){
+  const el=document.getElementById("table");
+  if(!rows.length){el.innerHTML="<p>No se detectaron filas.</p>";return}
+  el.innerHTML=`<table><thead><tr><th>Panel</th><th>Fila</th><th>Línea</th><th>Salida</th><th>Vía</th><th>Modo</th></tr></thead><tbody>${
+    rows.map(r=>`<tr><td>${r.panel}</td><td>${r.row}</td><td>${r.line}</td><td>${
+      r.time?.kind==="sortint"?"sortint":(r.time?.value??"—")+" min"
+    }</td><td>${r.platform?.value??"—"}</td><td>${r.platformMode}</td></tr>`).join("")
+  }</tbody></table>`;
+}
+
+document.getElementById("run").addEventListener("click",run);
+document.getElementById("copy").addEventListener("click",async()=>{
+  const t=document.getElementById("raw").textContent;
+  try{await navigator.clipboard.writeText(t);document.getElementById("copy").textContent="Copiado";setTimeout(()=>document.getElementById("copy").textContent="Copiar JSON",1200)}
+  catch{alert("Safari no ha permitido copiar automáticamente. Mantén pulsado sobre el JSON y cópialo manualmente.")}
+});
+</script>
+</body>
+</html>
