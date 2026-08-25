@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.14.0";
+import { getTripBundle } from "./gtfs.js?v=3.14.1";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.14.0";
+} from "./time.js?v=3.14.1";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.14.0";
+} from "./operations.js?v=3.14.1";
 import {
   cachedPlatform,
   clearPlatform,
@@ -17,7 +17,7 @@ import {
   fixedPlatformFor,
   matchContextToRows,
   rememberPlatform
-} from "./isic.js?v=3.14.0";
+} from "./isic.js?v=3.14.1";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const LIT_PLATFORM_NEAR_MS = 12000;
@@ -519,8 +519,9 @@ function updateHeaderDelay(S, location) {
 function maybeAutoScroll(S, location, force) {
   if (!S.selected || !location) return;
 
+  const view = $("#view-lit");
   const item = document.querySelector(`.lit-item[data-i="${location.targetIndex}"]`);
-  if (!item) return;
+  if (!view || !item) return;
 
   if (!force && performance.now() < (S.selected.manualHoldUntil || 0)) return;
 
@@ -528,14 +529,31 @@ function maybeAutoScroll(S, location, force) {
   if (!force && key === S.selected.lastFollowKey) return;
 
   S.selected.autoScrolling = true;
-
-  /* Posició vigent sempre a la part superior de la zona LIT. No animem el
-     desplaçament: és una recol·locació operacional, no un efecte gràfic. */
-  item.scrollIntoView({ block:"start", behavior:"auto" });
   S.selected.lastFollowKey = key;
 
+  /*
+   * No usamos scrollIntoView: en Safari/iOS puede escoger el viewport de la
+   * página en vez del contenedor interno de LIT. Calculamos directamente el
+   * scrollTop del #view-lit para que la estación objetivo quede EXACTAMENTE
+   * arriba de la zona desplazable, bajo la cabecera fija.
+   */
+  const placeAtTop = () => {
+    if (!S.selected || S.selected.lastFollowKey !== key) return;
+    const viewRect = view.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const top = Math.max(0, view.scrollTop + itemRect.top - viewRect.top);
+    view.scrollTop = top;
+  };
+
+  placeAtTop();
   requestAnimationFrame(() => {
-    if (S.selected) S.selected.autoScrolling = false;
+    placeAtTop();
+    requestAnimationFrame(() => {
+      placeAtTop();
+      if (S.selected && S.selected.lastFollowKey === key) {
+        S.selected.autoScrolling = false;
+      }
+    });
   });
 }
 

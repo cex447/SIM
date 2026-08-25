@@ -1,17 +1,17 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.14.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.14.1";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.14.0";
-import { updateOccupancy } from "./occupancy.js?v=3.14.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.14.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.14.0";
+} from "./gtfs.js?v=3.14.1";
+import { updateOccupancy } from "./occupancy.js?v=3.14.1";
+import { countdownState, formatCountdown } from "./time.js?v=3.14.1";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.14.1";
 import {
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows
-} from "./isic.js?v=3.14.0";
+} from "./isic.js?v=3.14.1";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
@@ -366,28 +366,55 @@ async function resolveStation(S, code) {
   }
 }
 
+function clearStationQueryState(S, code = "") {
+  S.isicView.requestId += 1;
+  S.isicView.station = code;
+  S.isicView.stationName = "";
+  S.isicView.state = "empty";
+  S.isicView.items = [];
+  S.isicView.lastError = null;
+  $("#stationName").textContent = "";
+  renderISIC(S);
+}
+
+export async function syncISICQuery(S, { blur = false } = {}) {
+  const input = $("#stationInput");
+  if (!input) return;
+
+  const code = normalizeStationInput(input.value);
+  input.value = code;
+
+  if (code.length < 2) {
+    if (S.isicView.station || S.isicView.state !== "empty") {
+      clearStationQueryState(S, code);
+    }
+    return;
+  }
+
+  if (S.isicView.station !== code || ["empty", "invalid", "error"].includes(S.isicView.state)) {
+    await resolveStation(S, code);
+  } else {
+    if (S.isicView.stationName) {
+      $("#stationName").textContent = S.isicView.stationName.toLocaleUpperCase("ca-ES");
+    }
+    renderISIC(S);
+  }
+
+  if (blur) input.blur();
+}
+
 export function wireISIC(S, { onSelectTrain } = {}) {
   onSelectTrainHandler = onSelectTrain || null;
   const input = $("#stationInput");
+  if (!input) return;
 
-  input.addEventListener("input", () => {
-    const code = normalizeStationInput(input.value);
-    input.value = code;
+  const handle = () => {
+    syncISICQuery(S, { blur:normalizeStationInput(input.value).length === 2 });
+  };
 
-    if (code.length < 2) {
-      S.isicView.requestId += 1;
-      S.isicView.station = code;
-      S.isicView.stationName = "";
-      S.isicView.state = "empty";
-      S.isicView.items = [];
-      $("#stationName").textContent = "";
-      renderISIC(S);
-      return;
-    }
-
-    resolveStation(S, code);
-    input.blur();
-  });
+  input.addEventListener("input", handle);
+  input.addEventListener("change", handle);
+  input.addEventListener("blur", handle);
 }
 
 export async function refreshISIC(S, { force = false } = {}) {

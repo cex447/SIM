@@ -1,31 +1,32 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.14.0";
+} from "./fgc-api.js?v=3.14.1";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.14.0";
+} from "./plastic.js?v=3.14.1";
 
 import {
   clearLIT,
   focusCurrentLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.14.0";
+} from "./lit.js?v=3.14.1";
 
 import {
   wireISIC,
   renderISIC,
   refreshISIC,
+  syncISICQuery,
   tickISIC
-} from "./isic-view.js?v=3.14.0";
+} from "./isic-view.js?v=3.14.1";
 
-import { updateOccupancy } from "./occupancy.js?v=3.14.0";
-import { BackgroundAudio } from "./audio.js?v=3.14.0";
+import { updateOccupancy } from "./occupancy.js?v=3.14.1";
+import { BackgroundAudio } from "./audio.js?v=3.14.1";
 
 const S = {
   config: null,
@@ -107,8 +108,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.14.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.14.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.14.1", { cache: "no-store" }),
+    fetch("data/network.json?v=3.14.1", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -119,6 +120,21 @@ async function loadStaticData() {
   S.network = networkResponse.ok
     ? await networkResponse.json()
     : { segments: [] };
+}
+
+
+function syncQueryBars(view = S.activeView) {
+  const litBar = $("#litQueryBar");
+  const isicBar = $("#isicQueryBar");
+
+  if (litBar) litBar.hidden = view !== "lit";
+  if (isicBar) isicBar.hidden = view !== "isic";
+
+  /* Safari/iOS puede conservar el valor de un input al cambiar de vista.
+     Ocultamos también el foco para que nunca quede visible ni activo el
+     campo perteneciente a otro módulo. */
+  if (view !== "lit") $("#circulationInput")?.blur();
+  if (view !== "isic") $("#stationInput")?.blur();
 }
 
 function hideQueryMeta() {
@@ -326,6 +342,7 @@ async function activateView(name, { clearQuery = true } = {}) {
 
   S.activeView = name;
   document.documentElement.dataset.view = name;
+  syncQueryBars(name);
 
   document.querySelectorAll(".tab").forEach(button => {
     button.classList.toggle("active", button.dataset.view === name);
@@ -343,6 +360,9 @@ async function activateView(name, { clearQuery = true } = {}) {
 
   if (name === "plastic") renderPLASTIC(S);
   if (name === "isic") {
+    /* Sincroniza el valor visual del campo con el estado interno.
+       Safari puede restaurar un valor sin disparar el evento input. */
+    await syncISICQuery(S);
     renderISIC(S);
     refreshISIC(S);
   }
@@ -484,7 +504,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.14.0",
+      "SIM+ Beta 3.14.1",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
@@ -543,6 +563,7 @@ async function init() {
   setupAudio();
 
   document.documentElement.dataset.view = S.activeView;
+  syncQueryBars(S.activeView);
   renderQuery();
   renderPLASTIC(S);
   renderISIC(S);
