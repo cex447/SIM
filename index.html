@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/sim.css?v=3.13.0">
+  <link rel="stylesheet" href="css/sim.css?v=3.14.0">
 </head>
 <body>
 <div id="app">
@@ -24,13 +24,14 @@
 
     <nav class="tabs tabs-portrait" aria-label="Mòduls SIM+">
       <button data-view="plastic" class="tab active" type="button"><span class="plate-label">PLASTIC</span></button>
+      <button data-view="isic" class="tab" type="button"><span class="plate-label">iSIC</span></button>
       <button data-view="lit" class="tab" type="button"><span class="plate-label">LIT</span></button>
       <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
     </nav>
 
-    <div class="query-bar">
+    <div id="litQueryBar" class="query-bar lit-query-bar">
       <div class="query-input-wrap">
-        <input id="circulationInput"
+        <input id="circulationInput" class="query-code-input circulation-input"
           inputmode="text"
           autocomplete="off"
           autocapitalize="characters"
@@ -45,6 +46,19 @@
         <span id="queryOccupancy" class="query-occupancy occupancy" hidden></span>
         <span id="queryDelay" class="query-delay" hidden></span>
       </div>
+    </div>
+
+    <div id="isicQueryBar" class="query-bar isic-query-bar">
+      <div class="query-input-wrap">
+        <input id="stationInput" class="query-code-input station-input"
+          inputmode="text"
+          autocomplete="off"
+          autocapitalize="characters"
+          spellcheck="false"
+          maxlength="2"
+          aria-label="Codi d'estació iSIC">
+      </div>
+      <div id="stationName" class="station-query-name" aria-live="polite"></div>
     </div>
   </header>
 
@@ -80,6 +94,24 @@
       </div>
     </section>
 
+    <section id="view-isic" class="view">
+      <div id="isicStatus" class="plastic-status isic-status" aria-live="polite">INTRODUEIX EL CODI D'ESTACIÓ</div>
+
+      <div id="isicDirections" class="plastic-directions isic-directions">
+        <section id="isicAscDirection" class="plastic-direction">
+          <h2 class="direction-title"><span id="isicAscLabel">ASCENDENTS</span> <span id="isicAscCount" class="direction-count">0 UTs</span></h2>
+          <div id="isicAscList"></div>
+          <div id="isicAscEmpty" class="empty" hidden></div>
+        </section>
+
+        <section id="isicDescDirection" class="plastic-direction">
+          <h2 class="direction-title">DESCENDENTS <span id="isicDescCount" class="direction-count">0 UTs</span></h2>
+          <div id="isicDescList"></div>
+          <div id="isicDescEmpty" class="empty" hidden></div>
+        </section>
+      </div>
+    </section>
+
     <section id="view-siv" class="view">
       <div class="siv-placeholder">SIV</div>
     </section>
@@ -87,6 +119,7 @@
 
   <nav class="tabs tabs-landscape" aria-label="Mòduls SIM+ horitzontal">
     <button data-view="plastic" class="tab active" type="button"><span class="plate-label">PLASTIC</span></button>
+    <button data-view="isic" class="tab" type="button"><span class="plate-label">iSIC</span></button>
     <button data-view="lit" class="tab" type="button"><span class="plate-label">LIT</span></button>
     <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
   </nav>
@@ -101,6 +134,6 @@
   </dialog>
 </div>
 
-<script type="module" src="js/app.js?v=3.13.0"></script>
+<script type="module" src="js/app.js?v=3.14.0"></script>
 </body>
 </html>
