@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>SIM+ · Diagnóstico iSIC</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; padding: 24px; max-width: 900px; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { line-height: 1.45; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:16px 0; }
+    input, button { font: inherit; padding:10px 12px; }
+    input { width:90px; text-transform:lowercase; }
+    button { cursor:pointer; }
+    .card { border:1px solid #8886; border-radius:12px; padding:14px; margin:12px 0; }
+    .ok { border-color:#3a5; }
+    .warn { border-color:#c90; }
+    .bad { border-color:#c44; }
+    pre {
+      white-space:pre-wrap;
+      overflow-wrap:anywhere;
+      border:1px solid #8884;
+      border-radius:8px;
+      padding:12px;
+      font-size:12px;
+      line-height:1.35;
+    }
+    code { overflow-wrap:anywhere; }
+    .muted { opacity:.7; }
+  </style>
+</head>
+<body>
+  <h1>SIM+ · Diagnóstico iSIC</h1>
+  <p>
+    Esta página no modifica SIM+. Comprueba desde el mismo navegador/origen
+    si JavaScript puede leer el monitor público iSIC de Geotren.
+  </p>
+
+  <div class="row">
+    <label>Estación:
+      <input id="station" value="pc" maxlength="8" autocapitalize="none" autocomplete="off">
+    </label>
+    <button id="run">Ejecutar prueba</button>
+    <button id="copy">Copiar resultado</button>
+  </div>
+
+  <div id="meta" class="card"></div>
+  <div id="positive" class="card"></div>
+  <div id="cors" class="card"></div>
+  <div id="opaque" class="card"></div>
+  <div id="content" class="card" hidden></div>
+
+  <h2>Resultado técnico</h2>
+  <pre id="raw">Pulsa «Ejecutar prueba».</pre>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const raw = $("raw");
+  const state = {};
+
+  function setCard(id, title, status, body) {
+    const el = $(id);
+    el.className = "card " + (status || "");
+    el.innerHTML = "<strong>" + title + "</strong><div style='margin-top:8px'>" + body + "</div>";
+  }
+
+  function esc(v) {
+    return String(v ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+  }
+
+  function errInfo(err) {
+    return {
+      name: err?.name || "",
+      message: err?.message || String(err),
+      stack: err?.stack || ""
+    };
+  }
+
+  function summarizeHtml(text) {
+    const result = {
+      length: text.length,
+      startsWith: text.slice(0, 500),
+      containsVia: /\b(via|vía)\b/i.test(text),
+      containsSortint: /\bsortint\b/i.test(text),
+      scripts: [],
+      links: []
+    };
+    try {
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      result.title = doc.title || "";
+      result.scripts = [...doc.querySelectorAll("script[src]")].map(x => x.src).slice(0, 30);
+      result.links = [...doc.querySelectorAll("link[href]")].map(x => x.href).slice(0, 30);
+      result.bodyText = (doc.body?.innerText || doc.body?.textContent || "")
+        .replace(/\s+/g, " ").trim().slice(0, 1500);
+    } catch {}
+    return result;
+  }
+
+  async function timedFetch(url, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const t0 = performance.now();
+    try {
+      const response = await fetch(url, {...options, signal: controller.signal});
+      return { response, ms: Math.round(performance.now() - t0) };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function run() {
+    const station = $("station").value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") || "pc";
+    const ts = Date.now();
+    const isicUrl = `https://geotren.fgc.cat/isic/${encodeURIComponent(station)}?_simdiag=${ts}`;
+    const controlUrl =
+      `https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=1&_simdiag=${ts}`;
+
+    state.meta = {
+      timestamp: new Date().toISOString(),
+      pageUrl: location.href,
+      origin: location.origin,
+      userAgent: navigator.userAgent,
+      online: navigator.onLine,
+      station,
+      isicUrl
+    };
+
+    setCard("meta", "Entorno", "", `
+      <div><b>Origen:</b> <code>${esc(location.origin)}</code></div>
+      <div><b>Estación:</b> ${esc(station.toUpperCase())}</div>
+      <div class="muted">${esc(navigator.userAgent)}</div>
+    `);
+
+    raw.textContent = "Ejecutando…";
+    $("content").hidden = true;
+
+    // Control positivo: API abierta de FGC.
+    try {
+      const {response, ms} = await timedFetch(controlUrl, {
+        mode: "cors", cache: "no-store", credentials: "omit"
+      });
+      const text = await response.text();
+      state.positiveControl = {
+        ok: response.ok, status: response.status, type: response.type,
+        ms, contentType: response.headers.get("content-type"),
+        bytes: text.length
+      };
+      setCard("positive", "1 · Control: Dades Obertes FGC", response.ok ? "ok" : "warn",
+        `fetch CORS resuelto · HTTP ${response.status} · type=${esc(response.type)} · ${ms} ms · ${text.length} caracteres`);
+    } catch (err) {
+      state.positiveControl = {ok:false, error:errInfo(err)};
+      setCard("positive", "1 · Control: Dades Obertes FGC", "bad",
+        `Ha fallado también el control: <code>${esc(err?.name)}: ${esc(err?.message)}</code>`);
+    }
+
+    // Prueba principal: CORS normal a iSIC.
+    try {
+      const {response, ms} = await timedFetch(isicUrl, {
+        mode: "cors", cache: "no-store", credentials: "omit"
+      });
+      const text = await response.text();
+      const summary = summarizeHtml(text);
+      state.isicCors = {
+        ok: response.ok, status: response.status, type: response.type, ms,
+        contentType: response.headers.get("content-type"),
+        redirected: response.redirected,
+        finalUrl: response.url,
+        summary
+      };
+
+      setCard("cors", "2 · iSIC: lectura CORS normal", response.ok ? "ok" : "warn",
+        `LECTURA POSIBLE · HTTP ${response.status} · type=${esc(response.type)} · ${ms} ms · ${text.length} caracteres`);
+
+      $("content").hidden = false;
+      setCard("content", "Contenido recibido de iSIC", "ok", `
+        <div><b>Título:</b> ${esc(summary.title || "(sin título)")}</div>
+        <div><b>Contiene «Via»:</b> ${summary.containsVia ? "sí" : "no"}</div>
+        <div><b>Contiene «sortint»:</b> ${summary.containsSortint ? "sí" : "no"}</div>
+        <div><b>Scripts detectados:</b> ${summary.scripts.length}</div>
+        <pre>${esc(summary.bodyText || summary.startsWith)}</pre>
+      `);
+    } catch (err) {
+      state.isicCors = {ok:false, error:errInfo(err)};
+      setCard("cors", "2 · iSIC: lectura CORS normal", "bad",
+        `NO SE PUEDE LEER · <code>${esc(err?.name)}: ${esc(err?.message)}</code>`);
+    }
+
+    // Prueba de alcance sin permiso de lectura.
+    try {
+      const {response, ms} = await timedFetch(isicUrl, {
+        mode: "no-cors", cache: "no-store", credentials: "omit"
+      });
+      state.isicNoCors = {
+        resolved: true, type: response.type, status: response.status,
+        ok: response.ok, ms
+      };
+      const expectedOpaque = response.type === "opaque" && response.status === 0;
+      setCard("opaque", "3 · iSIC: alcance sin lectura (no-cors)",
+        expectedOpaque ? "warn" : "ok",
+        expectedOpaque
+          ? `La petición alcanza un recurso, pero Safari la convierte en respuesta <b>opaque</b>; JavaScript no puede leer cuerpo ni estado. ${ms} ms.`
+          : `Resultado inesperado: type=${esc(response.type)}, HTTP ${response.status}, ${ms} ms.`);
+    } catch (err) {
+      state.isicNoCors = {resolved:false, error:errInfo(err)};
+      setCard("opaque", "3 · iSIC: alcance sin lectura (no-cors)", "bad",
+        `La petición ni siquiera ha resuelto: <code>${esc(err?.name)}: ${esc(err?.message)}</code>`);
+    }
+
+    // Diagnóstico sintético.
+    const pc = state.positiveControl;
+    const cc = state.isicCors;
+    const nc = state.isicNoCors;
+
+    if (pc?.ok && cc?.ok) {
+      state.conclusion =
+        "iSIC es legible desde este origen. El problema no es CORS; hay que corregir el parser o localizar la carga dinámica interna.";
+    } else if (pc?.ok && !cc?.ok && nc?.resolved && nc?.type === "opaque") {
+      state.conclusion =
+        "CORS/Same-Origin confirmado como bloqueo práctico: el navegador alcanza iSIC pero no permite a SIM+ leer la respuesta. Para obtener la vía hará falta un endpoint alternativo con CORS o un proxy/backend mínimo.";
+    } else if (!pc?.ok) {
+      state.conclusion =
+        "El control de Dades Obertes también falla; no se puede atribuir el problema únicamente a iSIC/CORS con esta prueba.";
+    } else {
+      state.conclusion =
+        "iSIC no es legible y la prueba no-cors tampoco da el patrón opaque esperado. Revisar red, TLS, redirecciones o políticas adicionales.";
+    }
+
+    state.finishedAt = new Date().toISOString();
+    raw.textContent = JSON.stringify(state, null, 2);
+  }
+
+  $("run").addEventListener("click", run);
+  $("copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(raw.textContent);
+      $("copy").textContent = "Copiado";
+      setTimeout(() => $("copy").textContent = "Copiar resultado", 1200);
+    } catch {
+      alert("No se ha podido copiar automáticamente. Mantén pulsado sobre el resultado y cópialo.");
+    }
+  });
+
+  const q = new URLSearchParams(location.search).get("station");
+  if (q) $("station").value = q;
+})();
+</script>
+</body>
+</html>
