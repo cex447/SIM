@@ -1,139 +1,108 @@
-<!doctype html>
-<html lang="ca" data-view="plastic">
+<!DOCTYPE html>
+
+<html data-view="plastic" lang="ca">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#000000">
-  <meta name="apple-mobile-web-app-title" content="SIM+">
-  <meta name="application-name" content="SIM+">
-  <title>SIM+</title>
-  <link rel="icon" href="assets/icons/favicon.ico" sizes="any">
-  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16x16.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png">
-  <link rel="manifest" href="site.webmanifest">
-  <link rel="stylesheet" href="css/sim.css?v=3.14.2">
+<meta charset="utf-8"/>
+<meta content="width=device-width,initial-scale=1,viewport-fit=cover" name="viewport"/>
+<meta content="#000000" name="theme-color"/>
+<meta content="SIM+" name="apple-mobile-web-app-title"/>
+<meta content="SIM+" name="application-name"/>
+<title>SIM+</title>
+<link href="assets/icons/favicon.ico" rel="icon" sizes="any"/>
+<link href="assets/icons/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
+<link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
+<link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
+<link href="site.webmanifest" rel="manifest"/>
+<link href="css/sim.css?v=3.15.0" rel="stylesheet"/>
 </head>
 <body>
 <div id="app">
-  <header class="top">
-    <div class="topline">
-      <button id="brandAudioToggle" class="brand" type="button" aria-label="Activar o aturar música de fons">SIM+</button>
-      <div id="clock" class="clock">--:--:--</div>
-    </div>
-
-    <nav class="tabs tabs-portrait" aria-label="Mòduls SIM+">
-      <button data-view="plastic" class="tab active" type="button"><span class="plate-label">PLASTIC</span></button>
-      <button data-view="isic" class="tab" type="button"><span class="plate-label">iSIC</span></button>
-      <button data-view="lit" class="tab" type="button"><span class="plate-label">LIT</span></button>
-      <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
-    </nav>
-
-    <div id="litQueryBar" class="query-bar lit-query-bar" hidden>
-      <div class="query-input-wrap">
-        <input id="circulationInput" class="query-code-input circulation-input"
-          inputmode="text"
-          autocomplete="off"
-          autocapitalize="characters"
-          spellcheck="false"
-          maxlength="4"
-          aria-label="Cercar circulació">
-      </div>
-
-      <div id="queryMeta" class="query-meta" hidden>
-        <span id="queryStatus" class="query-status" hidden></span>
-        <span id="queryUnit" class="query-unit" hidden></span>
-        <span id="queryOccupancy" class="query-occupancy occupancy" hidden></span>
-        <span id="queryDelay" class="query-delay" hidden></span>
-      </div>
-    </div>
-
-    <div id="isicQueryBar" class="query-bar isic-query-bar" hidden>
-      <div class="query-input-wrap">
-        <input id="stationInput" class="query-code-input station-input"
-          inputmode="text"
-          autocomplete="off"
-          autocapitalize="characters"
-          spellcheck="false"
-          maxlength="2"
-          aria-label="Codi d'estació iSIC">
-      </div>
-      <div id="stationName" class="station-query-name" aria-live="polite"></div>
-    </div>
-  </header>
-
-  <main>
-    <section id="view-lit" class="view">
-      <div id="litRoute" class="lit-route"></div>
-    </section>
-
-    <section id="view-plastic" class="view active">
-      <div class="plastic-filters">
-        <div id="lineFilters" class="line-filters" aria-label="Línies"></div>
-        <div class="landscape-filter-gap" aria-hidden="true"></div>
-        <div class="ut-filter-line">
-          <div id="utFilters" class="ut-filters" aria-label="Sèries UT"></div>
-          <button id="clearPlasticFilters" class="text-filter all-filter selected" type="button" aria-pressed="true"><span class="plate-label">TOTS</span></button>
-        </div>
-      </div>
-
-      <div id="plasticStatus" class="plastic-status" aria-live="polite">ESPERANT DADES</div>
-
-      <div class="plastic-directions">
-        <section id="ascDirection" class="plastic-direction">
-          <h2 class="direction-title"><span id="ascLabel">ASCENDENTS</span> <span id="ascCount" class="direction-count">0 UTs</span></h2>
-          <div id="ascList"></div>
-          <div id="ascEmpty" class="empty" hidden></div>
-        </section>
-
-        <section id="descDirection" class="plastic-direction">
-          <h2 class="direction-title">DESCENDENTS <span id="descCount" class="direction-count">0 UTs</span></h2>
-          <div id="descList"></div>
-          <div id="descEmpty" class="empty" hidden></div>
-        </section>
-      </div>
-    </section>
-
-    <section id="view-isic" class="view">
-      <div id="isicStatus" class="plastic-status isic-status" aria-live="polite">INTRODUEIX EL CODI D'ESTACIÓ</div>
-
-      <div id="isicDirections" class="plastic-directions isic-directions">
-        <section id="isicAscDirection" class="plastic-direction">
-          <h2 class="direction-title"><span id="isicAscLabel">ASCENDENTS</span> <span id="isicAscCount" class="direction-count">0 UTs</span></h2>
-          <div id="isicAscList"></div>
-          <div id="isicAscEmpty" class="empty" hidden></div>
-        </section>
-
-        <section id="isicDescDirection" class="plastic-direction">
-          <h2 class="direction-title">DESCENDENTS <span id="isicDescCount" class="direction-count">0 UTs</span></h2>
-          <div id="isicDescList"></div>
-          <div id="isicDescEmpty" class="empty" hidden></div>
-        </section>
-      </div>
-    </section>
-
-    <section id="view-siv" class="view">
-      <div class="siv-placeholder">SIV</div>
-    </section>
-  </main>
-
-  <nav class="tabs tabs-landscape" aria-label="Mòduls SIM+ horitzontal">
-    <button data-view="plastic" class="tab active" type="button"><span class="plate-label">PLASTIC</span></button>
-    <button data-view="isic" class="tab" type="button"><span class="plate-label">iSIC</span></button>
-    <button data-view="lit" class="tab" type="button"><span class="plate-label">LIT</span></button>
-    <button data-view="siv" class="tab" type="button"><span class="plate-label">SIV</span></button>
-  </nav>
-
-  <button id="diagHotspot" type="button" aria-label="Diagnòstic"></button>
-  <dialog id="diag">
-    <div class="diaghead">
-      <strong>SIM+ DIAGNÒSTIC</strong>
-      <button id="closeDiag" type="button" aria-label="Tancar">×</button>
-    </div>
-    <pre id="diagText"></pre>
-  </dialog>
+<header class="top">
+<div class="topline">
+<button aria-label="Activar o aturar música de fons" class="brand" id="brandAudioToggle" type="button">SIM+</button>
+<div class="clock" id="clock">--:--:--</div>
 </div>
 
-<script type="module" src="js/app.js?v=3.14.2"></script>
+<div class="query-bar lit-query-bar" hidden="" id="litQueryBar">
+<div class="query-input-wrap">
+<input aria-label="Cercar circulació" autocapitalize="characters" autocomplete="off" class="query-code-input circulation-input" id="circulationInput" inputmode="text" maxlength="4" spellcheck="false"/>
+</div>
+<div class="query-meta" hidden="" id="queryMeta">
+<span class="query-status" hidden="" id="queryStatus"></span>
+<span class="query-unit" hidden="" id="queryUnit"></span>
+<span class="query-occupancy occupancy" hidden="" id="queryOccupancy"></span>
+<span class="query-delay" hidden="" id="queryDelay"></span>
+</div>
+</div>
+<div class="query-bar isic-query-bar" hidden="" id="isicQueryBar">
+<div class="query-input-wrap">
+<input aria-label="Codi d'estació iSIC" autocapitalize="characters" autocomplete="off" class="query-code-input station-input" id="stationInput" inputmode="text" maxlength="2" spellcheck="false"/>
+</div>
+<div aria-live="polite" class="station-query-name" id="stationName"></div>
+</div>
+</header>
+<main><section class="view active" id="view-plastic">
+<div class="plastic-filters">
+<div aria-label="Línies" class="line-filters" id="lineFilters"></div>
+<div aria-hidden="true" class="landscape-filter-gap"></div>
+<div class="ut-filter-line">
+<div aria-label="Sèries UT" class="ut-filters" id="utFilters"></div>
+<button aria-pressed="true" class="text-filter all-filter selected" id="clearPlasticFilters" type="button"><span class="plate-label">TOTS</span></button>
+</div>
+</div>
+<div aria-live="polite" class="plastic-status" id="plasticStatus">ESPERANT DADES</div>
+<div class="plastic-directions">
+<section class="plastic-direction" id="ascDirection">
+<h2 class="direction-title"><span id="ascLabel">ASCENDENTS</span> <span class="direction-count" id="ascCount">0 UTs</span></h2>
+<div id="ascList"></div>
+<div class="empty" hidden="" id="ascEmpty"></div>
+</section>
+<section class="plastic-direction" id="descDirection">
+<h2 class="direction-title">DESCENDENTS <span class="direction-count" id="descCount">0 UTs</span></h2>
+<div id="descList"></div>
+<div class="empty" hidden="" id="descEmpty"></div>
+</section>
+</div>
+</section><section class="view" id="view-isic">
+<div aria-live="polite" class="plastic-status isic-status" id="isicStatus">INTRODUEIX EL CODI D'ESTACIÓ</div>
+<div class="plastic-directions isic-directions" id="isicDirections">
+<section class="plastic-direction" id="isicAscDirection">
+<h2 class="direction-title"><span id="isicAscLabel">ASCENDENTS</span> <span class="direction-count" id="isicAscCount">0 UTs</span></h2>
+<div id="isicAscList"></div>
+<div class="empty" hidden="" id="isicAscEmpty"></div>
+</section>
+<section class="plastic-direction" id="isicDescDirection">
+<h2 class="direction-title">DESCENDENTS <span class="direction-count" id="isicDescCount">0 UTs</span></h2>
+<div id="isicDescList"></div>
+<div class="empty" hidden="" id="isicDescEmpty"></div>
+</section>
+</div>
+</section><section class="view ctc-view" data-viewport-max="3.0" data-viewport-min="0.08" id="view-ctc">
+<div aria-label="Sinòptic CTC Barcelona-Vallès" class="ctc-map-stage" id="ctcMapStage">
+<img alt="Sinòptic ferroviari Barcelona-Vallès" class="ctc-map-image" id="ctcMapImage" src="assets/ctc/sinoptico-bv.svg?v=3.15.0"/>
+<div aria-hidden="true" class="ctc-train-layer" id="ctcTrainLayer"></div>
+</div>
+</section><section class="view" id="view-lit">
+<div class="lit-route" id="litRoute"></div>
+</section><section class="view" id="view-siv">
+<div class="siv-placeholder">SIV</div>
+</section></main>
+<nav aria-label="Mòduls SIM+" class="tabs tabs-global">
+<button class="tab active" data-view="plastic" type="button"><span class="plate-label">PLASTIC</span></button>
+<button class="tab" data-view="isic" type="button"><span class="plate-label">iSIC</span></button>
+<button class="tab" data-view="ctc" type="button"><span class="plate-label">CTC</span></button>
+<button class="tab" data-view="lit" type="button"><span class="plate-label">LIT</span></button>
+<button class="tab" data-view="siv" type="button"><span class="plate-label">SIV</span></button>
+</nav>
+<button aria-label="Diagnòstic" id="diagHotspot" type="button"></button>
+<dialog id="diag">
+<div class="diaghead">
+<strong>SIM+ DIAGNÒSTIC</strong>
+<button aria-label="Tancar" id="closeDiag" type="button">×</button>
+</div>
+<pre id="diagText"></pre>
+</dialog>
+</div>
+<script src="js/app.js?v=3.15.0" type="module"></script>
 </body>
 </html>

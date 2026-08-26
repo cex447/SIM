@@ -1,0 +1,88 @@
+SIM+ · BETA 3.15.0
+
+Base: SIM+ Beta 3.14.2.
+La 3.15.0 conserva las funciones, datos, iconos, PWA, audio, PLASTIC, iSIC y LIT de 3.14.2 y añade la primera infraestructura CTC y un nuevo sistema transversal de viewport.
+
+ORDEN DE NAVEGACIÓN
+PLASTIC -> iSIC -> CTC -> LIT -> SIV
+
+1. NUEVA PESTAÑA CTC
+- Se incorpora CTC como tercera pestaña.
+- El sinóptico utiliza la versión SIN TRAZADOS COLOREADOS del PDF vectorial facilitado, convertida a SVG para mantener geometría vectorial y permitir zoom sin pixelación.
+- CTC se muestra siempre sobre fondo negro.
+- Al entrar en CTC por primera vez en cada ejecución de SIM+, el viewport se sitúa automáticamente en Plaça Catalunya (PC).
+- Si el usuario desplaza o amplía el CTC, cambia a PLASTIC/iSIC/LIT/SIV y vuelve, se mantiene exactamente el viewport CTC de esa ejecución.
+- Al recargar/cerrar/reabrir SIM+ se reinicia ese estado y la siguiente entrada en CTC vuelve a PC.
+- Los refrescos de posicionamiento NO recentran el mapa.
+
+2. CABECERA Y NAVEGACIÓN BLOQUEADAS
+- SIM+ y el reloj quedan en una franja superior opaca independiente del contenido.
+- Ningún elemento de PLASTIC/iSIC/CTC/LIT/SIV puede atravesar visualmente esa franja.
+- Las pestañas pasan a una barra inferior fija en TODAS las orientaciones, no sólo en horizontal.
+- La barra inferior es igualmente opaca e independiente del contenido.
+- En CTC, cabecera y barra inferior se fuerzan a negro para integrarse con el sinóptico.
+
+3. ZOOM Y DESPLAZAMIENTO EN TODOS LOS MÓDULOS
+- La zona central de PLASTIC, iSIC, CTC, LIT y SIV dispone de viewport propio.
+- Un dedo mantiene el desplazamiento nativo horizontal/vertical.
+- Pinch con dos dedos permite ampliar/reducir el contenido central sin modificar SIM+, reloj o pestañas.
+- En escritorio/trackpad se admite zoom mediante gesto equivalente a Ctrl/Cmd + rueda.
+- Cada pestaña conserva de forma independiente su zoom y desplazamiento mientras la aplicación siga abierta.
+- Al recargar SIM+ los viewports vuelven a su estado inicial.
+- LIT mantiene su autoposicionamiento aprobado: estacionado -> estación actual arriba; circulando -> estación anterior arriba. El zoom no cambia esa lógica.
+
+4. INFRAESTRUCTURA CTC PREPARADA PARA CIRCULACIONES
+- Se incorpora una capa vectorial independiente para futuras fichas de tren.
+- Paleta aprobada:
+  L6  #847DC6
+  L7  #AE6118
+  L12 #B6B3E1
+  S1  #F47216
+  S2  #59C134
+  RETRASO #FF2C2C
+- Texto de circulación y retraso: blanco.
+- La infraestructura de ficha contempla código de circulación y, si corresponde, bloque rojo adosado +N.
+
+5. CATÁLOGO DE ENCAMINAMIENTOS CTC
+- Se añade data/ctc-routes.json para conservar dentro de la beta los casos ya confirmados y evitar perder reglas durante el desarrollo del motor de rutas.
+- Incluye, entre otros:
+  * PC: cualquier tren puede utilizar cualquier vía; secuencias confirmadas PC1->PCA6->PCA5->PCA1->PC9->...->PR1 y PR2->PC10->PC8->PCA2->PCA4->PCA9->PC2.
+  * SR4 descendente excepcional si SR2 queda inoperativa; posible suspensión de L12.
+  * L12: SR4 como salida ordinaria desde SR; rutas SR<->RE1 y SR<->RE2.
+  * BT3 ascendente y salida/inicio excepcional BT3->SJ2.
+  * RB0 accesible desde los itinerarios de V1/V2; VÍA 0 es válida.
+  * CF4 como origen excepcional.
+  * Variantes PN/NA por vía alta/baja.
+  * Servicio por vía única / vía contraria en TR, FN, MN-BN, PR-GR, LP y SC.
+  * GR: L7 descendente por la vía superior y servicio lanzadera excepcional L7 GR3<->TB.
+  * SC: ramales hacia NA y PN diferenciados.
+- Las rutas todavía sin secuencia nominal completa se conservan como confirmadas gráficamente, sin inventar circuitos intermedios.
+
+6. CRITERIO DE SEGURIDAD DEL CTC EN ESTA BETA
+- El SVG navegable y la infraestructura de capa de tren están activos.
+- La animación automática de circulaciones sobre circuitos NO se activa todavía: faltan por cerrar algunas matrices circuito-a-circuito de los nudos complejos (especialmente PC/SR/GR/SC).
+- Esto es deliberado: SIM+ no debe colocar una circulación en un circuito que no haya sido validado.
+- El catálogo incluido permite continuar la siguiente beta sin perder ninguna de las excepciones ya documentadas.
+
+7. CONSERVADO DE BETA 3.14.2
+- Vía iSIC revalidada cada 10 s en PLASTIC, iSIC y LIT.
+- null/undefined/vacío = vía desconocida; 0 = vía real válida.
+- Matcher visual iSIC v3 y Worker CORS.
+- Reglas fijas TB origen -> VÍA 1 y L12 origen SR -> VÍA 4.
+- LIT: vías dinámicas progresivas, destino final sin vía inventada y autoposicionamiento por última posición conocida.
+- PLASTIC: ocupación por serie, retrasos, flechas, destinos efectivos, filtros y contadores.
+- iSIC: un único campo de estación + nombre completo y presentación tipo PLASTIC.
+- LIT: itinerarios, cronometría, señalización, SK, ATP/M1, triángulos, modo día/noche y resto de reglas acumuladas.
+- PWA, iconos, audio y recursos anteriores.
+
+NOTA
+Los trazados de colores dibujados sobre las capturas de trabajo son documentación de encaminamientos. No forman parte del gráfico base mostrado en CTC.
+
+8. REQUISITOS CTC/ESTIMACIÓN CONSERVADOS PARA LA SIGUIENTE FASE
+- Movimiento simulado entre estaciones: aceleración -> marcha -> frenado, no velocidad constante.
+- Cada nueva posición real FGC corregirá la estimación; el dato real siempre prevalece.
+- La extrapolación corta no podrá declarar por sí sola una llegada/estacionamiento: si falta confirmación, el tren se detendrá visualmente al final de la interestación sin inventar estado de estación.
+- El mismo motor podrá alimentar posición estimada, velocidad estimada y ETA mejorada sin nuevas consultas de red por cada fotograma.
+- La distancia restante se apoyará en las distancias de interestación ya disponibles.
+- No se incorporan por ahora estadísticas ni alertas derivadas del scroll amarillo de iSIC.
+- El mapa no utilizará tiles ni cartografía externa: el SVG se sirve localmente y la animación/zoom se realizan en el dispositivo.
