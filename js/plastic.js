@@ -1,11 +1,11 @@
-import { getTripBundle } from "./gtfs.js?v=3.14.2";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.14.2";
-import { countdownState, formatCountdown } from "./time.js?v=3.14.2";
+import { getTripBundle } from "./gtfs.js?v=3.16.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.16.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.16.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.14.2";
+} from "./operations.js?v=3.16.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -14,7 +14,7 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.14.2";
+} from "./isic.js?v=3.16.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -698,7 +698,9 @@ export function renderPLASTIC(S) {
   status.classList.toggle("error", Boolean(S.lastError));
 
   syncFilterVisuals(S);
-  refreshOriginPlatforms(S);
+  /* Les vies d'origen via iSIC només es consulten mentre PLASTIC és visible.
+     CTC reutilitza posicionament FGC i no genera trànsit extra al Worker. */
+  if (S.activeView === "plastic") refreshOriginPlatforms(S);
 }
 
 export function tickPLASTIC(S) {

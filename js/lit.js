@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.14.2";
+import { getTripBundle } from "./gtfs.js?v=3.16.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.14.2";
+} from "./time.js?v=3.16.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.14.2";
+} from "./operations.js?v=3.16.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -18,7 +18,7 @@ import {
   matchContextToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.14.2";
+} from "./isic.js?v=3.16.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const LIT_PLATFORM_NEAR_MS = 10000;
@@ -524,7 +524,7 @@ function maybeAutoScroll(S, location, force) {
   const view = $("#view-lit");
 
   /*
-   * Regla operativa Beta 3.14.2:
+   * Regla operativa Beta 3.16.0:
    * - estacionado: la estación actual queda arriba;
    * - circulando: queda arriba la estación que el tren acaba de dejar.
    *

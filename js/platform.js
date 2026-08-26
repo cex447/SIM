@@ -1,7 +1,7 @@
 /*
  * Compatibilitat de nom de mòdul.
  *
- * Des de Beta 3.14.2 iSIC és una imatge PNG i tota la lectura/matching viu a
+ * Des de Beta 3.16.0 iSIC és una imatge PNG i tota la lectura/matching viu a
  * isic.js. Aquest fitxer es conserva perquè cap desplegament antic que encara
  * tingui una referència al nom platform.js acabi carregant el parser DOM/CORS
  * obsolet de 3.13.
@@ -18,4 +18,4 @@ export {
   pairAssessment,
   parseIsicImageData,
   rememberPlatform
-} from "./isic.js?v=3.14.2";
+} from "./isic.js?v=3.16.0";
