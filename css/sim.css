@@ -1012,7 +1012,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.15.0 · CROM FIX + VIEWPORT PAN/ZOOM
+   BETA 3.16.0 · CROM FIX + VIEWPORT PAN/ZOOM
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1061,7 +1061,7 @@ main{
 .view{
   position:relative;
   overflow:auto !important;
-  touch-action:pan-x pan-y;
+  touch-action:none;
   overscroll-behavior:contain;
   padding-bottom:18px;
 }
@@ -1080,7 +1080,7 @@ main{
   will-change:transform;
 }
 
-/* CTC: el PDF vectorial sense marques és la capa de base. */
+/* CTC: el sinòptic vectorial queda incrustat al DOM; no depèn de <img>. */
 .ctc-view{
   padding:0 !important;
   background:#000;
@@ -1096,14 +1096,19 @@ main{
   background:#000;
   overflow:hidden;
 }
-.ctc-map-image{
+.ctc-map-vector{
   display:block;
   width:6566.92px;
   height:4954.34px;
   max-width:none;
   user-select:none;
-  -webkit-user-drag:none;
   pointer-events:none;
+}
+.ctc-map-vector > svg{
+  display:block;
+  width:6566.92px;
+  height:4954.34px;
+  max-width:none;
 }
 .ctc-train-layer{
   position:absolute;
@@ -1118,7 +1123,11 @@ main{
   position:absolute;
   display:inline-flex;
   align-items:stretch;
-  transform:translate(-50%,-50%);
+  left:0;
+  top:0;
+  transform:translate3d(var(--ctc-x,0px),var(--ctc-y,0px),0) translate(-50%,-50%);
+  will-change:transform;
+  z-index:2;
   font-family:"SIM Futura",Arial,sans-serif;
   font-weight:700;
   font-style:italic;
@@ -1194,4 +1203,9 @@ html[data-view="ctc"] .tabs-global .tab.active{
     padding-left:1px;
     padding-right:1px;
   }
+}
+
+/* Una confirmació real FGC corregeix suaument una estimació pròxima. */
+.ctc-train.ctc-resync{
+  transition:transform 450ms linear;
 }
