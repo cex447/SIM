@@ -1,6 +1,6 @@
 {
-  "version": "3.15.0",
-  "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. No se utiliza todavía para inventar posiciones; las rutas incompletas quedan marcadas como pendientes de secuencia nominal.",
+  "version": "3.16.0",
+  "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. Beta 3.16.0 lo conserva como política/topología de explotación: el motor de movimiento usa sólo geometrías confirmadas o corredores nominales y no dibuja las rutas.",
   "conventions": {
     "normal": "recorrido ordinario",
     "alternative": "recorrido válido por otra vía/crossover",
@@ -15,7 +15,13 @@
       "direction": "asc",
       "from": "PC1",
       "to": "PR1",
-      "circuits": ["PC1", "PCA6", "PCA5", "PCA1", "PC9"],
+      "circuits": [
+        "PC1",
+        "PCA6",
+        "PCA5",
+        "PCA1",
+        "PC9"
+      ],
       "continuation": "hasta PR1",
       "status": "sequence_confirmed"
     },
@@ -26,7 +32,14 @@
       "direction": "desc",
       "from": "PR2",
       "to": "PC2",
-      "circuits": ["PC10", "PC8", "PCA2", "PCA4", "PCA9", "PC2"],
+      "circuits": [
+        "PC10",
+        "PC8",
+        "PCA2",
+        "PCA4",
+        "PCA9",
+        "PC2"
+      ],
       "status": "sequence_confirmed"
     },
     {
@@ -176,7 +189,12 @@
       "type": "normal",
       "line": "L7",
       "direction": "desc",
-      "circuits": ["GRA4", "GR20", "GR10", "GR16"],
+      "circuits": [
+        "GRA4",
+        "GR20",
+        "GR10",
+        "GR16"
+      ],
       "notes": "Ejemplo confirmado de L7 descendente: toma la vía superior de GR y sale hacia PM/TB.",
       "status": "graphic_with_partial_sequence"
     },
