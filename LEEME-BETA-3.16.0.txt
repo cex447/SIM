@@ -1,0 +1,92 @@
+SIM+ · BETA 3.16.0
+
+Base recuperada: SIM+ Beta 3.15.0.
+Esta versión conserva PLASTIC, iSIC, LIT, SIV, PWA, audio y el catálogo CTC anterior, y activa la primera versión operativa del CTC dinámico.
+
+ORDEN DE NAVEGACIÓN
+PLASTIC -> iSIC -> CTC -> LIT -> SIV
+
+1. CTC: CARGA VECTORIAL CORREGIDA EN iOS
+- El sinóptico deja de depender de un <img> externo, origen del icono de imagen rota observado en Safari/iPhone.
+- El SVG completo de Barcelona-Vallès queda incrustado directamente en index.html como SVG real del DOM.
+- Se conserva también assets/ctc/sinoptico-bv.svg como fuente independiente.
+- El CTC sigue siendo 100 % vectorial, sin rasterización.
+- Dimensiones lógicas conservadas: 6566.92 x 4954.34.
+
+2. ZOOM/PAN REHECHO PARA iPHONE/iPAD
+- viewport.js se sustituye por un motor Pointer Events propio.
+- 1 dedo: desplazamiento horizontal/vertical del contenido del módulo.
+- 2 dedos: pinch zoom alrededor del punto medio real de los dedos.
+- Ctrl/Cmd + rueda: zoom en escritorio/trackpad.
+- SIM+, reloj y barra inferior nunca se amplían.
+- Cada módulo conserva de forma independiente escala y posición durante la ejecución.
+- Las vistas ocultas ya no se miden al arrancar: se inicializan/recalculan al entrar en ellas, evitando geometrías 0x0 en Safari.
+- CTC admite un rango de zoom especialmente amplio (0.08x a 6x).
+
+3. CTC: CIRCULACIONES ACTIVAS
+- Se activa #ctcTrainLayer.
+- Cada circulación BV válida se representa por una ficha del color comercial de su línea:
+  L6  #847DC6
+  L7  #AE6118
+  L12 #B6B3E1
+  S1  #F47216
+  S2  #59C134
+- Si FGC marca en_hora=false y el contexto horario permite calcularlo, aparece un bloque rojo adosado +N.
+- No se dibuja la ruta del tren, ni el itinerario precedente/futuro, ni se colorean circuitos. Sólo se mueve la ficha de circulación sobre el trazado CTC.
+
+4. MOTOR DE MOVIMIENTO HORARIO + RESINCRONIZACIÓN REAL
+- FGC posicionament-dels-trens manda sobre la estimación.
+- Estacionado: la ficha permanece inmóvil en la estación confirmada.
+- Cuando una circulación deja una estación y aparece camino de la siguiente, ese snapshot se toma como T0 real de salida.
+- El tiempo total de movimiento A->B se obtiene del GTFS de ESA circulación y ESA jornada: salida programada de A -> llegada programada a B.
+- El movimiento se calcula siempre con tiempo absoluto, no acumulando píxeles por frame. Si Safari duerme o CTC no está visible, al volver la ficha reaparece en el porcentaje temporal que corresponde.
+- Si FGC confirma antes una nueva estación, la estimación se cancela y manda la posición real.
+- Si cambia properes_parades sin haberse capturado un estacionamiento, ese cambio se interpreta como confirmación de paso por la antigua estación objetivo y comienza el tramo siguiente.
+- Si se consume todo el tiempo teórico sin confirmación de llegada, la ficha se detiene al 97,5 % del camino y espera. La estimación nunca declara por sí sola que el tren está estacionado.
+- CTC no anima en segundo plano: conserva el estado y recalcula por reloj al volver a la pestaña.
+
+5. GEOMETRÍA DE MOVIMIENTO
+- Se añade data/ctc-motion.json.
+- La geometría se expresa en las mismas coordenadas del sinóptico vectorial.
+- PC-PR incorpora como guía las secuencias ya confirmadas:
+  ASC: PC1 -> PCA6 -> PCA5 -> PCA1 -> PC9 -> PR1.
+  DESC: PR2 -> PC10 -> PC8 -> PCA2 -> PCA4 -> PCA9 -> PC2.
+- Se incluyen corredores diferenciados para:
+  * tronco PC-PR-GR-SG-MN-BN-TT-SR-PF-VL-LP-LF-VD-SC;
+  * ramal L7 GR-PM-PD-EP-TB;
+  * L12 SR-RE;
+  * ramal S1 SC-MS-HG-RB-FN-TR-VP-EN-NA;
+  * ramal S2 SC-VO-SJ-BT-UN-SQ-CF-PJ-CT-NO-PN.
+- Los nudos GR, SR y SC incorporan polilíneas específicas para enlazar sus corredores.
+- ctc-routes.json sigue siendo la fuente de reglas/excepciones confirmadas. Si una variante depende de una vía real que CTC no conoce, el motor NO inventa ese encaminamiento: utiliza el corredor nominal hasta que exista confirmación suficiente.
+
+6. COSTE DE RED / CLOUDFLARE
+- El movimiento de las fichas se realiza íntegramente en el dispositivo mediante requestAnimationFrame y reloj local.
+- No existe una petición de red por tren, por posición ni por fotograma.
+- CTC reutiliza S.trains, el mismo snapshot de posicionament-dels-trens que ya mantiene SIM+ cada 5 s.
+- El contexto GTFS se carga sólo cuando CTC llega a utilizarse y queda cacheado durante la ejecución.
+- PLASTIC deja de lanzar refrescos de vías iSIC/Worker cuando PLASTIC no es la vista activa. Permanecer en CTC no provoca esas consultas de Cloudflare en segundo plano.
+
+7. DIAGNÓSTICO
+El panel de diagnóstico añade:
+- rutas CTC catalogadas;
+- circulaciones CTC en movimiento;
+- circulaciones estacionadas;
+- marcadores renderizados;
+- zoom CTC;
+- error de rutas y error del motor de movimiento por separado.
+
+8. CRITERIO DE PRECISIÓN
+- Una posición móvil entre estaciones es una ESTIMACIÓN temporal guiada por el horario y la geometría CTC.
+- Un estacionamiento y una nueva próxima parada proceden siempre del dato FGC.
+- Las variantes excepcionales documentadas (vía única, vías alternativas, entradas especiales PC/SR/GR/SC, etc.) permanecen conservadas en ctc-routes.json. No se debe seleccionar una variante concreta si el dato disponible no permite distinguirla con seguridad.
+
+9. CONSERVADO DE BETA 3.15.0
+- PLASTIC, iSIC, LIT y SIV mantienen la lógica acumulada de la base 3.15.0 salvo los cambios expresamente indicados arriba.
+- Se conserva el SVG fuente original, network.json, señalización/interestaciones, ocupación, audio, iconos, manifiesto y recursos anteriores.
+
+NOTA DE PRUEBA
+Esta beta está preparada para validar en iPhone tres aspectos antes de ampliar la matriz de encaminamientos excepcionales:
+1) carga visible del SVG CTC;
+2) pinch/pan fiable en todas las pestañas;
+3) coherencia temporal y resincronización de las fichas de tren en CTC.
