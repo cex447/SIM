@@ -41,5 +41,28 @@
     "cacheMs": 9000,
     "timeoutMs": 7000,
     "staleMs": 30000
+  },
+  "ctc": {
+    "enabled": true,
+    "mapUrl": "assets/ctc/sinoptico-bv.svg",
+    "mapWidth": 6566.92,
+    "mapHeight": 4954.34,
+    "defaultFocus": {
+      "station": "PC",
+      "x": 820,
+      "y": 2558,
+      "alignX": 0.36,
+      "alignY": 0.5
+    },
+    "defaultLogicalWidthPortrait": 1250,
+    "defaultLogicalWidthLandscape": 2300,
+    "lineColors": {
+      "L6": "#847DC6",
+      "L7": "#AE6118",
+      "L12": "#B6B3E1",
+      "S1": "#F47216",
+      "S2": "#59C134"
+    },
+    "delayColor": "#FF2C2C"
   }
 }
