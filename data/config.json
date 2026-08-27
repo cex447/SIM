@@ -51,11 +51,11 @@
       "station": "PC",
       "x": 820,
       "y": 2558,
-      "alignX": 0.36,
+      "alignX": 0.19,
       "alignY": 0.25
     },
-    "defaultLogicalWidthPortrait": 460,
-    "defaultLogicalWidthLandscape": 850,
+    "defaultLogicalWidthPortrait": 132,
+    "defaultLogicalWidthLandscape": 288,
     "lineColors": {
       "L6": "#847DC6",
       "L7": "#AE6118",

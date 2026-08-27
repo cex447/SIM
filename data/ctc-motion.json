@@ -1,5 +1,5 @@
 {
-  "version": "3.18.0",
+  "version": "3.19.0",
   "purpose": "Geometria interna per al moviment estimat de circulacions sobre el CTC. Les línies no es dibuixen: només guien la posició de les etiquetes.",
   "holdProgress": 0.975,
   "stations": {
@@ -505,46 +505,38 @@
     ],
     "SC>MS|asc": [
       [
-        3433.6,
-        2582
+        3433.574,
+        2582.0
       ],
       [
-        3488.9,
-        2566
+        3462.0,
+        2582.0
       ],
       [
-        3599.2,
-        2566
-      ],
-      [
-        3618.4,
-        2524
+        3525.0,
+        2524.0
       ],
       [
         3724.0,
-        2524
+        2524.0
       ]
     ],
     "MS>SC|desc": [
       [
         3724.0,
-        2508
+        2508.0
       ],
       [
-        3644.8,
-        2508
+        3516.0,
+        2508.0
       ],
       [
-        3618.4,
-        2524
+        3456.0,
+        2566.0
       ],
       [
-        3488.9,
-        2566
-      ],
-      [
-        3433.6,
-        2566
+        3433.574,
+        2566.0
       ]
     ],
     "SC>VO|asc": [
@@ -592,7 +584,12 @@
     "3.18.0: lineStationOverrides tiene prioridad sobre stations cuando una línea usa un circuito de estacionamiento específico.",
     "3.18.0: linePaths tiene prioridad sobre paths y permite resolver bifurcaciones compartidas sin alterar otras líneas.",
     "L7 ascendente: PR→GR entra por GRA5, pasa por GR11A y estaciona en GR11; GR→PM continúa por PM1 y baja a PM3.",
-    "L12: SR utiliza SR20 (andén vía 4) y RE utiliza RE1 como ruta nominal. RE2 no se usa como fallback."
+    "L12: SR utiliza SR20 (andén vía 4) y RE utiliza RE1 como ruta nominal. RE2 no se usa como fallback.",
+    "3.19.0: las circulaciones estacionadas usan vía real confirmada (caché iSIC/PLASTIC) para resolver el circuito exacto cuando existe correspondencia station→platform→circuit; esta prioridad se aplica sólo a la posición estacionada, sin inventar trayectorias de aguja no documentadas.",
+    "3.19.0: PC1..PC5 corresponden directamente a vías 1..5 de PC.",
+    "3.19.0: tabla compleja confirmada: GR 1→GR9, 2→GR8, 3→GR11, 4→GR10; SR 1→SR5, 2→SR21, 3→SR20; LP 1→LP7, 2→LP4, 4→LP6 (no existe vía 3); SC 1→SC9, 2→SC6; BT 1→BT5, 2→BT6, 3→BT7; RB 1→RB08, 2→RB20, 0→RB19; CF 1→CF17, 2→CF18, 4→CF19.",
+    "3.19.0: SC→MS ascendente (impar) sigue SC9 y el corredor inferior hasta la diagonal hacia la vía ascendente de MS; MS→SC descendente (par) sigue el corredor superior y entra por SC6, según la captura marcada verde/rosa.",
+    "3.19.0: SR admite internamente también vía 4→SR20 como alias de compatibilidad con la regla fija L12 ya existente; geométricamente ambos casos anclan en SR20 hasta cerrar definitivamente la numeración de esa vía."
   ],
   "lineStationOverrides": {
     "L7": {
@@ -616,7 +613,7 @@
           2534.0
         ],
         "circuit": "SR20",
-        "platform": 4
+        "note": "L12 se ancla en SR20; la numeración de vía no se fuerza aquí si la vía real no está confirmada."
       },
       "RE": {
         "asc": [
@@ -710,5 +707,156 @@
         ]
       ]
     }
+  },
+  "platformCircuits": {
+    "PC": {
+      "1": "PC1",
+      "2": "PC2",
+      "3": "PC3",
+      "4": "PC4",
+      "5": "PC5"
+    },
+    "GR": {
+      "1": "GR9",
+      "2": "GR8",
+      "3": "GR11",
+      "4": "GR10"
+    },
+    "SR": {
+      "1": "SR5",
+      "2": "SR21",
+      "3": "SR20",
+      "4": "SR20"
+    },
+    "LP": {
+      "1": "LP7",
+      "2": "LP4",
+      "4": "LP6"
+    },
+    "SC": {
+      "1": "SC9",
+      "2": "SC6"
+    },
+    "BT": {
+      "1": "BT5",
+      "2": "BT6",
+      "3": "BT7"
+    },
+    "RB": {
+      "1": "RB08",
+      "2": "RB20",
+      "0": "RB19"
+    },
+    "CF": {
+      "1": "CF17",
+      "2": "CF18",
+      "4": "CF19"
+    }
+  },
+  "circuitPoints": {
+    "PC1": [
+      820.113,
+      2566.0
+    ],
+    "PC2": [
+      820.113,
+      2582.0
+    ],
+    "PC3": [
+      820.113,
+      2598.0
+    ],
+    "PC4": [
+      820.113,
+      2614.0
+    ],
+    "PC5": [
+      820.113,
+      2630.0
+    ],
+    "GR9": [
+      1414.082,
+      2582.0
+    ],
+    "GR8": [
+      1414.081,
+      2566.0
+    ],
+    "GR11": [
+      1427.281,
+      2598.0
+    ],
+    "GR10": [
+      1423.439,
+      2550.0
+    ],
+    "SR5": [
+      1981.658,
+      2582.0
+    ],
+    "SR21": [
+      1981.651,
+      2550.0
+    ],
+    "SR20": [
+      1981.651,
+      2534.0
+    ],
+    "LP7": [
+      2641.616,
+      2582.0
+    ],
+    "LP4": [
+      2641.616,
+      2566.0
+    ],
+    "LP6": [
+      2641.616,
+      2550.0
+    ],
+    "SC9": [
+      3433.574,
+      2582.0
+    ],
+    "SC6": [
+      3433.574,
+      2566.0
+    ],
+    "BT5": [
+      4172.735,
+      2598.0
+    ],
+    "BT6": [
+      4172.735,
+      2582.0
+    ],
+    "BT7": [
+      4177.217,
+      2614.0
+    ],
+    "RB08": [
+      4278.328,
+      2540.0
+    ],
+    "RB20": [
+      4278.328,
+      2476.0
+    ],
+    "RB19": [
+      4278.329,
+      2508.0
+    ],
+    "CF17": [
+      4889.979,
+      2598.0
+    ],
+    "CF18": [
+      4889.978,
+      2582.0
+    ],
+    "CF19": [
+      4885.496,
+      2566.0
+    ]
   }
 }
