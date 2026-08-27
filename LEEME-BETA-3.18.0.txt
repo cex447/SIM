@@ -1,0 +1,103 @@
+SIM+ Beta 3.18.0
+Fecha: 27/08/2026
+Base: SIM+ Beta 3.17.0
+
+OBJETIVO DE ESTA BETA
+--------------------
+Consolidar las incidencias detectadas en la prueba real de la Beta 3.17.0 en iPhone, sin alterar la arquitectura general de SIM+ ni el motor temporal/resincronizado de movimiento CTC.
+
+CAMBIOS PRINCIPALES
+-------------------
+
+1. ZOOM / DESPLAZAMIENTO EN PLASTIC, iSIC, LIT Y SIV
+- Se elimina el motor PointerEvent de 3.16/3.17 que podía saltar bruscamente entre escalas durante un mismo pinch en iOS.
+- Un dedo vuelve a quedar en manos del scroll nativo de Safari.
+- Dos dedos realizan zoom alrededor del punto del gesto.
+- En Safari/iOS se utiliza GestureEvent como motor único de pinch.
+- En navegadores sin GestureEvent se utiliza TouchEvent como fallback.
+- Nunca se ejecutan simultáneamente los dos motores de pinch.
+- Cada módulo conserva de forma independiente su escala y posición al salir y volver.
+- Las vistas ocultas se siguen inicializando únicamente al entrar para evitar geometrías 0×0.
+- CTC queda fuera de este motor y mantiene su navegación vectorial independiente mediante viewBox.
+
+2. CTC: VISTA INICIAL
+- La primera entrada a CTC queda centrada en PC.
+- Se ha aumentado el zoom inicial respecto a 3.17 para ofrecer un encuadre de PC similar al aportado como referencia por el usuario.
+- Portrait: ancho lógico inicial 460 unidades del sinóptico.
+- Landscape: ancho lógico inicial 850 unidades.
+- Si se abandona CTC y se vuelve posteriormente, no se recentra en PC: se conserva el último encuadre y zoom.
+
+3. CTC: L7 ASCENDENTE EN GR
+- Una circulación L7 ascendente (Bxxx impar; ejemplo B307) estacionada en GR queda anclada al circuito GR11.
+- Se introduce una geometría específica de línea para no alterar el tronco común de L6/S1/S2.
+- PR→GR ascendente L7: recorrido por la línea general hasta GRA5, transición a GR11A y llegada a GR11.
+- GR→PM ascendente L7: salida desde GR11 por PM1 y diagonal inferior hasta PM3.
+- La ruta sólo guía internamente el movimiento; no se dibuja ni se resalta sobre el CTC.
+
+4. CTC: L12 EN SR Y RE
+- Correspondencias confirmadas de Sarrià:
+  SR5  = andén vía 1
+  SR21 = andén vía 2
+  SR20 = andén vía 4
+- Una L12 estacionada en SR queda siempre en SR20 / vía 4.
+- La llegada y salida L12 en SR comienzan/terminan en SR20.
+- En RE, la posición nominal L12 pasa a RE1 / vía 1.
+- RE2 queda conservada únicamente como alternativa documentada y nunca se utiliza como fallback automático.
+- Trayectoria nominal L12 SR↔RE corregida: SR20 → diagonal de enlace → RE1, y recorrido inverso en sentido contrario.
+
+5. CTC: ELIMINACIÓN DE POSICIONES RESIDUALES
+- Si un snapshot FGC ya no confirma ni estacionamiento ni próxima parada para una circulación, CTC elimina su estado de movimiento y su marcador anterior.
+- Se evita así mantener una posición antigua sólo porque la circulación siga presente en una fila sin información posicional utilizable.
+- La ausencia de una circulación en el último snapshot válido sigue eliminando inmediatamente su marcador.
+
+6. CTC: CENTRADO DEL TEXTO DE LAS CIRCULACIONES
+- El código de circulación y el eventual +N se sitúan en el centro geométrico de sus rectángulos SVG.
+- Se elimina la corrección vertical manual de 3.17.
+- SVG usa dominant-baseline="central" + alignment-baseline="central" con y=0.
+- El centrado horizontal continúa mediante text-anchor="middle".
+- Las placas mantienen el tamaño reducido introducido en 3.17 (25 % del tamaño lineal de 3.16).
+
+7. PLASTIC: ORDEN DENTRO DE CADA LÍNEA
+- Se mantiene la estructura ASCENDENTS / DESCENDENTS y el orden de familias A, D, F, B, L.
+- Dentro de cada línea comercial, las filas pasan a ordenarse por número de circulación, no por número de UT.
+- La UT se utiliza únicamente como desempate estable si dos registros tuvieran la misma circulación.
+
+FUNCIONES DE 3.17 QUE SE CONSERVAN
+---------------------------------
+- CTC SVG vectorial mediante viewBox, sin rasterización por zoom CSS.
+- Pan CTC con un dedo y pinch CTC con dos dedos.
+- Persistencia de encuadre CTC.
+- Circulaciones CTC al 25 % del tamaño de 3.16.
+- Bloque rojo de retraso sólo para retrasos cuantificables de +1 o superiores.
+- Tap breve sobre circulación CTC → LIT de esa circulación.
+- Tap breve sobre las dos letras verdes de una estación → iSIC de esa estación.
+- 37 hitboxes de estación ceñidos a las letras, con 0,5 unidades de tolerancia.
+- Prioridad táctil de circulación sobre estación.
+- Arrastre/pinch cancelan cualquier tap.
+- Motor de movimiento por tiempo absoluto: salida real observada + duración GTFS del tramo.
+- Si vence el tiempo teórico sin llegada confirmada, espera al 97,5 % del recorrido.
+- Cualquier confirmación FGC prevalece sobre la estimación temporal.
+- CTC no genera consultas adicionales de Cloudflare para animar los trenes.
+
+ARCHIVOS DE DATOS CTC
+---------------------
+- data/ctc-motion.json
+  Añade lineStationOverrides y linePaths para geometrías dependientes de línea.
+- data/ctc-routes.json
+  Documenta GR_L7_ASC, SR20 para L12 en SR, RE1 como vía nominal de L12 en RE y RE2 como alternativa.
+- data/ctc-stations.json
+  Conserva las 37 zonas sensibles de estación de 3.17.
+
+PRUEBAS PRIORITARIAS EN IPHONE
+------------------------------
+1. PLASTIC: pinch progresivo sin saltos de escala y scroll normal con un dedo.
+2. iSIC/LIT/SIV: mismo comportamiento estable del zoom.
+3. CTC: primera entrada directamente centrada y ampliada sobre PC.
+4. CTC: Bxxx impar en GR estacionado sobre GR11 y recorrido por GRA5→GR11A→GR11→PM1→PM3.
+5. CTC: L12 en SR estacionada sobre SR20.
+6. CTC: L12 en RE sobre RE1, nunca RE2 salvo futura confirmación explícita de vía alternativa.
+7. CTC: desaparición de marcadores que ya no tengan posición confirmable.
+8. CTC: texto de las placas perfectamente centrado dentro del rectángulo.
+9. PLASTIC: dentro de cada línea, circulaciones ordenadas A303, A305, A307... independientemente de la UT.
+
+FIN
