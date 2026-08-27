@@ -12,22 +12,15 @@ function selectorToView(viewOrSelector) {
 
 function naturalSize(state) {
   const { view, layer } = state;
-  const width = Math.max(
-    layer.scrollWidth || 0,
-    layer.offsetWidth || 0,
-    view.clientWidth || 1
-  );
-  const height = Math.max(
-    layer.scrollHeight || 0,
-    layer.offsetHeight || 0,
-    view.clientHeight || 1
-  );
-  return { width, height };
+  return {
+    width: Math.max(layer.scrollWidth || 0, layer.offsetWidth || 0, view.clientWidth || 1),
+    height: Math.max(layer.scrollHeight || 0, layer.offsetHeight || 0, view.clientHeight || 1)
+  };
 }
 
 function syncGeometry(state) {
   const { view, layer, spacer } = state;
-  if (!view.isConnected) return;
+  if (!view.isConnected || view.clientWidth <= 0 || view.clientHeight <= 0) return;
 
   const size = naturalSize(state);
   spacer.style.width = `${Math.max(view.clientWidth || 1, Math.ceil(size.width * state.scale))}px`;
@@ -58,127 +51,98 @@ function ensureWrapped(view) {
     spacer,
     layer,
     scale: 1,
-    minScale: Number(view.dataset.viewportMin || 0.60),
-    maxScale: Number(view.dataset.viewportMax || 3.50),
-    pointers: new Map(),
-    pan: null,
+    minScale: Number(view.dataset.viewportMin || 0.75),
+    maxScale: Number(view.dataset.viewportMax || 2.5),
     pinch: null,
-    moved: false,
-    suppressClick: false,
+    gesture: null,
     resizeObserver: null
   };
   states.set(view, state);
 
-  const centerOfPointers = () => {
-    const points = [...state.pointers.values()];
+  const touchDistance = touches => {
+    const [a, b] = touches;
+    return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+  };
+
+  const touchCenter = touches => {
+    const [a, b] = touches;
     const rect = view.getBoundingClientRect();
-    if (points.length < 2) return null;
     return {
-      x: ((points[0].x + points[1].x) / 2) - rect.left,
-      y: ((points[0].y + points[1].y) / 2) - rect.top
+      x: ((a.clientX + b.clientX) / 2) - rect.left,
+      y: ((a.clientY + b.clientY) / 2) - rect.top
     };
   };
 
-  const distanceOfPointers = () => {
-    const points = [...state.pointers.values()];
-    if (points.length < 2) return 0;
-    return Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
-  };
+  /*
+   * PLASTIC / iSIC / LIT / SIV: zoom de documento estable en iOS.
+   * Un dedo queda íntegramente en manos del scroll nativo de Safari.
+   * En Safari usamos GestureEvent; en navegadores que no lo exponen,
+   * usamos TouchEvent como fallback. Nunca ejecutamos ambos motores a la vez.
+   */
+  const supportsGestureEvents = 'ongesturestart' in window;
 
-  const beginPinch = () => {
-    if (state.pointers.size < 2) return;
-    const center = centerOfPointers();
-    if (!center) return;
-    state.pinch = {
-      distance: Math.max(1, distanceOfPointers()),
-      startScale: state.scale,
-      logicalX: (view.scrollLeft + center.x) / state.scale,
-      logicalY: (view.scrollTop + center.y) / state.scale
-    };
-    state.pan = null;
-  };
-
-  view.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    state.moved = false;
-    try { view.setPointerCapture(event.pointerId); } catch {}
-
-    if (state.pointers.size === 1) {
-      state.pan = {
-        x: event.clientX,
-        y: event.clientY,
-        left: view.scrollLeft,
-        top: view.scrollTop
+  if (supportsGestureEvents) {
+    view.addEventListener('gesturestart', event => {
+      const rect = view.getBoundingClientRect();
+      const anchorX = Number.isFinite(event.clientX) ? event.clientX - rect.left : view.clientWidth / 2;
+      const anchorY = Number.isFinite(event.clientY) ? event.clientY - rect.top : view.clientHeight / 2;
+      state.gesture = {
+        startScale: state.scale,
+        logicalX: (view.scrollLeft + anchorX) / state.scale,
+        logicalY: (view.scrollTop + anchorY) / state.scale,
+        anchorX,
+        anchorY
       };
-      state.pinch = null;
-    } else if (state.pointers.size === 2) {
-      beginPinch();
-    }
-  }, { passive: true });
+      event.preventDefault();
+    }, { passive: false });
 
-  view.addEventListener('pointermove', event => {
-    if (!state.pointers.has(event.pointerId)) return;
-    state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    view.addEventListener('gesturechange', event => {
+      if (!state.gesture) return;
+      const next = clamp(state.gesture.startScale * Number(event.scale || 1), state.minScale, state.maxScale);
+      state.scale = next;
+      syncGeometry(state);
+      view.scrollLeft = state.gesture.logicalX * next - state.gesture.anchorX;
+      view.scrollTop = state.gesture.logicalY * next - state.gesture.anchorY;
+      event.preventDefault();
+    }, { passive: false });
 
-    if (state.pointers.size >= 2 && state.pinch) {
-      const center = centerOfPointers();
-      if (!center) return;
-      const ratio = distanceOfPointers() / state.pinch.distance;
+    view.addEventListener('gestureend', event => {
+      state.gesture = null;
+      event.preventDefault();
+    }, { passive: false });
+  } else {
+    view.addEventListener('touchstart', event => {
+      if (event.touches.length !== 2) return;
+      const touches = [...event.touches];
+      const center = touchCenter(touches);
+      state.pinch = {
+        distance: Math.max(1, touchDistance(touches)),
+        startScale: state.scale,
+        logicalX: (view.scrollLeft + center.x) / state.scale,
+        logicalY: (view.scrollTop + center.y) / state.scale
+      };
+      event.preventDefault();
+    }, { passive: false });
+
+    view.addEventListener('touchmove', event => {
+      if (event.touches.length !== 2 || !state.pinch) return;
+      const touches = [...event.touches];
+      const center = touchCenter(touches);
+      const ratio = touchDistance(touches) / state.pinch.distance;
       const next = clamp(state.pinch.startScale * ratio, state.minScale, state.maxScale);
-      if (Math.abs(next - state.scale) > 0.001) state.moved = true;
       state.scale = next;
       syncGeometry(state);
       view.scrollLeft = state.pinch.logicalX * next - center.x;
       view.scrollTop = state.pinch.logicalY * next - center.y;
       event.preventDefault();
-      return;
-    }
+    }, { passive: false });
 
-    if (state.pointers.size === 1 && state.pan) {
-      const dx = event.clientX - state.pan.x;
-      const dy = event.clientY - state.pan.y;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) state.moved = true;
-      view.scrollLeft = state.pan.left - dx;
-      view.scrollTop = state.pan.top - dy;
-      if (state.moved) event.preventDefault();
-    }
-  }, { passive: false });
-
-  const endPointer = event => {
-    state.pointers.delete(event.pointerId);
-    try { view.releasePointerCapture(event.pointerId); } catch {}
-
-    if (state.moved) {
-      state.suppressClick = true;
-      setTimeout(() => { state.suppressClick = false; }, 80);
-    }
-
-    if (state.pointers.size === 1) {
-      const remaining = [...state.pointers.values()][0];
-      state.pan = {
-        x: remaining.x,
-        y: remaining.y,
-        left: view.scrollLeft,
-        top: view.scrollTop
-      };
-      state.pinch = null;
-    } else if (state.pointers.size === 0) {
-      state.pan = null;
-      state.pinch = null;
-    } else {
-      beginPinch();
-    }
-  };
-
-  view.addEventListener('pointerup', endPointer, { passive: true });
-  view.addEventListener('pointercancel', endPointer, { passive: true });
-
-  view.addEventListener('click', event => {
-    if (!state.suppressClick) return;
-    event.preventDefault();
-    event.stopPropagation();
-  }, true);
+    const endPinch = event => {
+      if (event.touches?.length < 2) state.pinch = null;
+    };
+    view.addEventListener('touchend', endPinch, { passive: true });
+    view.addEventListener('touchcancel', endPinch, { passive: true });
+  }
 
   view.addEventListener('wheel', event => {
     if (!(event.ctrlKey || event.metaKey)) return;
@@ -198,6 +162,8 @@ function ensureWrapped(view) {
 
   if ('ResizeObserver' in window) {
     const ro = new ResizeObserver(() => {
+      /* Las vistas ocultas no se miden. Al volver a ellas activateViewport()
+         recalcula la geometría conservando scale/scroll propios. */
       if (view.offsetParent !== null || view.classList.contains('active')) syncGeometry(state);
     });
     ro.observe(layer);
@@ -210,14 +176,15 @@ function ensureWrapped(view) {
 }
 
 export function setupViewports() {
-  /* Inicializamos sólo la vista visible. Las ocultas se miden al entrar para
-     evitar geometrías 0×0 en Safari/iOS. */
-  document.querySelectorAll('.view.active').forEach(ensureWrapped);
+  /* Sólo se envuelve la vista visible. Las demás se inicializan al entrar,
+     evitando medidas 0×0 en Safari/iOS. CTC usa su propio viewBox y nunca
+     pasa por este motor. */
+  document.querySelectorAll('.view.active:not(.ctc-view)').forEach(ensureWrapped);
 }
 
 export function activateViewport(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  if (!view) return null;
+  if (!view || view.classList.contains('ctc-view')) return null;
   const state = ensureWrapped(view);
   requestAnimationFrame(() => syncGeometry(state));
   return state;
@@ -225,7 +192,7 @@ export function activateViewport(viewOrSelector) {
 
 export function refreshViewport(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  if (!view) return null;
+  if (!view || view.classList.contains('ctc-view')) return null;
   const state = ensureWrapped(view);
   syncGeometry(state);
   return state;
@@ -233,7 +200,7 @@ export function refreshViewport(viewOrSelector) {
 
 export function setViewportScale(viewOrSelector, scale, { anchorX = null, anchorY = null } = {}) {
   const view = selectorToView(viewOrSelector);
-  if (!view) return null;
+  if (!view || view.classList.contains('ctc-view')) return null;
   const state = ensureWrapped(view);
   const x = anchorX ?? view.clientWidth / 2;
   const y = anchorY ?? view.clientHeight / 2;
@@ -248,7 +215,7 @@ export function setViewportScale(viewOrSelector, scale, { anchorX = null, anchor
 
 export function focusViewportPoint(viewOrSelector, x, y, { scale = null, alignX = 0.5, alignY = 0.5 } = {}) {
   const view = selectorToView(viewOrSelector);
-  if (!view) return;
+  if (!view || view.classList.contains('ctc-view')) return;
   const state = ensureWrapped(view);
   if (scale !== null) state.scale = clamp(scale, state.minScale, state.maxScale);
   syncGeometry(state);
@@ -258,7 +225,7 @@ export function focusViewportPoint(viewOrSelector, x, y, { scale = null, alignX 
 
 export function resetViewport(viewOrSelector, { scale = 1 } = {}) {
   const view = selectorToView(viewOrSelector);
-  if (!view) return;
+  if (!view || view.classList.contains('ctc-view')) return;
   const state = ensureWrapped(view);
   state.scale = clamp(scale, state.minScale, state.maxScale);
   syncGeometry(state);

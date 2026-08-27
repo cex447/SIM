@@ -1,11 +1,11 @@
-import { getTripBundle } from "./gtfs.js?v=3.17.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.17.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.17.0";
+import { getTripBundle } from "./gtfs.js?v=3.18.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.18.0";
+import { countdownState, formatCountdown } from "./time.js?v=3.18.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.17.0";
+} from "./operations.js?v=3.18.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -14,7 +14,7 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.17.0";
+} from "./isic.js?v=3.18.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -45,10 +45,16 @@ function sortTrains(a, b) {
   const familyDiff = (familyRank.get(a.family) ?? 99) - (familyRank.get(b.family) ?? 99);
   if (familyDiff) return familyDiff;
 
-  const unitDiff = unitRank(a.unit) - unitRank(b.unit);
-  if (unitDiff) return unitDiff;
+  /* Dentro de cada línea comercial, PLASTIC se ordena por número de
+     circulación. La UT queda únicamente como desempate estable. */
+  const circulationDiff = a.circulation.localeCompare(
+    b.circulation,
+    "es",
+    { numeric:true, sensitivity:"base" }
+  );
+  if (circulationDiff) return circulationDiff;
 
-  return a.circulation.localeCompare(b.circulation, "es", { numeric: true });
+  return unitRank(a.unit) - unitRank(b.unit);
 }
 
 function passesFilters(S, train) {

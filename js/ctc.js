@@ -1,6 +1,6 @@
-import { getTripBundle } from './gtfs.js?v=3.17.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.17.0';
-import { parentCode } from './operations.js?v=3.17.0';
+import { getTripBundle } from './gtfs.js?v=3.18.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.18.0';
+import { parentCode } from './operations.js?v=3.18.0';
 
 let initialized = false;
 let active = false;
@@ -30,7 +30,7 @@ const TRAIN_CODE_WIDTH = 30;
 const TRAIN_HEIGHT = 13;
 const TRAIN_HIT_WIDTH = 34;
 const TRAIN_HIT_HEIGHT = 17;
-const TRAIN_TEXT_Y = -0.55;       // corrección óptica: centra el bloque de mayúsculas dentro de la placa
+const TRAIN_TEXT_Y = 0;           // centro geométrico de la placa; baseline SVG = central
 
 const LINE_STATIONS = Object.freeze({
   L6: ['PC','PR','GR','SG','MN','BN','TT','SR'],
@@ -93,13 +93,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.17.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.18.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.17.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.18.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -110,7 +110,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.17.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.18.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -387,13 +387,26 @@ function directionKey(train) {
 }
 
 function stationPoint(station, train) {
-  const entry = motionGeometry?.stations?.[String(station || '').toUpperCase()];
+  const code = String(station || '').toUpperCase();
+  const direction = directionKey(train);
+
+  /* Algunas líneas usan circuitos concretos dentro de una misma estación.
+     La geometría específica de línea tiene prioridad sobre el ancla genérica. */
+  const override = motionGeometry?.lineStationOverrides?.[train?.line]?.[code];
+  if (override) {
+    const point = override[direction] || override.asc || override.desc || null;
+    if (Array.isArray(point) && point.length >= 2) return point;
+  }
+
+  const entry = motionGeometry?.stations?.[code];
   if (!entry) return null;
-  return entry[directionKey(train)] || entry.asc || entry.desc || null;
+  return entry[direction] || entry.asc || entry.desc || null;
 }
 
 function explicitPath(from, to, train) {
   const key = `${from}>${to}|${directionKey(train)}`;
+  const linePath = motionGeometry?.linePaths?.[train?.line]?.[key];
+  if (Array.isArray(linePath) && linePath.length >= 2) return linePath;
   return motionGeometry?.paths?.[key] || null;
 }
 
@@ -575,10 +588,14 @@ function reconcileTrain(S, train, nowMs) {
 
   const to = String(train.nextStop || '').toUpperCase();
   if (!to) {
-    if (previous) {
-      previous.train = train;
-      previous.updatedAt = nowMs;
-      previous.line = train.line;
+    /* Si el snapshot actual ya no confirma ni estacionamiento ni próxima
+       parada, no conservamos una posición anterior. Evita marcadores
+       fantasma/residuales, especialmente al terminar servicio en terminales. */
+    motionStates.delete(train.circulation);
+    const marker = markerNodes.get(train.circulation);
+    if (marker) {
+      marker.group.remove();
+      markerNodes.delete(train.circulation);
     }
     return;
   }
@@ -716,7 +733,8 @@ function markerFor(train) {
     y:TRAIN_TEXT_Y,
     class:'ctc-train-code-text',
     'text-anchor':'middle',
-    'dominant-baseline':'middle'
+    'dominant-baseline':'central',
+    'alignment-baseline':'central'
   });
   codeText.textContent = train.circulation;
 
@@ -733,7 +751,8 @@ function markerFor(train) {
     y:TRAIN_TEXT_Y,
     class:'ctc-train-delay-text',
     'text-anchor':'middle',
-    'dominant-baseline':'middle',
+    'dominant-baseline':'central',
+    'alignment-baseline':'central',
     hidden:'hidden'
   });
 
