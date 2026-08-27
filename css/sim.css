@@ -1012,7 +1012,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.16.0 · CROM FIX + VIEWPORT PAN/ZOOM
+   BETA 3.17.0 · CROM FIX + VIEWPORT PAN/ZOOM
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1080,77 +1080,86 @@ main{
   will-change:transform;
 }
 
-/* CTC: el sinòptic vectorial queda incrustat al DOM; no depèn de <img>. */
+/* CTC 3.17: el sinòptic se renderiza mediante viewBox real.
+   No se amplía una textura CSS: Safari redibuja el SVG vectorial en cada zoom. */
 .ctc-view{
   padding:0 !important;
   background:#000;
   color:#fff;
+  overflow:hidden !important;
+  touch-action:none;
 }
-.ctc-view .zoom-spacer{
-  background:#000;
+.ctc-view > .ctc-map-stage{
+  width:100%;
+  height:100%;
 }
 .ctc-map-stage{
   position:relative;
-  width:6566.92px;
-  height:4954.34px;
   background:#000;
   overflow:hidden;
 }
 .ctc-map-vector{
+  position:absolute;
+  inset:0;
   display:block;
-  width:6566.92px;
-  height:4954.34px;
+  width:100%;
+  height:100%;
   max-width:none;
   user-select:none;
-  pointer-events:none;
+  -webkit-user-select:none;
 }
 .ctc-map-vector > svg{
   display:block;
-  width:6566.92px;
-  height:4954.34px;
+  width:100%;
+  height:100%;
   max-width:none;
+  overflow:hidden;
 }
-.ctc-train-layer{
-  position:absolute;
-  inset:0;
-  width:6566.92px;
-  height:4954.34px;
-  pointer-events:none;
+.ctc-train-layer{ display:none !important; }
+
+/* Zonas táctiles de estación: se ciñen al bounding box real de las dos letras
+   verdes, con sólo 0,5 unidades de tolerancia definidas en ctc-stations.json. */
+.ctc-station-hit{
+  fill:transparent;
+  stroke:none;
+  pointer-events:all;
 }
 
-/* La capa de trànsit CTC queda preparada amb la paleta aprovada. */
-.ctc-train{
-  position:absolute;
-  display:inline-flex;
-  align-items:stretch;
-  left:0;
-  top:0;
-  transform:translate3d(var(--ctc-x,0px),var(--ctc-y,0px),0) translate(-50%,-50%);
-  will-change:transform;
-  z-index:2;
+/* Marcadores CTC vectoriales. El tamaño visual es el 25 % del utilizado en
+   3.16.0; el rectángulo táctil invisible de la circulación sólo excede ligeramente la placa visible. */
+.ctc-train-svg{
+  pointer-events:none;
+  transform-box:view-box;
+  transform-origin:0 0;
+}
+.ctc-train-code-bg,
+.ctc-train-delay-bg{
+  shape-rendering:geometricPrecision;
+}
+.ctc-train-code-text,
+.ctc-train-delay-text{
+  fill:#fff;
   font-family:"SIM Futura",Arial,sans-serif;
   font-weight:700;
   font-style:italic;
-  font-size:38px;
+  font-size:9.5px;
   line-height:1;
-  white-space:nowrap;
-  color:#fff;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-select:none;
 }
-.ctc-train-code,.ctc-train-delay{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  min-height:52px;
-  padding:6px 14px 8px;
-  color:#fff;
+.ctc-train-hit{
+  fill:transparent;
+  stroke:none;
+  pointer-events:all;
 }
-.ctc-train-delay{ background:#FF2C2C; }
-.ctc-line-L6 .ctc-train-code{ background:#847DC6; }
-.ctc-line-L7 .ctc-train-code{ background:#AE6118; }
-.ctc-line-L12 .ctc-train-code{ background:#B6B3E1; }
-.ctc-line-S1 .ctc-train-code{ background:#F47216; }
-.ctc-line-S2 .ctc-train-code{ background:#59C134; }
-
+.ctc-train-delay-bg[hidden],
+.ctc-train-delay-text[hidden]{
+  display:none !important;
+}
+.ctc-train-svg.ctc-resync{
+  transition:transform 450ms linear;
+}
 /* En CTC el crom de SIM+ és sempre negre/opac perquè cap element del
    sinòptic pugui travessar visualment SIM+ ni el rellotge. */
 html[data-view="ctc"] .top,
@@ -1205,7 +1214,3 @@ html[data-view="ctc"] .tabs-global .tab.active{
   }
 }
 
-/* Una confirmació real FGC corregeix suaument una estimació pròxima. */
-.ctc-train.ctc-resync{
-  transition:transform 450ms linear;
-}
