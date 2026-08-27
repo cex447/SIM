@@ -54,18 +54,19 @@ function ensureWrapped(view) {
     minScale: Number(view.dataset.viewportMin || 0.75),
     maxScale: Number(view.dataset.viewportMax || 2.5),
     pinch: null,
-    gesture: null,
     resizeObserver: null
   };
   states.set(view, state);
 
   const touchDistance = touches => {
-    const [a, b] = touches;
+    const a = touches[0];
+    const b = touches[1];
     return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
   };
 
   const touchCenter = touches => {
-    const [a, b] = touches;
+    const a = touches[0];
+    const b = touches[1];
     const rect = view.getBoundingClientRect();
     return {
       x: ((a.clientX + b.clientX) / 2) - rect.left,
@@ -74,74 +75,63 @@ function ensureWrapped(view) {
   };
 
   /*
-   * PLASTIC / iSIC / LIT / SIV: zoom de documento estable en iOS.
-   * Un dedo queda íntegramente en manos del scroll nativo de Safari.
-   * En Safari usamos GestureEvent; en navegadores que no lo exponen,
-   * usamos TouchEvent como fallback. Nunca ejecutamos ambos motores a la vez.
+   * BETA 3.19.0 · PLASTIC / iSIC / LIT / SIV
+   *
+   * Un dedo se deja por completo al scroll nativo. El pinch usa únicamente
+   * TouchEvent y una referencia inmutable tomada al colocar el segundo dedo.
+   * No se usa GestureEvent para calcular escala: en iOS podía entregar una
+   * escala distinta al mismo tiempo que cambiaba la geometría del contenido,
+   * produciendo los saltos pequeño→enorme→pequeño vistos en 3.17/3.18.
    */
-  const supportsGestureEvents = 'ongesturestart' in window;
+  view.addEventListener('touchstart', event => {
+    if (event.touches.length !== 2) return;
+    const touches = event.touches;
+    const distance = touchDistance(touches);
+    if (!Number.isFinite(distance) || distance < 8) return;
 
-  if (supportsGestureEvents) {
-    view.addEventListener('gesturestart', event => {
-      const rect = view.getBoundingClientRect();
-      const anchorX = Number.isFinite(event.clientX) ? event.clientX - rect.left : view.clientWidth / 2;
-      const anchorY = Number.isFinite(event.clientY) ? event.clientY - rect.top : view.clientHeight / 2;
-      state.gesture = {
-        startScale: state.scale,
-        logicalX: (view.scrollLeft + anchorX) / state.scale,
-        logicalY: (view.scrollTop + anchorY) / state.scale,
-        anchorX,
-        anchorY
-      };
-      event.preventDefault();
-    }, { passive: false });
-
-    view.addEventListener('gesturechange', event => {
-      if (!state.gesture) return;
-      const next = clamp(state.gesture.startScale * Number(event.scale || 1), state.minScale, state.maxScale);
-      state.scale = next;
-      syncGeometry(state);
-      view.scrollLeft = state.gesture.logicalX * next - state.gesture.anchorX;
-      view.scrollTop = state.gesture.logicalY * next - state.gesture.anchorY;
-      event.preventDefault();
-    }, { passive: false });
-
-    view.addEventListener('gestureend', event => {
-      state.gesture = null;
-      event.preventDefault();
-    }, { passive: false });
-  } else {
-    view.addEventListener('touchstart', event => {
-      if (event.touches.length !== 2) return;
-      const touches = [...event.touches];
-      const center = touchCenter(touches);
-      state.pinch = {
-        distance: Math.max(1, touchDistance(touches)),
-        startScale: state.scale,
-        logicalX: (view.scrollLeft + center.x) / state.scale,
-        logicalY: (view.scrollTop + center.y) / state.scale
-      };
-      event.preventDefault();
-    }, { passive: false });
-
-    view.addEventListener('touchmove', event => {
-      if (event.touches.length !== 2 || !state.pinch) return;
-      const touches = [...event.touches];
-      const center = touchCenter(touches);
-      const ratio = touchDistance(touches) / state.pinch.distance;
-      const next = clamp(state.pinch.startScale * ratio, state.minScale, state.maxScale);
-      state.scale = next;
-      syncGeometry(state);
-      view.scrollLeft = state.pinch.logicalX * next - center.x;
-      view.scrollTop = state.pinch.logicalY * next - center.y;
-      event.preventDefault();
-    }, { passive: false });
-
-    const endPinch = event => {
-      if (event.touches?.length < 2) state.pinch = null;
+    const center = touchCenter(touches);
+    state.pinch = {
+      distance,
+      startScale: state.scale,
+      logicalX: (view.scrollLeft + center.x) / state.scale,
+      logicalY: (view.scrollTop + center.y) / state.scale
     };
-    view.addEventListener('touchend', endPinch, { passive: true });
-    view.addEventListener('touchcancel', endPinch, { passive: true });
+    event.preventDefault();
+  }, { passive:false });
+
+  view.addEventListener('touchmove', event => {
+    if (event.touches.length !== 2 || !state.pinch) return;
+    const touches = event.touches;
+    const distance = touchDistance(touches);
+    if (!Number.isFinite(distance) || distance < 8) return;
+
+    const center = touchCenter(touches);
+    const ratio = distance / state.pinch.distance;
+    if (!Number.isFinite(ratio) || ratio <= 0) return;
+
+    const next = clamp(state.pinch.startScale * ratio, state.minScale, state.maxScale);
+    state.scale = next;
+    syncGeometry(state);
+
+    /* El punto lógico que estaba entre los dedos al empezar el gesto permanece
+       bajo el centro actual de los dedos. No se recalcula la base del pinch. */
+    view.scrollLeft = state.pinch.logicalX * next - center.x;
+    view.scrollTop = state.pinch.logicalY * next - center.y;
+    event.preventDefault();
+  }, { passive:false });
+
+  const finishTouch = event => {
+    if (!event.touches || event.touches.length < 2) state.pinch = null;
+  };
+  view.addEventListener('touchend', finishTouch, { passive:true });
+  view.addEventListener('touchcancel', finishTouch, { passive:true });
+
+  /* Safari puede emitir GestureEvent además de TouchEvent. Sólo anulamos su
+     acción nativa; jamás lo usamos como segundo motor de escala. */
+  for (const name of ['gesturestart', 'gesturechange', 'gestureend']) {
+    view.addEventListener(name, event => {
+      event.preventDefault();
+    }, { passive:false });
   }
 
   view.addEventListener('wheel', event => {
@@ -158,12 +148,10 @@ function ensureWrapped(view) {
     syncGeometry(state);
     view.scrollLeft = logicalX * next - anchorX;
     view.scrollTop = logicalY * next - anchorY;
-  }, { passive: false });
+  }, { passive:false });
 
   if ('ResizeObserver' in window) {
     const ro = new ResizeObserver(() => {
-      /* Las vistas ocultas no se miden. Al volver a ellas activateViewport()
-         recalcula la geometría conservando scale/scroll propios. */
       if (view.offsetParent !== null || view.classList.contains('active')) syncGeometry(state);
     });
     ro.observe(layer);
@@ -176,9 +164,8 @@ function ensureWrapped(view) {
 }
 
 export function setupViewports() {
-  /* Sólo se envuelve la vista visible. Las demás se inicializan al entrar,
-     evitando medidas 0×0 en Safari/iOS. CTC usa su propio viewBox y nunca
-     pasa por este motor. */
+  /* CTC posee su propio viewBox. Las demás vistas se inicializan al entrar para
+     no medir elementos display:none en Safari. */
   document.querySelectorAll('.view.active:not(.ctc-view)').forEach(ensureWrapped);
 }
 
@@ -238,10 +225,10 @@ export function viewportState(viewOrSelector) {
   const state = view ? states.get(view) : null;
   if (!state) return null;
   return {
-    scale: state.scale,
-    scrollLeft: state.view.scrollLeft,
-    scrollTop: state.view.scrollTop,
-    minScale: state.minScale,
-    maxScale: state.maxScale
+    scale:state.scale,
+    scrollLeft:state.view.scrollLeft,
+    scrollTop:state.view.scrollTop,
+    minScale:state.minScale,
+    maxScale:state.maxScale
   };
 }

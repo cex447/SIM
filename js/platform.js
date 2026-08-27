@@ -18,4 +18,4 @@ export {
   pairAssessment,
   parseIsicImageData,
   rememberPlatform
-} from "./isic.js?v=3.18.0";
+} from "./isic.js?v=3.19.0";

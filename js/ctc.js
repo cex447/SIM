@@ -1,6 +1,7 @@
-import { getTripBundle } from './gtfs.js?v=3.18.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.18.0';
-import { parentCode } from './operations.js?v=3.18.0';
+import { getTripBundle } from './gtfs.js?v=3.19.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.19.0';
+import { parentCode } from './operations.js?v=3.19.0';
+import { cachedPlatform, normalizePlatformValue } from './isic.js?v=3.19.0';
 
 let initialized = false;
 let active = false;
@@ -20,17 +21,18 @@ const tripCache = new Map();
 let tripLoadQueue = Promise.resolve();
 const motionStates = new Map();
 const markerNodes = new Map();
+const stationPlatformMemory = new Map();
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const MAP_WIDTH = 6566.92;
 const MAP_HEIGHT = 4954.34;
 const TAP_MOVE_THRESHOLD = 7;
 const TRAIN_FONT_SIZE = 9.5;      // 25 % del tamaño visual de 3.16.0
-const TRAIN_CODE_WIDTH = 30;
-const TRAIN_HEIGHT = 13;
-const TRAIN_HIT_WIDTH = 34;
-const TRAIN_HIT_HEIGHT = 17;
-const TRAIN_TEXT_Y = 0;           // centro geométrico de la placa; baseline SVG = central
+const TRAIN_CODE_WIDTH = 27;      // -10 % respecto a 3.18
+const TRAIN_HEIGHT = 11.7;        // -10 % respecto a 3.18
+const TRAIN_HIT_WIDTH = 31;
+const TRAIN_HIT_HEIGHT = 15.3;
+const TRAIN_TEXT_Y = -0.65;       // ajuste óptico: menos aire en la parte superior
 
 const LINE_STATIONS = Object.freeze({
   L6: ['PC','PR','GR','SG','MN','BN','TT','SR'],
@@ -93,13 +95,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.18.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.19.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.18.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.19.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -110,7 +112,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.18.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.19.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -386,12 +388,46 @@ function directionKey(train) {
   return train?.ascending ? 'asc' : 'desc';
 }
 
-function stationPoint(station, train) {
+function confirmedPlatformPoint(station, train) {
+  const code = String(station || '').toUpperCase();
+  if (!code || !train?.id || !motionGeometry) return null;
+
+  /* No hacemos ninguna consulta iSIC desde CTC. Sólo reutilizamos una vía
+     realmente confirmada y todavía vigente en la caché compartida que ya
+     alimentan PLASTIC/LIT/iSIC. */
+  const staleMs = Number(latestState?.config?.isic?.staleMs || 30000);
+  const cached = cachedPlatform(train.id, code, staleMs);
+  const platform = normalizePlatformValue(cached?.platform);
+  if (platform !== null) {
+    const circuit = motionGeometry?.platformCircuits?.[code]?.[String(platform)];
+    const point = circuit ? motionGeometry?.circuitPoints?.[circuit] : null;
+    if (Array.isArray(point) && point.length >= 2) {
+      stationPlatformMemory.set(train.circulation, { station:code, platform, circuit, point });
+      return point;
+    }
+  }
+
+  /* Mientras FGC siga confirmando el mismo estacionamiento conservamos la
+     última vía que sí llegó confirmada. Así CTC no vuelve al fallback al
+     caducar la caché de 30 s y tampoco necesita mantener consultas iSIC. */
+  const remembered = stationPlatformMemory.get(train.circulation);
+  if (remembered?.station === code && Array.isArray(remembered.point)) return remembered.point;
+  return null;
+}
+
+function stationPoint(station, train, { preferConfirmedPlatform = false } = {}) {
   const code = String(station || '').toUpperCase();
   const direction = directionKey(train);
 
-  /* Algunas líneas usan circuitos concretos dentro de una misma estación.
-     La geometría específica de línea tiene prioridad sobre el ancla genérica. */
+  /* Cuando el tren está confirmado estacionado, una vía real conocida tiene
+     prioridad absoluta sobre cualquier regla nominal de línea. Para las
+     trayectorias en movimiento no usamos esta tabla: sin un encaminamiento
+     documentado desde cada vía no dibujamos atajos inventados por agujas. */
+  if (preferConfirmedPlatform) {
+    const confirmed = confirmedPlatformPoint(code, train);
+    if (confirmed) return confirmed;
+  }
+
   const override = motionGeometry?.lineStationOverrides?.[train?.line]?.[code];
   if (override) {
     const point = override[direction] || override.asc || override.desc || null;
@@ -586,12 +622,15 @@ function reconcileTrain(S, train, nowMs) {
     return;
   }
 
+  stationPlatformMemory.delete(train.circulation);
+
   const to = String(train.nextStop || '').toUpperCase();
   if (!to) {
     /* Si el snapshot actual ya no confirma ni estacionamiento ni próxima
        parada, no conservamos una posición anterior. Evita marcadores
        fantasma/residuales, especialmente al terminar servicio en terminales. */
     motionStates.delete(train.circulation);
+    stationPlatformMemory.delete(train.circulation);
     const marker = markerNodes.get(train.circulation);
     if (marker) {
       marker.group.remove();
@@ -796,7 +835,7 @@ function delayMinutes(state, nowMs) {
 function positionForState(state, nowMs) {
   if (!state?.train) return null;
   if (state.mode === 'station') {
-    const point = stationPoint(state.station, state.train);
+    const point = stationPoint(state.station, state.train, { preferConfirmedPlatform:true });
     return point ? { x:point[0], y:point[1], waiting:false } : null;
   }
 
@@ -874,6 +913,7 @@ function renderFrame(S, nowMs = Date.now()) {
     marker.group.remove();
     markerNodes.delete(code);
     motionStates.delete(code);
+    stationPlatformMemory.delete(code);
   }
 }
 
@@ -960,7 +1000,10 @@ export function updateCTC(S, nowMs = Date.now()) {
   }
 
   for (const code of [...motionStates.keys()]) {
-    if (!liveCodes.has(code)) motionStates.delete(code);
+    if (!liveCodes.has(code)) {
+      motionStates.delete(code);
+      stationPlatformMemory.delete(code);
+    }
   }
 
   if (active) {
@@ -984,8 +1027,8 @@ export function enterCTC(S) {
       ctcViewport.scale = initialScale(S, view);
       focusCTCPoint(Number(focus.x || 820), Number(focus.y || 2558), {
         scale:ctcViewport.scale,
-        alignX:Number(focus.alignX ?? 0.36),
-        alignY:Number(focus.alignY ?? 0.5)
+        alignX:Number(focus.alignX ?? 0.19),
+        alignY:Number(focus.alignY ?? 0.25)
       });
       ctcViewport.initialized = true;
       initialized = true;
