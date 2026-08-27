@@ -1,20 +1,36 @@
-import { focusViewportPoint, viewportState, refreshViewport } from './viewport.js?v=3.16.0';
-import { getTripBundle } from './gtfs.js?v=3.16.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.16.0';
-import { parentCode } from './operations.js?v=3.16.0';
+import { getTripBundle } from './gtfs.js?v=3.17.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.17.0';
+import { parentCode } from './operations.js?v=3.17.0';
 
 let initialized = false;
 let active = false;
 let routesPromise = null;
 let motionPromise = null;
+let stationHitPromise = null;
 let motionGeometry = null;
+let stationHitGeometry = null;
 let animationFrame = 0;
 let latestState = null;
+let interactionsWired = false;
+let svgLayersReady = false;
+let onSelectTrainHandler = null;
+let onSelectStationHandler = null;
 
 const tripCache = new Map();
 let tripLoadQueue = Promise.resolve();
 const motionStates = new Map();
 const markerNodes = new Map();
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const MAP_WIDTH = 6566.92;
+const MAP_HEIGHT = 4954.34;
+const TAP_MOVE_THRESHOLD = 7;
+const TRAIN_FONT_SIZE = 9.5;      // 25 % del tamaño visual de 3.16.0
+const TRAIN_CODE_WIDTH = 30;
+const TRAIN_HEIGHT = 13;
+const TRAIN_HIT_WIDTH = 34;
+const TRAIN_HIT_HEIGHT = 17;
+const TRAIN_TEXT_Y = -0.55;       // corrección óptica: centra el bloque de mayúsculas dentro de la placa
 
 const LINE_STATIONS = Object.freeze({
   L6: ['PC','PR','GR','SG','MN','BN','TT','SR'],
@@ -26,8 +42,48 @@ const LINE_STATIONS = Object.freeze({
 
 const $ = selector => document.querySelector(selector);
 
+const ctcViewport = {
+  scale: 1,
+  minScale: 0.08,
+  maxScale: 6,
+  x: 0,
+  y: 0,
+  width: 0,
+  height: 0,
+  initialized: false,
+  pointers: new Map(),
+  pan: null,
+  pinch: null,
+  gestureMoved: false,
+  hadPinch: false,
+  tapTarget: null,
+  resizeObserver: null
+};
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function svgElement(name, attrs = {}) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+  return node;
+}
+
+function ctcSvg() {
+  return $('#ctcMapVector > svg');
+}
+
+function ctcView() {
+  return $('#view-ctc');
+}
+
+function effectiveMapSize(S = latestState) {
+  const cfg = S?.config?.ctc || {};
+  return {
+    width: Number(cfg.mapWidth || MAP_WIDTH),
+    height: Number(cfg.mapHeight || MAP_HEIGHT)
+  };
 }
 
 async function loadJson(url, label) {
@@ -37,21 +93,30 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) {
-    routesPromise = loadJson('data/ctc-routes.json?v=3.16.0', 'ctc-routes.json');
-  }
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.17.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.16.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.17.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
       });
   }
   return motionPromise;
+}
+
+async function loadStationHitGeometry() {
+  if (!stationHitPromise) {
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.17.0', 'ctc-stations.json')
+      .then(value => {
+        stationHitGeometry = value;
+        return value;
+      });
+  }
+  return stationHitPromise;
 }
 
 function initialScale(S, view) {
@@ -61,9 +126,260 @@ function initialScale(S, view) {
     ? Number(cfg.defaultLogicalWidthPortrait || 1250)
     : Number(cfg.defaultLogicalWidthLandscape || 2300);
   const scale = view.clientWidth / Math.max(1, logicalWidth);
-  const min = Number(view.dataset.viewportMin || 0.08);
-  const max = Number(view.dataset.viewportMax || 4);
-  return Math.min(max, Math.max(min, scale));
+  return clamp(scale, ctcViewport.minScale, ctcViewport.maxScale);
+}
+
+function clampAxis(origin, span, limit) {
+  if (span >= limit) return (limit - span) / 2;
+  return clamp(origin, 0, limit - span);
+}
+
+function applyCTCViewBox({ preserveCenter = false } = {}) {
+  const view = ctcView();
+  const svg = ctcSvg();
+  if (!view || !svg || view.clientWidth <= 0 || view.clientHeight <= 0) return;
+
+  const map = effectiveMapSize();
+  const oldCenterX = ctcViewport.x + (ctcViewport.width || 0) / 2;
+  const oldCenterY = ctcViewport.y + (ctcViewport.height || 0) / 2;
+
+  const width = view.clientWidth / Math.max(0.0001, ctcViewport.scale);
+  const height = view.clientHeight / Math.max(0.0001, ctcViewport.scale);
+
+  if (preserveCenter && ctcViewport.width > 0 && ctcViewport.height > 0) {
+    ctcViewport.x = oldCenterX - width / 2;
+    ctcViewport.y = oldCenterY - height / 2;
+  }
+
+  ctcViewport.width = width;
+  ctcViewport.height = height;
+  ctcViewport.x = clampAxis(ctcViewport.x, width, map.width);
+  ctcViewport.y = clampAxis(ctcViewport.y, height, map.height);
+
+  svg.setAttribute('viewBox', `${ctcViewport.x} ${ctcViewport.y} ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  view.dataset.zoom = ctcViewport.scale.toFixed(3);
+}
+
+function focusCTCPoint(x, y, { scale = null, alignX = 0.5, alignY = 0.5 } = {}) {
+  const view = ctcView();
+  if (!view || view.clientWidth <= 0 || view.clientHeight <= 0) return;
+  if (scale !== null) ctcViewport.scale = clamp(scale, ctcViewport.minScale, ctcViewport.maxScale);
+
+  const width = view.clientWidth / ctcViewport.scale;
+  const height = view.clientHeight / ctcViewport.scale;
+  ctcViewport.width = width;
+  ctcViewport.height = height;
+  ctcViewport.x = Number(x) - width * alignX;
+  ctcViewport.y = Number(y) - height * alignY;
+  applyCTCViewBox();
+}
+
+function mapPointAtClient(clientX, clientY) {
+  const view = ctcView();
+  if (!view) return null;
+  const rect = view.getBoundingClientRect();
+  return {
+    x: ctcViewport.x + (clientX - rect.left) / ctcViewport.scale,
+    y: ctcViewport.y + (clientY - rect.top) / ctcViewport.scale
+  };
+}
+
+function actionTarget(node) {
+  let current = node instanceof Element ? node : null;
+  while (current) {
+    if (current.dataset?.ctcAction) return current;
+    if (current === ctcSvg()) break;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function pointerCenter() {
+  const points = [...ctcViewport.pointers.values()];
+  if (points.length < 2) return null;
+  return {
+    x: (points[0].x + points[1].x) / 2,
+    y: (points[0].y + points[1].y) / 2
+  };
+}
+
+function pointerDistance() {
+  const points = [...ctcViewport.pointers.values()];
+  if (points.length < 2) return 0;
+  return Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y);
+}
+
+function beginPinch() {
+  const center = pointerCenter();
+  if (!center || ctcViewport.pointers.size < 2) return;
+  const anchor = mapPointAtClient(center.x, center.y);
+  if (!anchor) return;
+
+  ctcViewport.pinch = {
+    distance: Math.max(1, pointerDistance()),
+    startScale: ctcViewport.scale,
+    anchorMapX: anchor.x,
+    anchorMapY: anchor.y
+  };
+  ctcViewport.pan = null;
+  ctcViewport.gestureMoved = true;
+  ctcViewport.hadPinch = true;
+  ctcViewport.tapTarget = null;
+}
+
+function performCTCAction(target) {
+  if (!target) return;
+  const action = target.dataset.ctcAction;
+  if (action === 'train') {
+    const code = String(target.dataset.circulation || '').toUpperCase();
+    if (code && onSelectTrainHandler) {
+      Promise.resolve(onSelectTrainHandler(code)).catch(error => {
+        console.warn('SIM+ CTC: no se pudo abrir LIT', code, error);
+      });
+    }
+    return;
+  }
+  if (action === 'station') {
+    const code = String(target.dataset.station || '').toUpperCase();
+    if (code && onSelectStationHandler) {
+      Promise.resolve(onSelectStationHandler(code)).catch(error => {
+        console.warn('SIM+ CTC: no se pudo abrir iSIC', code, error);
+      });
+    }
+  }
+}
+
+function wireCTCInteractions() {
+  if (interactionsWired) return;
+  const view = ctcView();
+  if (!view) return;
+  interactionsWired = true;
+
+  const beginOneFingerPan = point => {
+    ctcViewport.pan = {
+      startX: point.x,
+      startY: point.y,
+      originX: ctcViewport.x,
+      originY: ctcViewport.y
+    };
+    ctcViewport.pinch = null;
+  };
+
+  view.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    ctcViewport.pointers.set(event.pointerId, { x:event.clientX, y:event.clientY });
+
+    if (ctcViewport.pointers.size === 1) {
+      ctcViewport.gestureMoved = false;
+      ctcViewport.hadPinch = false;
+      ctcViewport.tapTarget = actionTarget(event.target);
+      beginOneFingerPan({ x:event.clientX, y:event.clientY });
+    } else if (ctcViewport.pointers.size === 2) {
+      beginPinch();
+    }
+
+    try { view.setPointerCapture(event.pointerId); } catch {}
+    event.preventDefault();
+  }, { passive:false });
+
+  view.addEventListener('pointermove', event => {
+    if (!ctcViewport.pointers.has(event.pointerId)) return;
+    ctcViewport.pointers.set(event.pointerId, { x:event.clientX, y:event.clientY });
+
+    if (ctcViewport.pointers.size >= 2 && ctcViewport.pinch) {
+      const center = pointerCenter();
+      if (!center) return;
+      const ratio = pointerDistance() / ctcViewport.pinch.distance;
+      const nextScale = clamp(
+        ctcViewport.pinch.startScale * ratio,
+        ctcViewport.minScale,
+        ctcViewport.maxScale
+      );
+      ctcViewport.scale = nextScale;
+
+      const viewRect = view.getBoundingClientRect();
+      const localX = center.x - viewRect.left;
+      const localY = center.y - viewRect.top;
+      ctcViewport.width = view.clientWidth / nextScale;
+      ctcViewport.height = view.clientHeight / nextScale;
+      ctcViewport.x = ctcViewport.pinch.anchorMapX - localX / nextScale;
+      ctcViewport.y = ctcViewport.pinch.anchorMapY - localY / nextScale;
+      applyCTCViewBox();
+      event.preventDefault();
+      return;
+    }
+
+    if (ctcViewport.pointers.size === 1 && ctcViewport.pan) {
+      const dx = event.clientX - ctcViewport.pan.startX;
+      const dy = event.clientY - ctcViewport.pan.startY;
+      if (Math.hypot(dx, dy) > TAP_MOVE_THRESHOLD) {
+        ctcViewport.gestureMoved = true;
+        ctcViewport.tapTarget = null;
+      }
+      ctcViewport.x = ctcViewport.pan.originX - dx / ctcViewport.scale;
+      ctcViewport.y = ctcViewport.pan.originY - dy / ctcViewport.scale;
+      applyCTCViewBox();
+      event.preventDefault();
+    }
+  }, { passive:false });
+
+  const finishPointer = event => {
+    const wasLast = ctcViewport.pointers.size === 1;
+    ctcViewport.pointers.delete(event.pointerId);
+    try { view.releasePointerCapture(event.pointerId); } catch {}
+
+    if (wasLast && !ctcViewport.gestureMoved && !ctcViewport.hadPinch) {
+      performCTCAction(ctcViewport.tapTarget);
+    }
+
+    if (ctcViewport.pointers.size === 1) {
+      const remaining = [...ctcViewport.pointers.values()][0];
+      beginOneFingerPan(remaining);
+      ctcViewport.gestureMoved = true;
+      ctcViewport.tapTarget = null;
+    } else if (ctcViewport.pointers.size === 0) {
+      ctcViewport.pan = null;
+      ctcViewport.pinch = null;
+      ctcViewport.tapTarget = null;
+      ctcViewport.hadPinch = false;
+    } else {
+      beginPinch();
+    }
+  };
+
+  view.addEventListener('pointerup', finishPointer, { passive:true });
+  view.addEventListener('pointercancel', finishPointer, { passive:true });
+
+  view.addEventListener('wheel', event => {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    event.preventDefault();
+    const anchor = mapPointAtClient(event.clientX, event.clientY);
+    if (!anchor) return;
+    const rect = view.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    const nextScale = clamp(
+      ctcViewport.scale * Math.exp(-event.deltaY * 0.002),
+      ctcViewport.minScale,
+      ctcViewport.maxScale
+    );
+    ctcViewport.scale = nextScale;
+    ctcViewport.width = view.clientWidth / nextScale;
+    ctcViewport.height = view.clientHeight / nextScale;
+    ctcViewport.x = anchor.x - localX / nextScale;
+    ctcViewport.y = anchor.y - localY / nextScale;
+    applyCTCViewBox();
+  }, { passive:false });
+
+  if ('ResizeObserver' in window) {
+    ctcViewport.resizeObserver = new ResizeObserver(() => {
+      if (view.offsetParent !== null || view.classList.contains('active')) {
+        applyCTCViewBox({ preserveCenter:true });
+      }
+    });
+    ctcViewport.resizeObserver.observe(view);
+  }
 }
 
 function directionKey(train) {
@@ -174,22 +490,20 @@ function ensureTrip(S, train) {
   if (cached?.state === 'pending') return cached.promise;
   if (cached?.state === 'failed') return Promise.resolve(null);
 
-  /* Serializamos la primera carga de contextos: así trips/stops/stop_times se
-     descargan una sola vez y las siguientes circulaciones reutilizan caché. */
   const promise = tripLoadQueue
     .then(() => getTripBundle(S.config.gtfsZipIndexUrl, train.id))
     .then(bundle => {
-      tripCache.set(train.id, { state: 'ready', value: bundle });
+      tripCache.set(train.id, { state:'ready', value:bundle });
       return bundle;
     })
     .catch(error => {
-      console.warn('SIM+ CTC: context GTFS no disponible', train.circulation, error);
-      tripCache.set(train.id, { state: 'failed', value: null });
+      console.warn('SIM+ CTC: contexto GTFS no disponible', train.circulation, error);
+      tripCache.set(train.id, { state:'failed', value:null });
       return null;
     });
 
   tripLoadQueue = promise.then(() => null, () => null);
-  tripCache.set(train.id, { state: 'pending', promise });
+  tripCache.set(train.id, { state:'pending', promise });
   return promise;
 }
 
@@ -206,42 +520,38 @@ function scheduledDepartureMs(stops, from, nowMs) {
 
 function makeStationState(train, station, nowMs) {
   return {
-    circulation: train.circulation,
-    tripId: train.id,
-    line: train.line,
-    mode: 'station',
+    circulation:train.circulation,
+    tripId:train.id,
+    line:train.line,
+    mode:'station',
     station,
-    from: station,
-    to: null,
-    startMs: nowMs,
-    durationMs: null,
+    from:station,
+    to:null,
+    startMs:nowMs,
+    durationMs:null,
     train,
-    updatedAt: nowMs
+    updatedAt:nowMs
   };
 }
 
 function makeMovingState(train, from, to, startMs, durationMs, nowMs, startSource = 'observed') {
   return {
-    circulation: train.circulation,
-    tripId: train.id,
-    line: train.line,
-    mode: 'moving',
-    station: null,
+    circulation:train.circulation,
+    tripId:train.id,
+    line:train.line,
+    mode:'moving',
+    station:null,
     from,
     to,
     startMs,
     durationMs,
     startSource,
     train,
-    updatedAt: nowMs
+    updatedAt:nowMs
   };
 }
 
 function inferMovingStart(train, stops, from, nowMs) {
-  /* Si CTC observa la salida en directo, el instante del snapshot es T0.
-     Al abrir CTC con un tren ya en marcha, sólo usamos el horario para
-     reconstruir T0 cuando FGC lo marca en hora. Un tren retrasado arranca
-     desde el primer snapshot observado para no inventar minutos de demora. */
   if (train.onTime !== true) return nowMs;
   const scheduled = scheduledDepartureMs(stops, from, nowMs);
   if (!Number.isFinite(scheduled)) return nowMs;
@@ -295,9 +605,6 @@ function reconcileTrain(S, train, nowMs) {
     from = previous.station;
     startSource = 'departure-observed';
   } else if (previous?.mode === 'moving' && previous.to && previous.to !== to) {
-    /* El cambio de properes_parades confirma que el tren ha alcanzado/pasado
-       la estación que antes era objetivo, aunque no hayamos capturado un
-       snapshot estacionado. */
     from = previous.to;
     startSource = 'pass-observed';
   }
@@ -318,15 +625,132 @@ function reconcileTrain(S, train, nowMs) {
   );
 }
 
+function lineColor(line) {
+  return latestState?.config?.ctc?.lineColors?.[line] || '#777';
+}
+
+function ensureSvgLayers() {
+  if (svgLayersReady) return;
+  const svg = ctcSvg();
+  if (!svg) return;
+
+  svg.style.width = '100%';
+  svg.style.height = '100%';
+  svg.style.maxWidth = 'none';
+  svg.style.display = 'block';
+
+  let stationLayer = svg.querySelector('#ctcStationHitLayer');
+  if (!stationLayer) {
+    stationLayer = svgElement('g', { id:'ctcStationHitLayer', class:'ctc-station-hit-layer' });
+    svg.appendChild(stationLayer);
+  }
+
+  let trainLayer = svg.querySelector('#ctcTrainSvgLayer');
+  if (!trainLayer) {
+    trainLayer = svgElement('g', { id:'ctcTrainSvgLayer', class:'ctc-train-svg-layer' });
+    svg.appendChild(trainLayer);
+  }
+
+  const legacyLayer = $('#ctcTrainLayer');
+  if (legacyLayer) legacyLayer.hidden = true;
+
+  svgLayersReady = true;
+  renderStationHitboxes();
+}
+
+function renderStationHitboxes() {
+  const svg = ctcSvg();
+  const layer = svg?.querySelector('#ctcStationHitLayer');
+  if (!layer || !stationHitGeometry?.stations) return;
+
+  layer.replaceChildren();
+  const padding = Number(stationHitGeometry.hitPadding ?? 1.25);
+
+  for (const [code, box] of Object.entries(stationHitGeometry.stations)) {
+    const x = Number(box.x) - padding;
+    const y = Number(box.y) - padding;
+    const width = Number(box.w) + padding * 2;
+    const height = Number(box.h) + padding * 2;
+    if (![x,y,width,height].every(Number.isFinite)) continue;
+
+    const hit = svgElement('rect', {
+      x,
+      y,
+      width,
+      height,
+      class:'ctc-station-hit',
+      'data-ctc-action':'station',
+      'data-station':code,
+      'aria-label':`iSIC ${code}`
+    });
+    const title = svgElement('title');
+    title.textContent = `iSIC ${code}`;
+    hit.appendChild(title);
+    layer.appendChild(hit);
+  }
+}
+
 function markerFor(train) {
   let marker = markerNodes.get(train.circulation);
   if (marker) return marker;
 
-  marker = document.createElement('div');
-  marker.className = `ctc-train ctc-line-${train.line}`;
-  marker.dataset.circulation = train.circulation;
-  marker.innerHTML = '<span class="ctc-train-code"></span><span class="ctc-train-delay" hidden></span>';
-  $('#ctcTrainLayer')?.appendChild(marker);
+  ensureSvgLayers();
+  const layer = ctcSvg()?.querySelector('#ctcTrainSvgLayer');
+  if (!layer) return null;
+
+  const group = svgElement('g', {
+    class:`ctc-train-svg ctc-line-${train.line}`,
+    'data-ctc-action':'train',
+    'data-circulation':train.circulation
+  });
+
+  const codeRect = svgElement('rect', {
+    x:-TRAIN_CODE_WIDTH / 2,
+    y:-TRAIN_HEIGHT / 2,
+    width:TRAIN_CODE_WIDTH,
+    height:TRAIN_HEIGHT,
+    class:'ctc-train-code-bg'
+  });
+  const codeText = svgElement('text', {
+    x:0,
+    y:TRAIN_TEXT_Y,
+    class:'ctc-train-code-text',
+    'text-anchor':'middle',
+    'dominant-baseline':'middle'
+  });
+  codeText.textContent = train.circulation;
+
+  const delayRect = svgElement('rect', {
+    x:TRAIN_CODE_WIDTH / 2,
+    y:-TRAIN_HEIGHT / 2,
+    width:0,
+    height:TRAIN_HEIGHT,
+    class:'ctc-train-delay-bg',
+    hidden:'hidden'
+  });
+  const delayText = svgElement('text', {
+    x:TRAIN_CODE_WIDTH / 2,
+    y:TRAIN_TEXT_Y,
+    class:'ctc-train-delay-text',
+    'text-anchor':'middle',
+    'dominant-baseline':'middle',
+    hidden:'hidden'
+  });
+
+  const hitRect = svgElement('rect', {
+    x:-TRAIN_HIT_WIDTH / 2,
+    y:-TRAIN_HIT_HEIGHT / 2,
+    width:TRAIN_HIT_WIDTH,
+    height:TRAIN_HIT_HEIGHT,
+    class:'ctc-train-hit',
+    'data-ctc-action':'train',
+    'data-circulation':train.circulation
+  });
+
+  group.append(codeRect, codeText, delayRect, delayText, hitRect);
+  layer.appendChild(group);
+
+  marker = { group, codeRect, codeText, delayRect, delayText, hitRect };
   markerNodes.set(train.circulation, marker);
   return marker;
 }
@@ -345,14 +769,16 @@ function delayMinutes(state, nowMs) {
     : (stop.arrival_time || stop.departure_time);
   const targetMs = resolveGtfsTimestamp(reference, nowMs);
   if (!Number.isFinite(targetMs)) return null;
-  return Math.max(0, Math.floor(Math.max(0, nowMs - targetMs) / 60000));
+
+  const minutes = Math.floor(Math.max(0, nowMs - targetMs) / 60000);
+  return minutes >= 1 ? minutes : null;
 }
 
 function positionForState(state, nowMs) {
   if (!state?.train) return null;
   if (state.mode === 'station') {
     const point = stationPoint(state.station, state.train);
-    return point ? { x: point[0], y: point[1], waiting: false } : null;
+    return point ? { x:point[0], y:point[1], waiting:false } : null;
   }
 
   const points = pathFor(state.from, state.to, state.train);
@@ -375,7 +801,41 @@ function positionForState(state, nowMs) {
   return point ? { ...point, waiting } : null;
 }
 
+function updateMarkerVisual(marker, train, state, position, nowMs) {
+  if (!marker) return;
+  const { group, codeRect, codeText, delayRect, delayText, hitRect } = marker;
+
+  group.setAttribute('class', `ctc-train-svg ctc-line-${train.line}${position.waiting ? ' ctc-awaiting-confirmation' : ''}${Number(state.resyncUntil || 0) > nowMs ? ' ctc-resync' : ''}`);
+  group.removeAttribute('transform');
+  group.style.transform = `translate(${position.x}px, ${position.y}px)`;
+  group.dataset.circulation = train.circulation;
+  hitRect.dataset.circulation = train.circulation;
+
+  codeRect.setAttribute('fill', lineColor(train.line));
+  codeText.textContent = train.circulation;
+
+  const minutes = delayMinutes(state, nowMs);
+  if (minutes === null) {
+    delayRect.setAttribute('hidden', 'hidden');
+    delayText.setAttribute('hidden', 'hidden');
+    delayRect.setAttribute('width', '0');
+    delayText.textContent = '';
+    return;
+  }
+
+  const label = `+${minutes}`;
+  const delayWidth = Math.max(10, label.length * (TRAIN_FONT_SIZE * 0.56) + 4);
+  delayRect.removeAttribute('hidden');
+  delayText.removeAttribute('hidden');
+  delayRect.setAttribute('x', TRAIN_CODE_WIDTH / 2);
+  delayRect.setAttribute('width', delayWidth);
+  delayRect.setAttribute('fill', latestState?.config?.ctc?.delayColor || '#FF2C2C');
+  delayText.setAttribute('x', TRAIN_CODE_WIDTH / 2 + delayWidth / 2);
+  delayText.textContent = label;
+}
+
 function renderFrame(S, nowMs = Date.now()) {
+  ensureSvgLayers();
   const liveCodes = new Set((S.trains || []).map(train => train.circulation));
 
   for (const train of S.trains || []) {
@@ -387,26 +847,12 @@ function renderFrame(S, nowMs = Date.now()) {
     if (!position) continue;
 
     const marker = markerFor(train);
-    marker.className = `ctc-train ctc-line-${train.line}`;
-    marker.classList.toggle('ctc-awaiting-confirmation', Boolean(position.waiting));
-    marker.classList.toggle('ctc-resync', Number(state.resyncUntil || 0) > nowMs);
-    marker.style.setProperty('--ctc-x', `${position.x}px`);
-    marker.style.setProperty('--ctc-y', `${position.y}px`);
-
-    const code = marker.querySelector('.ctc-train-code');
-    const delay = marker.querySelector('.ctc-train-delay');
-    if (code) code.textContent = train.circulation;
-
-    const minutes = delayMinutes(state, nowMs);
-    if (delay) {
-      delay.hidden = minutes === null;
-      delay.textContent = minutes === null ? '' : `+${minutes}`;
-    }
+    updateMarkerVisual(marker, train, state, position, nowMs);
   }
 
   for (const [code, marker] of markerNodes) {
     if (liveCodes.has(code)) continue;
-    marker.remove();
+    marker.group.remove();
     markerNodes.delete(code);
     motionStates.delete(code);
   }
@@ -431,30 +877,49 @@ function stopAnimation() {
   animationFrame = 0;
 }
 
-export async function initCTC(S) {
-  const view = $('#view-ctc');
+export async function initCTC(S, { onSelectTrain = null, onSelectStation = null } = {}) {
+  const view = ctcView();
   const vector = $('#ctcMapVector');
   if (!view || !vector) return;
 
+  onSelectTrainHandler = onSelectTrain || null;
+  onSelectStationHandler = onSelectStation || null;
+
+  ctcViewport.minScale = Number(view.dataset.viewportMin || 0.08);
+  ctcViewport.maxScale = Number(view.dataset.viewportMax || 6);
+
   S.ctc ||= {
-    initialized: false,
-    routes: null,
-    routeError: null,
-    motionError: null
+    initialized:false,
+    routes:null,
+    routeError:null,
+    motionError:null,
+    stationHitError:null
   };
 
   try {
-    const [routes, geometry] = await Promise.all([
-      loadRouteCatalog(),
-      loadMotionGeometry()
-    ]);
-    S.ctc.routes = routes;
-    S.ctc.motion = geometry;
+    S.ctc.routes = await loadRouteCatalog();
     S.ctc.routeError = null;
+  } catch (error) {
+    S.ctc.routeError = String(error?.message || error);
+  }
+
+  try {
+    S.ctc.motion = await loadMotionGeometry();
     S.ctc.motionError = null;
   } catch (error) {
     S.ctc.motionError = String(error?.message || error);
   }
+
+  try {
+    S.ctc.stationHits = await loadStationHitGeometry();
+    S.ctc.stationHitError = null;
+  } catch (error) {
+    S.ctc.stationHitError = String(error?.message || error);
+  }
+
+  ensureSvgLayers();
+  renderStationHitboxes();
+  wireCTCInteractions();
 }
 
 export function updateCTC(S, nowMs = Date.now()) {
@@ -465,12 +930,8 @@ export function updateCTC(S, nowMs = Date.now()) {
   for (const train of S.trains || []) {
     liveCodes.add(train.circulation);
 
-    /* Mientras CTC no está visible seguimos capturando cambios reales de
-       estación/próxima parada, pero no cargamos GTFS ni animamos nada. */
     if (active) {
       ensureTrip(S, train).then(() => {
-        /* Reconciliamos de nuevo al llegar el GTFS para obtener duración exacta
-           sin reiniciar T0 si el estado ya estaba en movimiento. */
         reconcileTrain(S, train, Date.now());
         if (active) renderFrame(S, Date.now());
       });
@@ -490,31 +951,33 @@ export function updateCTC(S, nowMs = Date.now()) {
 }
 
 export function enterCTC(S) {
-  const view = $('#view-ctc');
+  const view = ctcView();
   if (!view) return;
   active = true;
   latestState = S;
-  refreshViewport(view);
+  ensureSvgLayers();
+  wireCTCInteractions();
 
-  if (!initialized) {
-    initialized = true;
-    if (S.ctc) S.ctc.initialized = true;
-
-    const cfg = S.config?.ctc || {};
-    const focus = cfg.defaultFocus || { x: 820, y: 2558 };
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        focusViewportPoint(view, Number(focus.x || 820), Number(focus.y || 2558), {
-          scale: initialScale(S, view),
-          alignX: Number(focus.alignX ?? 0.36),
-          alignY: Number(focus.alignY ?? 0.5)
-        });
+  requestAnimationFrame(() => {
+    if (!ctcViewport.initialized) {
+      const cfg = S.config?.ctc || {};
+      const focus = cfg.defaultFocus || { x:820, y:2558 };
+      ctcViewport.scale = initialScale(S, view);
+      focusCTCPoint(Number(focus.x || 820), Number(focus.y || 2558), {
+        scale:ctcViewport.scale,
+        alignX:Number(focus.alignX ?? 0.36),
+        alignY:Number(focus.alignY ?? 0.5)
       });
-    });
-  }
+      ctcViewport.initialized = true;
+      initialized = true;
+      if (S.ctc) S.ctc.initialized = true;
+    } else {
+      applyCTCViewBox({ preserveCenter:true });
+    }
 
-  updateCTC(S);
-  startAnimation();
+    updateCTC(S);
+    startAnimation();
+  });
 }
 
 export function leaveCTC() {
@@ -523,17 +986,26 @@ export function leaveCTC() {
 }
 
 export function ctcDiagnostic(S) {
-  const state = viewportState('#view-ctc');
   const moving = [...motionStates.values()].filter(item => item.mode === 'moving').length;
   const stationed = [...motionStates.values()].filter(item => item.mode === 'station').length;
   return {
     initialized,
-    routes: Array.isArray(S.ctc?.routes?.routes) ? S.ctc.routes.routes.length : 0,
-    routeError: S.ctc?.routeError || null,
-    motionError: S.ctc?.motionError || null,
+    routes:Array.isArray(S.ctc?.routes?.routes) ? S.ctc.routes.routes.length : 0,
+    routeError:S.ctc?.routeError || null,
+    motionError:S.ctc?.motionError || null,
+    stationHitError:S.ctc?.stationHitError || null,
     moving,
     stationed,
-    markers: markerNodes.size,
-    viewport: state
+    markers:markerNodes.size,
+    stations:Object.keys(stationHitGeometry?.stations || {}).length,
+    viewport:{
+      scale:ctcViewport.scale,
+      x:ctcViewport.x,
+      y:ctcViewport.y,
+      width:ctcViewport.width,
+      height:ctcViewport.height,
+      minScale:ctcViewport.minScale,
+      maxScale:ctcViewport.maxScale
+    }
   };
 }

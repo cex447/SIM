@@ -1,21 +1,21 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.16.0";
+} from "./fgc-api.js?v=3.17.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.16.0";
+} from "./plastic.js?v=3.17.0";
 
 import {
   clearLIT,
   focusCurrentLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.16.0";
+} from "./lit.js?v=3.17.0";
 
 import {
   wireISIC,
@@ -23,13 +23,13 @@ import {
   refreshISIC,
   syncISICQuery,
   tickISIC
-} from "./isic-view.js?v=3.16.0";
+} from "./isic-view.js?v=3.17.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.16.0";
-import { BackgroundAudio } from "./audio.js?v=3.16.0";
+import { updateOccupancy } from "./occupancy.js?v=3.17.0";
+import { BackgroundAudio } from "./audio.js?v=3.17.0";
 
-import { setupViewports, activateViewport } from "./viewport.js?v=3.16.0";
-import { initCTC, enterCTC, leaveCTC, updateCTC, ctcDiagnostic } from "./ctc.js?v=3.16.0";
+import { setupViewports, activateViewport } from "./viewport.js?v=3.17.0";
+import { initCTC, enterCTC, leaveCTC, updateCTC, ctcDiagnostic } from "./ctc.js?v=3.17.0";
 
 const S = {
   config: null,
@@ -118,8 +118,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.16.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.16.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.17.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.17.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -365,7 +365,7 @@ async function activateView(name, { clearQuery = true } = {}) {
     view.classList.toggle("active", view.id === `view-${name}`);
   });
 
-  activateViewport(`#view-${name}`);
+  if (name !== "ctc") activateViewport(`#view-${name}`);
 
   if (name === "siv") {
     audio?.enterSIV();
@@ -389,6 +389,14 @@ async function openCirculationFromPlastic(code) {
   $("#circulationInput").value = code;
   await activateView("lit", { clearQuery: false });
   await resolveQuery(code);
+}
+
+async function openStationFromCTC(code) {
+  const input = $("#stationInput");
+  if (!input) return;
+  input.value = String(code || "").toUpperCase().slice(0, 2);
+  await activateView("isic");
+  await syncISICQuery(S, { blur:true });
 }
 
 function setupTabs() {
@@ -521,7 +529,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.16.0",
+      "SIM+ Beta 3.17.0",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
@@ -541,9 +549,11 @@ function setupDiagnostics() {
       `CTC circulant: ${ctcDiagnostic(S).moving}`,
       `CTC estacionades: ${ctcDiagnostic(S).stationed}`,
       `CTC marcadors: ${ctcDiagnostic(S).markers}`,
+      `CTC estacions sensibles: ${ctcDiagnostic(S).stations}`,
       `CTC zoom: ${ctcDiagnostic(S).viewport?.scale?.toFixed?.(2) || "—"}`,
       `Error CTC rutes: ${ctcDiagnostic(S).routeError || "—"}`,
       `Error CTC moviment: ${ctcDiagnostic(S).motionError || "—"}`,
+      `Error CTC estacions: ${ctcDiagnostic(S).stationHitError || "—"}`,
       `MP3 detectats: ${audioState.tracks ?? 0}`,
       `Àudio carregat: ${audioState.loaded ? "sí" : "no"}`,
       `Àudio reproduint: ${audioState.playing ? "sí" : "no"}`,
@@ -579,7 +589,10 @@ async function init() {
   await loadStaticData();
 
   setupViewports();
-  await initCTC(S);
+  await initCTC(S, {
+    onSelectTrain: openCirculationFromPlastic,
+    onSelectStation: openStationFromCTC
+  });
 
   setupTabs();
   setupSearch();

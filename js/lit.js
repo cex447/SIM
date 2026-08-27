@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.16.0";
+import { getTripBundle } from "./gtfs.js?v=3.17.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.16.0";
+} from "./time.js?v=3.17.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.16.0";
+} from "./operations.js?v=3.17.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -18,7 +18,7 @@ import {
   matchContextToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.16.0";
+} from "./isic.js?v=3.17.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const LIT_PLATFORM_NEAR_MS = 10000;
