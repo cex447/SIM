@@ -1,0 +1,96 @@
+SIM+ Beta 3.19.0
+=================
+
+Paquete preparado para subir el CONTENIDO de este ZIP directamente a la raíz
+del repositorio GitHub, sustituyendo los archivos de la versión anterior.
+No se incluye una carpeta contenedora sim_3190 en el ZIP.
+
+Cambios respecto a Beta 3.18.0
+------------------------------
+
+1. Zoom PLASTIC / iSIC / LIT / SIV
+- Se elimina GestureEvent como motor de escala.
+- Un dedo queda en manos del scroll nativo.
+- Dos dedos usan un único cálculo TouchEvent con distancia y ancla iniciales
+  inmutables durante todo el gesto.
+- Los GestureEvent que Safari pueda emitir se cancelan, pero no modifican la
+  escala. Objetivo: eliminar los saltos pequeño -> enorme -> pequeño vistos
+  en iPhone con 3.17/3.18.
+- Cada sección conserva su escala y posición propias.
+- CTC conserva su motor vectorial independiente por viewBox.
+
+2. Vista inicial CTC
+- Primera entrada a CTC tras iniciar SIM+: PC con el encuadre y nivel de zoom
+  de la captura de referencia del usuario del 27/08/2026 23:54.
+- Portrait: ancho lógico 132 unidades, foco PC (820,2558), alignX 0,19,
+  alignY 0,25.
+- Al volver posteriormente a CTC se conserva el último encuadre del usuario.
+
+3. Vía real -> circuito de estacionamiento CTC
+- CTC NO añade consultas iSIC. Reutiliza únicamente una vía confirmada que ya
+  exista en la caché compartida de PLASTIC/LIT/iSIC.
+- Si hay vía real confirmada, ésta tiene prioridad sobre reglas nominales.
+- Mientras FGC siga confirmando el mismo estacionamiento, CTC conserva esa
+  última vía confirmada aunque caduque la caché corta; al salir de la estación
+  se elimina esa memoria.
+- Esta tabla sólo fija la posición ESTACIONADA. No inventa encaminamientos de
+  agujas desde una vía concreta si éstos todavía no están documentados.
+
+Tabla incorporada:
+PC: 1->PC1, 2->PC2, 3->PC3, 4->PC4, 5->PC5
+GR: 1->GR9, 2->GR8, 3->GR11, 4->GR10
+SR: 1->SR5, 2->SR21, 3->SR20
+LP: 1->LP7, 2->LP4, 4->LP6 (NO existe vía 3)
+SC: 1->SC9, 2->SC6
+BT: 1->BT5, 2->BT6, 3->BT7
+RB: 1->RB08, 2->RB20, 0->RB19
+CF: 1->CF17, 2->CF18, 4->CF19
+
+Ejemplo: B405 estacionado en PC con VÍA 4 -> marcador sobre circuito PC4.
+
+4. CTC L7 / L12
+- Se conservan las correcciones de 3.18.0:
+  * L7 ascendente en GR -> GR11.
+  * PR->GR ascendente por GRA5 -> GR11A -> GR11.
+  * GR->PM ascendente por GR11 -> PM1 -> diagonal inferior -> PM3.
+  * L12 estacionada en SR -> SR20.
+  * L12 nominal en RE -> RE1; RE2 nunca se usa como fallback.
+
+5. SC <-> MS
+- Ascendentes/impares: corredor exacto marcado en verde por el usuario:
+  SC9 -> tramo inferior -> diagonal -> vía ascendente de MS.
+- Descendentes/pares: corredor exacto marcado en rosa:
+  vía descendente de MS -> tramo superior -> diagonal -> SC6.
+- Las dos polilíneas se validaron píxel a píxel contra las líneas blancas del
+  SVG rasterizado de referencia.
+
+6. Placas de circulaciones CTC
+- Rectángulo principal reducido un 10 % respecto a 3.18.0.
+- Fuente se mantiene para aprovechar mejor el interior de la placa.
+- Texto desplazado 0,65 unidades hacia arriba para corregir el aire superior
+  y mejorar el centrado óptico.
+- El bloque +N aplica el mismo centrado.
+- Se mantiene +N sólo desde +1; nunca cuadro rojo vacío ni +0.
+
+7. PLASTIC
+- Se conserva el orden interno por número de circulación dentro de cada línea,
+  con UT sólo como desempate.
+
+Funciones conservadas
+---------------------
+- Movimiento CTC basado en salida observada + tiempo GTFS + reloj absoluto.
+- Confirmación FGC siempre prioritaria sobre estimación.
+- Espera al 97,5 % sin inventar llegada.
+- Tap circulación CTC -> LIT.
+- Tap ceñido a las letras verdes de estación -> iSIC.
+- Prioridad táctil de circulación sobre estación.
+- 37 estaciones sensibles con tolerancia perimetral de 0,5 unidades.
+- Sin rutas coloreadas visibles en CTC.
+
+Nota SR
+-------
+- La última tabla recibida indica 3->SR20, mientras una regla anterior del
+  proyecto identificaba L12/SR20 como vía 4. Para no introducir una regresión
+  geométrica, CTC acepta internamente tanto 3 como 4 como alias hacia SR20.
+  Esto sólo afecta al anclaje CTC; no inventa ni cambia la vía mostrada por
+  iSIC/PLASTIC.
