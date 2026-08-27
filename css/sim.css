@@ -1012,7 +1012,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.18.0 · CROM FIX + VIEWPORT PAN/ZOOM
+   BETA 3.19.0 · CROM FIX + VIEWPORT PAN/ZOOM
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
