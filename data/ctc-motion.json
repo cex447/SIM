@@ -1,5 +1,5 @@
 {
-  "version": "3.16.0",
+  "version": "3.18.0",
   "purpose": "Geometria interna per al moviment estimat de circulacions sobre el CTC. Les línies no es dibuixen: només guien la posició de les etiquetes.",
   "holdProgress": 0.975,
   "stations": {
@@ -433,24 +433,20 @@
     ],
     "GR>PM|asc": [
       [
-        1423.4,
-        2582
+        1427.3,
+        2598.0
       ],
       [
-        1462.2,
-        2598
+        1472.0,
+        2598.0
       ],
       [
-        1515.3,
-        2614
-      ],
-      [
-        1523.5,
-        2630
+        1504.0,
+        2630.0
       ],
       [
         1612.1,
-        2630
+        2630.0
       ]
     ],
     "PM>GR|desc": [
@@ -473,38 +469,38 @@
     ],
     "SR>RE|asc": [
       [
-        1982.0,
-        2582
+        1981.7,
+        2534.0
       ],
       [
-        2027.2,
-        2534
+        2062.0,
+        2534.0
       ],
       [
-        2098.5,
-        2488
+        2094.0,
+        2502.0
       ],
       [
         2166.4,
-        2502
+        2502.0
       ]
     ],
     "RE>SR|desc": [
       [
         2166.4,
-        2488
+        2502.0
       ],
       [
-        2111.0,
-        2512
+        2094.0,
+        2502.0
       ],
       [
-        2020.0,
-        2516
+        2062.0,
+        2534.0
       ],
       [
-        1982.0,
-        2566
+        1981.7,
+        2534.0
       ]
     ],
     "SC>MS|asc": [
@@ -592,6 +588,127 @@
     "PC-PR utilitza les seqüències de circuits confirmades PC1/PCA6/PCA5/PCA1/PC9 i PC10/PC8/PCA2/PCA4/PCA9/PC2 com a guia geomètrica.",
     "Les variants excepcionals i vies alternatives documentades a ctc-routes.json es conserven com a font d'explotació. Si no es disposa de via real confirmada, el motor no inventa una variant: utilitza el corredor nominal de la línia.",
     "La posició entre estacions és estimada; una confirmació FGC de nova estació o de nova pròxima parada sempre té prioritat i resincronitza el marcador.",
-    "Les coordenades Y s'han ajustat al centre de les línies blanques de circuit (no al centre del text de les etiquetes de circuit)."
-  ]
+    "Les coordenades Y s'han ajustat al centre de les línies blanques de circuit (no al centre del text de les etiquetes de circuit).",
+    "3.18.0: lineStationOverrides tiene prioridad sobre stations cuando una línea usa un circuito de estacionamiento específico.",
+    "3.18.0: linePaths tiene prioridad sobre paths y permite resolver bifurcaciones compartidas sin alterar otras líneas.",
+    "L7 ascendente: PR→GR entra por GRA5, pasa por GR11A y estaciona en GR11; GR→PM continúa por PM1 y baja a PM3.",
+    "L12: SR utiliza SR20 (andén vía 4) y RE utiliza RE1 como ruta nominal. RE2 no se usa como fallback."
+  ],
+  "lineStationOverrides": {
+    "L7": {
+      "GR": {
+        "asc": [
+          1427.3,
+          2598.0
+        ],
+        "circuit": "GR11",
+        "platformNote": "L7 ascendente estaciona en GR11"
+      }
+    },
+    "L12": {
+      "SR": {
+        "asc": [
+          1981.7,
+          2534.0
+        ],
+        "desc": [
+          1981.7,
+          2534.0
+        ],
+        "circuit": "SR20",
+        "platform": 4
+      },
+      "RE": {
+        "asc": [
+          2166.4,
+          2502.0
+        ],
+        "desc": [
+          2166.4,
+          2502.0
+        ],
+        "circuit": "RE1",
+        "platform": 1,
+        "note": "RE2 queda como alternativa documentada, nunca como fallback nominal"
+      }
+    }
+  },
+  "linePaths": {
+    "L7": {
+      "PR>GR|asc": [
+        [
+          1189.7,
+          2582.0
+        ],
+        [
+          1367.0,
+          2582.0
+        ],
+        [
+          1382.0,
+          2598.0
+        ],
+        [
+          1427.3,
+          2598.0
+        ]
+      ],
+      "GR>PM|asc": [
+        [
+          1427.3,
+          2598.0
+        ],
+        [
+          1472.0,
+          2598.0
+        ],
+        [
+          1504.0,
+          2630.0
+        ],
+        [
+          1612.1,
+          2630.0
+        ]
+      ]
+    },
+    "L12": {
+      "SR>RE|asc": [
+        [
+          1981.7,
+          2534.0
+        ],
+        [
+          2062.0,
+          2534.0
+        ],
+        [
+          2094.0,
+          2502.0
+        ],
+        [
+          2166.4,
+          2502.0
+        ]
+      ],
+      "RE>SR|desc": [
+        [
+          2166.4,
+          2502.0
+        ],
+        [
+          2094.0,
+          2502.0
+        ],
+        [
+          2062.0,
+          2534.0
+        ],
+        [
+          1981.7,
+          2534.0
+        ]
+      ]
+    }
+  }
 }

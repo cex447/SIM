@@ -52,10 +52,10 @@
       "x": 820,
       "y": 2558,
       "alignX": 0.36,
-      "alignY": 0.5
+      "alignY": 0.25
     },
-    "defaultLogicalWidthPortrait": 1250,
-    "defaultLogicalWidthLandscape": 2300,
+    "defaultLogicalWidthPortrait": 460,
+    "defaultLogicalWidthLandscape": 850,
     "lineColors": {
       "L6": "#847DC6",
       "L7": "#AE6118",

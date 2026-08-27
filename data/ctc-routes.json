@@ -1,5 +1,5 @@
 {
-  "version": "3.16.0",
+  "version": "3.18.0",
   "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. Beta 3.16.0 lo conserva como política/topología de explotación: el motor de movimiento usa sólo geometrías confirmadas o corredores nominales y no dibuja las rutas.",
   "conventions": {
     "normal": "recorrido ordinario",
@@ -66,10 +66,13 @@
       "zone": "SR",
       "type": "normal",
       "line": "L12",
-      "direction": "towards_RE",
+      "direction": "both",
       "platform": 4,
-      "notes": "L12 con origen efectivo SR utiliza vía 4 como regla fija ordinaria.",
-      "status": "confirmed_rule"
+      "notes": "L12 con origen/estacionamiento en SR utiliza SR20, correspondiente al andén de vía 4, como regla fija ordinaria.",
+      "status": "confirmed_rule",
+      "circuits": [
+        "SR20"
+      ]
     },
     {
       "id": "RE_L12_V1",
@@ -78,8 +81,11 @@
       "line": "L12",
       "direction": "both",
       "platform": 1,
-      "notes": "Ruta SR↔RE1 documentada en verde.",
-      "status": "confirmed_graphic"
+      "notes": "Ruta nominal L12 SR↔RE por RE1 (andén/vía 1). Es el fallback permitido cuando no existe una vía alternativa confirmada.",
+      "status": "confirmed_rule",
+      "circuits": [
+        "RE1"
+      ]
     },
     {
       "id": "RE_L12_V2",
@@ -88,8 +94,11 @@
       "line": "L12",
       "direction": "both",
       "platform": 2,
-      "notes": "Ruta SR↔RE2 documentada en rosa.",
-      "status": "confirmed_graphic"
+      "notes": "RE2 queda documentada únicamente como alternativa; no debe asignarse por defecto ni activarse sin información fiable.",
+      "status": "confirmed_graphic",
+      "circuits": [
+        "RE2"
+      ]
     },
     {
       "id": "BT_ASC_V3",
@@ -182,6 +191,23 @@
       "direction": "desc",
       "notes": "Entrada/salida descendente por la vía alta según trazado lila.",
       "status": "confirmed_graphic"
+    },
+    {
+      "id": "GR_L7_ASC",
+      "zone": "GR",
+      "type": "normal",
+      "line": "L7",
+      "direction": "asc",
+      "circuits": [
+        "GRA5",
+        "GR11A",
+        "GR11",
+        "PM1",
+        "PM3"
+      ],
+      "platformCircuit": "GR11",
+      "notes": "L7 ascendente: entrada por GRA5, transición a GR11A, estacionamiento en GR11 y salida hacia PM por PM1 y la diagonal inferior hasta PM3.",
+      "status": "confirmed_rule"
     },
     {
       "id": "GR_L7_DESC",
