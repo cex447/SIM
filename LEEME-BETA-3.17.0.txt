@@ -1,0 +1,108 @@
+SIM+ · BETA 3.17.0 · CAMBIOS Y PRUEBAS
+
+Base inmediata: SIM+ Beta 3.16.0.
+Esta versión conserva íntegramente el motor horario/resincronizado de circulaciones CTC de 3.16.0 e incorpora la revisión visual e interactiva solicitada tras las primeras pruebas reales en iPhone.
+
+ORDEN DE NAVEGACIÓN
+PLASTIC -> iSIC -> CTC -> LIT -> SIV
+
+1. CTC: ZOOM VECTORIAL REAL MEDIANTE viewBox
+- El SVG de Barcelona-Vallès continúa incrustado directamente en index.html.
+- CTC deja de usar el zoom genérico por CSS transform de viewport.js.
+- El zoom y el desplazamiento de CTC se realizan modificando directamente el viewBox del SVG.
+- El objetivo es evitar la rasterización/caché borrosa observada en Safari/iOS al ampliar mucho el sinóptico.
+- 1 dedo: pan del CTC.
+- 2 dedos: pinch zoom alrededor del punto medio real de los dedos.
+- Ctrl/Cmd + rueda: zoom en escritorio/trackpad.
+- Rango conservado: 0.08x a 6x.
+- La cabecera SIM+, reloj y barra inferior permanecen fuera del zoom.
+- CTC conserva internamente zoom y centro al salir a LIT/iSIC y recuperarlos al volver.
+- Los demás módulos continúan utilizando viewport.js y mantienen su estado independiente.
+
+2. CTC: CIRCULACIONES 75 % MÁS PEQUEÑAS
+- Las placas pasan a ser elementos SVG vectoriales, no div HTML superpuestos.
+- Tamaño lineal objetivo: 25 % del empleado en Beta 3.16.0.
+- Fuente: 9,5 unidades frente a 38 de 3.16.0.
+- Altura de placa: 13 unidades frente a 52 de 3.16.0.
+- Anchura nominal de la placa de circulación: 30 unidades.
+- La zona sensible de una circulación excede sólo ligeramente la placa visible: 34 x 17 unidades.
+- El código de circulación y el texto de retraso incorporan corrección óptica vertical para que las mayúsculas queden visualmente centradas dentro de sus rectángulos, sin exceso de aire superior (referencia: segunda captura aprobada del 27/08/2026).
+- Esto reduce al mínimo las interferencias con nombres de estación y elementos del sinóptico.
+
+3. CTC: RETRASO SIN CUADRO ROJO FANTASMA
+- Se elimina el problema por el que el contenedor rojo podía verse aunque no hubiese un +N útil.
+- El retraso se representa como un segundo bloque SVG y sólo existe visualmente si el valor calculado es de al menos +1 minuto.
+- En hora: sólo placa de circulación.
+- Retraso no cuantificable: sólo placa de circulación.
+- +0: no se muestra.
+- +1 o superior: aparece el bloque rojo +N.
+- El código de circulación permanece centrado sobre la posición del tren; el bloque de retraso se añade hacia la derecha para que la aparición/desaparición del retraso no desplace el punto ferroviario de referencia.
+
+4. TAP SOBRE CIRCULACIÓN -> LIT
+- Cada placa CTC incorpora una zona sensible propia.
+- Un toque breve sobre la circulación abre directamente LIT con esa circulación cargada.
+- Se reutiliza el mismo flujo de resolución que ya emplea PLASTIC, evitando una segunda lógica paralela.
+- Un arrastre no se interpreta como toque.
+- Un gesto de dos dedos nunca dispara una selección.
+- Al abandonar CTC se conserva exactamente su estado de encuadre para el regreso.
+
+5. TAP SOBRE CÓDIGO VERDE DE ESTACIÓN -> iSIC
+- Se añade data/ctc-stations.json con las 37 estaciones/códigos de la red representada en CTC.
+- Las coordenadas proceden de ctc_bbox.html y se han seleccionado sobre el código principal de dos letras de cada estación.
+- La zona sensible NO cubre la estación completa, vías, cajetines ni entorno.
+- Se limita al bounding box de las dos letras verdes con sólo 0,5 unidades de tolerancia perimetral.
+- Un toque breve sobre el código abre iSIC con esa estación introducida y consultada.
+- Si una circulación coincide físicamente con la zona del código, la circulación está en una capa superior y tiene prioridad táctil.
+- Esto evita conflictos entre navegación CTC -> LIT y CTC -> iSIC.
+
+6. ESTACIONES INCLUIDAS EN LA CAPA SENSIBLE
+PC, PR, GR, SG, MN, BN, TT, SR,
+PM, PD, EP, TB, RE,
+PF, VL, LP, LF, VD, SC,
+MS, HG, RB, FN, TR, VP, EN, NA,
+VO, SJ, BT, UN, SQ, CF, PJ, CT, NO, PN.
+
+La lista coincide exactamente con la unión de estaciones de L6, L7, L12, S1 y S2 definida en el motor CTC.
+
+7. PRIORIDAD Y GESTOS
+- Tap sin desplazamiento significativo: selección.
+- Desplazamiento > 7 px: pan; se cancela cualquier selección pendiente.
+- Dos punteros: pinch; se cancela cualquier selección pendiente.
+- Circulaciones: capa SVG superior.
+- Códigos de estación: capa sensible inferior a circulaciones y superior al dibujo base.
+- La geometría táctil de las estaciones permanece invisible.
+
+8. MOTOR DE MOVIMIENTO CONSERVADO DE 3.16.0
+- FGC prevalece siempre sobre la estimación.
+- T0 se obtiene de la salida/paso observado cuando existe.
+- Duración A->B: horario GTFS de esa circulación y jornada.
+- Posición en movimiento: tiempo absoluto, no píxeles acumulativos.
+- Si vence el tiempo previsto sin confirmación real, la circulación queda al 97,5 % del recorrido.
+- Un cálculo temporal nunca declara por sí mismo un estacionamiento.
+- Las rutas siguen siendo invisibles: sólo guían matemáticamente la posición de la placa.
+- ctc-routes.json conserva las excepciones/condicionantes documentados.
+
+9. RED Y CLOUDFLARE
+- El nuevo zoom viewBox es completamente local.
+- Los hitboxes de estaciones son datos estáticos locales.
+- Las pulsaciones CTC -> LIT/iSIC no añaden consultas salvo las que el módulo de destino ya necesita normalmente.
+- El movimiento de las circulaciones sigue sin generar peticiones por fotograma ni por posición.
+
+10. VALIDACIONES REALIZADAS EN LA PREPARACIÓN
+- Sintaxis comprobada para todos los módulos JavaScript con node --check.
+- Todos los JSON del paquete se parsean correctamente.
+- index.html se parsea correctamente y conserva un único SVG CTC incrustado.
+- Se han identificado 37 zonas sensibles de estación y coinciden exactamente con las 37 estaciones de LINE_STATIONS.
+- Se verificó visualmente sobre el SVG vectorial el bounding box de BN: la zona se ciñe al código verde y no se extiende hacia BN1/BN2 ni hacia la vía.
+- Se verificó que el SVG fuente no contiene imágenes raster, filtros, masks ni foreignObject: el detalle base depende de trazados/use vectoriales.
+
+11. PENDIENTE DE PRUEBA EN DISPOSITIVO REAL
+Antes de consolidar la beta como base estable, comprobar en Safari/iPhone:
+1) nitidez del sinóptico a zoom alto;
+2) sensación del pinch y pan con viewBox;
+3) tamaño real de las placas al 25 %;
+4) ausencia del cuadro rojo cuando no existe +1 o superior;
+5) tap circulación -> LIT;
+6) tap estrictamente sobre letras verdes -> iSIC;
+7) que un arrastre iniciado sobre estación/circulación no abra ningún módulo;
+8) conservación exacta de zoom/posición CTC al volver desde LIT o iSIC.
