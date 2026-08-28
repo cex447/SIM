@@ -1,22 +1,22 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.20.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.21.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.20.0";
-import { updateOccupancy } from "./occupancy.js?v=3.20.0";
-import { countdownState, formatCountdown } from "./time.js?v=3.20.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.20.0";
+} from "./gtfs.js?v=3.21.0";
+import { updateOccupancy } from "./occupancy.js?v=3.21.0";
+import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.21.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.21.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows,
   normalizePlatformValue
-} from "./isic.js?v=3.20.0";
+} from "./isic.js?v=3.21.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
-const EXTRA_SCHEDULE_ROWS = 4;
+const MINIMUM_DIRECTION_ROWS = 8;
 
 const $ = selector => document.querySelector(selector);
 let onSelectTrainHandler = null;
@@ -99,6 +99,86 @@ function buildScheduleRecord(S, departure) {
     live,
     source:"schedule"
   };
+}
+
+
+async function buildLiveStationRecord(S, live, station, nowMs) {
+  if (!live?.id || !live?.circulation) return null;
+  if (String(live.stationed || "") !== station && String(live.nextStop || "") !== station) return null;
+
+  try {
+    const bundle = await getTripBundle(S.config.gtfsZipIndexUrl, live.id);
+    const times = bundle.times || [];
+    const stationStop = times.find(stop => parentCode(stop) === station);
+    if (!stationStop) return null;
+
+    const first = times[0] || null;
+    const last = times[times.length - 1] || null;
+    const departure = stationStop.departure_time || stationStop.arrival_time;
+    const targetMs = resolveGtfsTimestamp(departure, nowMs);
+    const family = live.circulation[0];
+    const line = LINE_BY_FAMILY[family] || live.line;
+    if (!line || !S.config.allowedLines.includes(line)) return null;
+
+    return {
+      key:live.id,
+      id:live.id,
+      circulation:live.circulation,
+      family,
+      line,
+      ascending:Boolean(live.ascending),
+      station,
+      departure,
+      targetMs:targetMs ?? nowMs,
+      headsign:bundle.trip?.trip_headsign || "",
+      effectiveOrigin:first ? parentCode(first) : (live.origin || ""),
+      effectiveDestination:last ? parentCode(last) : (live.destination || ""),
+      destinationName:last?.stop_name || bundle.trip?.trip_headsign || "",
+      live,
+      source:"live"
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function mergeLiveStationRecords(S, records, station, nowMs) {
+  const byId = new Map(records.map(record => [record.id, record]));
+  const related = (S.trains || []).filter(train =>
+    String(train.stationed || "") === station || String(train.nextStop || "") === station
+  );
+  const recovered = await Promise.all(
+    related.filter(train => !byId.has(train.id)).map(train => buildLiveStationRecord(S, train, station, nowMs))
+  );
+  for (const record of recovered) if (record) byId.set(record.id, record);
+  return [...byId.values()].sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
+}
+
+
+async function ensureMinimumDirectionSchedule(S, station, nowMs, records) {
+  const future = records.filter(record => record.targetMs >= nowMs - 60000);
+  const ascCount = future.filter(record => record.ascending).length;
+  const descCount = future.filter(record => !record.ascending).length;
+  const needAsc = ascCount < MINIMUM_DIRECTION_ROWS;
+  const needDesc = descCount < MINIMUM_DIRECTION_ROWS;
+  if (!needAsc && !needDesc) return records;
+
+  /* Si un sentido es menos frecuente, ampliamos la búsqueda hasta 6 h sólo
+     para ese sentido. Nunca rellenamos con circulaciones ficticias. */
+  const wider = (await getStationDepartures(
+    S.config.gtfsZipIndexUrl,
+    station,
+    nowMs,
+    { fromMinutes:-180, toMinutes:360, limit:1000 }
+  ))
+    .map(departure => buildScheduleRecord(S, departure))
+    .filter(Boolean);
+
+  const byId = new Map(records.map(record => [record.id, record]));
+  for (const record of wider) {
+    if ((record.ascending && needAsc) || (!record.ascending && needDesc)) byId.set(record.id, record);
+  }
+  return [...byId.values()].sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
 }
 
 async function buildMatchContexts(S, records, station, nowMs) {
@@ -258,8 +338,10 @@ function renderDirection(S, direction, items) {
     host.appendChild(group);
   }
 
-  empty.hidden = items.length !== 0;
-  empty.textContent = items.length ? "" : "CAP CIRCULACIÓ";
+  /* El antiguo mensaje global de lista vacía desaparece de iSIC.
+     El estado sin servicio se expresa sólo en el encabezado de cada sentido. */
+  empty.hidden = true;
+  empty.textContent = "";
 }
 
 export function renderISIC(S) {
@@ -279,7 +361,10 @@ export function renderISIC(S) {
     ascDirection.hidden = false;
     descDirection.hidden = false;
     ascLabel.textContent = "ASCENDENTS";
+    const descLabel = $("#isicDescLabel");
+    if (descLabel) descLabel.textContent = "DESCENDENTS";
     ascCount.hidden = false;
+    descCount.hidden = false;
     renderDirection(S, "asc", []);
     renderDirection(S, "desc", []);
     ascCount.textContent = "0 UTs";
@@ -312,21 +397,29 @@ export function renderISIC(S) {
   }
 
   const items = state.items || [];
-  const noService = state.state === "ready" && items.length === 0 && !state.lastError;
-  directions.classList.toggle("no-service", noService);
-  ascDirection.hidden = false;
-  descDirection.hidden = noService;
-  ascLabel.textContent = noService ? "SENSE SERVEI COMERCIAL" : "ASCENDENTS";
-  ascCount.hidden = noService;
-
-  if (noService) {
-    renderDirection(S, "asc", []);
-    renderDirection(S, "desc", []);
-    return;
-  }
-
   const asc = items.filter(item => item.ascending);
   const desc = items.filter(item => !item.ascending);
+  const descLabel = $("#isicDescLabel");
+
+  /*
+   * BETA 3.21.0 · el estado se decide por sentido.
+   * Un matcher vacío ya NO significa "sin servicio". Si la imagen oficial
+   * contiene filas que todavía no hemos podido identificar, evitamos afirmar
+   * ausencia de servicio. Cuando GTFS/live sí han sido resueltos, un sentido
+   * realmente vacío se rotula explícitamente.
+   */
+  const canDeclareNoService = state.state === "ready" && !state.lastError && !state.unmatchedOfficialService;
+  const ascNoService = canDeclareNoService && asc.length === 0;
+  const descNoService = canDeclareNoService && desc.length === 0;
+
+  directions.classList.remove("no-service");
+  ascDirection.hidden = false;
+  descDirection.hidden = false;
+  ascLabel.textContent = ascNoService ? "ASCENDENTS: SENSE SERVEI COMERCIAL" : "ASCENDENTS";
+  if (descLabel) descLabel.textContent = descNoService ? "DESCENDENTS: SENSE SERVEI COMERCIAL" : "DESCENDENTS";
+  ascCount.hidden = ascNoService;
+  descCount.hidden = descNoService;
+
   renderDirection(S, "asc", asc);
   renderDirection(S, "desc", desc);
   ascCount.textContent = unitCountText(asc.length);
@@ -339,6 +432,7 @@ async function resolveStation(S, code) {
   S.isicView.stationName = "";
   S.isicView.state = "loading";
   S.isicView.lastError = null;
+  S.isicView.unmatchedOfficialService = false;
   $("#stationName").textContent = "";
   renderISIC(S);
 
@@ -375,6 +469,7 @@ function clearStationQueryState(S, code = "") {
   S.isicView.state = "empty";
   S.isicView.items = [];
   S.isicView.lastError = null;
+  S.isicView.unmatchedOfficialService = false;
   $("#stationName").textContent = "";
   renderISIC(S);
 }
@@ -437,14 +532,21 @@ export async function refreshISIC(S, { force = false } = {}) {
     let parsed = null;
     let isicError = null;
 
-    const departures = (await getStationDepartures(
+    let scheduled = (await getStationDepartures(
       S.config.gtfsZipIndexUrl,
       state.station,
       nowMs,
-      { fromMinutes:-180, toMinutes:180, limit:120 }
+      { fromMinutes:-180, toMinutes:180, limit:500 }
     ))
       .map(departure => buildScheduleRecord(S, departure))
       .filter(Boolean);
+
+    scheduled = await ensureMinimumDirectionSchedule(S, state.station, nowMs, scheduled);
+
+    /* Recuperación en tiempo real: si el filtro de calendario GTFS o cualquier
+       índice de estación omite una circulación que FGC confirma estacionada o
+       aproximándose a la estación, la reconstruimos desde su trip_id real. */
+    const departures = await mergeLiveStationRecords(S, scheduled, state.station, nowMs);
 
     try {
       parsed = await fetchIsicStation(S.config.isic, state.station, { force });
@@ -477,10 +579,18 @@ export async function refreshISIC(S, { force = false } = {}) {
       }
     }
 
+    /* No existe un máximo de 8 por sentido. Se muestran TODAS las
+       circulaciones programadas de la ventana de consulta; por ello, cuando
+       existen ocho o más ascendentes/descendentes, iSIC presenta al menos esas
+       ocho y continúa mostrando las restantes. Sólo se excluyen horarios ya
+       pasados que no estén respaldados por una fila iSIC o por un tren vivo. */
     const extras = departures
-      .filter(record => !matchedIds.has(record.id) && record.targetMs >= nowMs - 60000)
+      .filter(record => {
+        if (matchedIds.has(record.id)) return false;
+        if (record.live && (record.live.stationed === state.station || record.live.nextStop === state.station)) return true;
+        return record.targetMs >= nowMs - 60000;
+      })
       .sort((a, b) => a.targetMs - b.targetMs)
-      .slice(0, EXTRA_SCHEDULE_ROWS)
       .map(record => {
         const fixed = fixedPlatformFor({
           line:record.line,
@@ -490,13 +600,17 @@ export async function refreshISIC(S, { force = false } = {}) {
         return {
           ...record,
           platform:fixed?.platform ?? null,
-          source:fixed ? "fixed" : "schedule"
+          source:fixed ? "fixed" : record.source
         };
       });
 
     const byId = new Map();
     [...matchedItems, ...extras].forEach(item => byId.set(item.id, item));
-    state.items = [...byId.values()];
+    state.items = [...byId.values()].sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
+
+    /* Si el iSIC oficial muestra servicio pero no hemos logrado materializar ni
+       una circulación, NO afirmamos "SENSE SERVEI COMERCIAL". */
+    state.unmatchedOfficialService = Boolean(parsed?.rows?.length && state.items.length === 0);
     state.lastFetch = parsed ? new Date(parsed.fetchedAt) : new Date();
     state.lastError = isicError ? String(isicError?.message || isicError) : null;
     state.state = "ready";

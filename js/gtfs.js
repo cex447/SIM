@@ -1,4 +1,4 @@
-import { resolveGtfsTimestamp } from "./time.js?v=3.20.0";
+import { resolveGtfsTimestamp } from "./time.js?v=3.21.0";
 
 const CACHE = {
   index: null,
@@ -264,27 +264,88 @@ async function activeServiceIds(indexUrl, nowMs = Date.now()) {
   const cacheKey = keys.join("+");
   if (CACHE.serviceDates.has(cacheKey)) return CACHE.serviceDates.get(cacheKey);
 
-  const text = await textFile(indexUrl, "calendar_dates.txt", { optional:true });
-  if (!text) {
+  /*
+   * BETA 3.21.0
+   * GTFS permite definir el servicio ordinario en calendar.txt y modificarlo
+   * con calendar_dates.txt. Las betas anteriores consultaban únicamente
+   * calendar_dates.txt: en días con alguna excepción añadida podían filtrar
+   * accidentalmente TODO el servicio ordinario y dejar estaciones como
+   * PC/PR/GR sin candidatos aunque hubiera trenes circulando.
+   */
+  const [calendarText, datesText] = await Promise.all([
+    textFile(indexUrl, "calendar.txt", { optional:true }),
+    textFile(indexUrl, "calendar_dates.txt", { optional:true })
+  ]);
+
+  if (!calendarText && !datesText) {
     CACHE.serviceDates.set(cacheKey, null);
     return null;
   }
 
-  const header = headerOf(text);
-  const added = new Set();
-  const removed = new Set();
-  const keySet = new Set(keys);
-
-  for (const line of text.split(/\r?\n/).slice(1)) {
-    if (!line) continue;
-    const row = rowObject(header, line);
-    if (!keySet.has(String(row.date || "")) || !row.service_id) continue;
-    if (String(row.exception_type) === "1") added.add(row.service_id);
-    if (String(row.exception_type) === "2") removed.add(row.service_id);
+  const calendarRows = [];
+  if (calendarText) {
+    const header = headerOf(calendarText);
+    for (const line of calendarText.split(/\r?\n/).slice(1)) {
+      if (!line) continue;
+      const row = rowObject(header, line);
+      if (row.service_id) calendarRows.push(row);
+    }
   }
 
-  for (const id of removed) added.delete(id);
-  const value = added.size ? added : null;
+  const exceptionsByDate = new Map();
+  if (datesText) {
+    const header = headerOf(datesText);
+    for (const line of datesText.split(/\r?\n/).slice(1)) {
+      if (!line) continue;
+      const row = rowObject(header, line);
+      const key = String(row.date || "");
+      if (!key || !row.service_id) continue;
+      if (!exceptionsByDate.has(key)) exceptionsByDate.set(key, []);
+      exceptionsByDate.get(key).push(row);
+    }
+  }
+
+  const weekdayField = key => {
+    const y = Number(key.slice(0,4));
+    const m = Number(key.slice(4,6));
+    const d = Number(key.slice(6,8));
+    const day = new Date(y, m - 1, d, 12, 0, 0).getDay();
+    return ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][day];
+  };
+
+  const union = new Set();
+  let hasPositiveEvidence = false;
+
+  for (const key of keys) {
+    const active = new Set();
+
+    if (calendarRows.length) {
+      const weekday = weekdayField(key);
+      for (const row of calendarRows) {
+        const start = String(row.start_date || "00000000");
+        const end = String(row.end_date || "99999999");
+        if (key < start || key > end) continue;
+        if (String(row[weekday] || "0") === "1") active.add(row.service_id);
+      }
+      hasPositiveEvidence = true;
+    }
+
+    const exceptions = exceptionsByDate.get(key) || [];
+    for (const row of exceptions) {
+      if (String(row.exception_type) === "1") {
+        active.add(row.service_id);
+        hasPositiveEvidence = true;
+      } else if (String(row.exception_type) === "2") {
+        active.delete(row.service_id);
+      }
+    }
+
+    for (const id of active) union.add(id);
+  }
+
+  /* Si sólo existe calendar_dates y no hay ninguna entrada aplicable hoy,
+     evitamos inventar que no hay servicio: null significa "no filtrar". */
+  const value = hasPositiveEvidence ? union : null;
   CACHE.serviceDates.set(cacheKey, value);
   return value;
 }
