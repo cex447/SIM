@@ -1,7 +1,7 @@
-import { getTripBundle } from './gtfs.js?v=3.19.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.19.0';
-import { parentCode } from './operations.js?v=3.19.0';
-import { cachedPlatform, normalizePlatformValue } from './isic.js?v=3.19.0';
+import { getTripBundle } from './gtfs.js?v=3.20.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.20.0';
+import { parentCode } from './operations.js?v=3.20.0';
+import { cachedPlatform, normalizePlatformValue } from './isic.js?v=3.20.0';
 
 let initialized = false;
 let active = false;
@@ -27,12 +27,12 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const MAP_WIDTH = 6566.92;
 const MAP_HEIGHT = 4954.34;
 const TAP_MOVE_THRESHOLD = 7;
-const TRAIN_FONT_SIZE = 9.5;      // 25 % del tamaño visual de 3.16.0
-const TRAIN_CODE_WIDTH = 27;      // -10 % respecto a 3.18
-const TRAIN_HEIGHT = 11.7;        // -10 % respecto a 3.18
-const TRAIN_HIT_WIDTH = 31;
-const TRAIN_HIT_HEIGHT = 15.3;
-const TRAIN_TEXT_Y = -0.65;       // ajuste óptico: menos aire en la parte superior
+const TRAIN_FONT_SIZE = 8.35;     // referencia visual compacta aprobada (imagen D026 correcta)
+const TRAIN_CODE_WIDTH = 22.5;     // placa principal más ceñida al identificador
+const TRAIN_HEIGHT = 8.35;         // menos aire vertical; misma altura para el bloque +N
+const TRAIN_HIT_WIDTH = 26.5;
+const TRAIN_HIT_HEIGHT = 12.5;
+const TRAIN_TEXT_Y = -1.82;        // compensación óptica Futura/Canal+: centra el glifo visible
 
 const LINE_STATIONS = Object.freeze({
   L6: ['PC','PR','GR','SG','MN','BN','TT','SR'],
@@ -95,13 +95,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.19.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.20.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.19.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.20.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -112,7 +112,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.19.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.20.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -388,41 +388,84 @@ function directionKey(train) {
   return train?.ascending ? 'asc' : 'desc';
 }
 
-function confirmedPlatformPoint(station, train) {
+function platformMemoryKey(circulation, station) {
+  return `${String(circulation || '').toUpperCase()}|${String(station || '').toUpperCase()}`;
+}
+
+function clearStationPlatformMemory(circulation) {
+  const prefix = `${String(circulation || '').toUpperCase()}|`;
+  for (const key of [...stationPlatformMemory.keys()]) {
+    if (key.startsWith(prefix)) stationPlatformMemory.delete(key);
+  }
+}
+
+function platformInfoFromNumber(station, train, platform, source = 'default') {
+  const code = String(station || '').toUpperCase();
+  const normalized = normalizePlatformValue(platform);
+  if (!code || normalized === null || !motionGeometry) return null;
+  const circuit = motionGeometry?.platformCircuits?.[code]?.[String(normalized)];
+  const point = circuit ? motionGeometry?.circuitPoints?.[circuit] : null;
+  if (!circuit || !Array.isArray(point) || point.length < 2) return null;
+  return { station:code, platform:normalized, circuit, point, source };
+}
+
+function confirmedPlatformInfo(station, train) {
   const code = String(station || '').toUpperCase();
   if (!code || !train?.id || !motionGeometry) return null;
 
-  /* No hacemos ninguna consulta iSIC desde CTC. Sólo reutilizamos una vía
-     realmente confirmada y todavía vigente en la caché compartida que ya
-     alimentan PLASTIC/LIT/iSIC. */
+  /* CTC no genera consultas iSIC. Reutiliza únicamente vías ya confirmadas
+     por la caché compartida de PLASTIC/LIT/iSIC. */
   const staleMs = Number(latestState?.config?.isic?.staleMs || 30000);
   const cached = cachedPlatform(train.id, code, staleMs);
   const platform = normalizePlatformValue(cached?.platform);
   if (platform !== null) {
-    const circuit = motionGeometry?.platformCircuits?.[code]?.[String(platform)];
-    const point = circuit ? motionGeometry?.circuitPoints?.[circuit] : null;
-    if (Array.isArray(point) && point.length >= 2) {
-      stationPlatformMemory.set(train.circulation, { station:code, platform, circuit, point });
-      return point;
+    const info = platformInfoFromNumber(code, train, platform, cached?.source || 'isic');
+    if (info) {
+      stationPlatformMemory.set(platformMemoryKey(train.circulation, code), {
+        ...info,
+        tripId:train.id,
+        rememberedAt:Date.now()
+      });
+      return info;
     }
   }
 
-  /* Mientras FGC siga confirmando el mismo estacionamiento conservamos la
-     última vía que sí llegó confirmada. Así CTC no vuelve al fallback al
-     caducar la caché de 30 s y tampoco necesita mantener consultas iSIC. */
-  const remembered = stationPlatformMemory.get(train.circulation);
-  if (remembered?.station === code && Array.isArray(remembered.point)) return remembered.point;
+  /* Mientras la misma circulación/trip siga viva conservamos la última vía
+     realmente confirmada. Es imprescindible para que una salida desde PC4,
+     por ejemplo, siga naciendo en PC4 después de dejar de estar estacionada. */
+  const remembered = stationPlatformMemory.get(platformMemoryKey(train.circulation, code));
+  if (
+    remembered?.tripId === train.id &&
+    Date.now() - Number(remembered.rememberedAt || 0) < 2 * 60 * 60 * 1000 &&
+    Array.isArray(remembered.point)
+  ) return remembered;
+
   return null;
+}
+
+function defaultPlatformInfo(station, train) {
+  const code = String(station || '').toUpperCase();
+  const entry = motionGeometry?.defaultPlatforms?.[code];
+  if (!entry) return null;
+  const value = entry[directionKey(train)];
+  return platformInfoFromNumber(code, train, value, 'operational-default');
+}
+
+function platformInfo(station, train, { allowDefault = false } = {}) {
+  return confirmedPlatformInfo(station, train) || (allowDefault ? defaultPlatformInfo(station, train) : null);
+}
+
+function confirmedPlatformPoint(station, train) {
+  return platformInfo(station, train)?.point || null;
 }
 
 function stationPoint(station, train, { preferConfirmedPlatform = false } = {}) {
   const code = String(station || '').toUpperCase();
   const direction = directionKey(train);
 
-  /* Cuando el tren está confirmado estacionado, una vía real conocida tiene
-     prioridad absoluta sobre cualquier regla nominal de línea. Para las
-     trayectorias en movimiento no usamos esta tabla: sin un encaminamiento
-     documentado desde cada vía no dibujamos atajos inventados por agujas. */
+  /* Una vía real conocida tiene prioridad absoluta sobre cualquier regla
+     nominal. Las reglas de línea (L7/GR, L12/SR...) siguen siendo el segundo
+     nivel y los puntos por sentido son únicamente el fallback. */
   if (preferConfirmedPlatform) {
     const confirmed = confirmedPlatformPoint(code, train);
     if (confirmed) return confirmed;
@@ -439,16 +482,40 @@ function stationPoint(station, train, { preferConfirmedPlatform = false } = {}) 
   return entry[direction] || entry.asc || entry.desc || null;
 }
 
-function explicitPath(from, to, train) {
+function platformSegmentPath(from, to, train, state) {
   const key = `${from}>${to}|${directionKey(train)}`;
-  const linePath = motionGeometry?.linePaths?.[train?.line]?.[key];
-  if (Array.isArray(linePath) && linePath.length >= 2) return linePath;
-  return motionGeometry?.paths?.[key] || null;
+  const rule = motionGeometry?.platformSegmentPaths?.[key];
+  if (!rule) return null;
+
+  if (rule.from) {
+    const platform = normalizePlatformValue(state?.fromPlatform ?? defaultPlatformInfo(from, train)?.platform);
+    const path = platform !== null ? rule.from[String(platform)] : null;
+    if (Array.isArray(path) && path.length >= 2) return path;
+  }
+
+  if (rule.to) {
+    const platform = normalizePlatformValue(state?.toPlatform ?? defaultPlatformInfo(to, train)?.platform);
+    const path = platform !== null ? rule.to[String(platform)] : null;
+    if (Array.isArray(path) && path.length >= 2) return path;
+  }
+
+  return null;
 }
 
-function pathFor(from, to, train) {
+function pathFor(from, to, train, state = null) {
   if (!from || !to || !motionGeometry) return null;
-  const direct = explicitPath(from, to, train);
+  const key = `${from}>${to}|${directionKey(train)}`;
+
+  /* Una geometría específica de línea tiene máxima prioridad (L7/L12). */
+  const linePath = motionGeometry?.linePaths?.[train?.line]?.[key];
+  if (Array.isArray(linePath) && linePath.length >= 2) return linePath;
+
+  /* Después, si conocemos la vía real de origen/destino, usamos la ruta
+     completa que parte/termina exactamente sobre su circuito. */
+  const platformPath = platformSegmentPath(from, to, train, state);
+  if (Array.isArray(platformPath) && platformPath.length >= 2) return platformPath;
+
+  const direct = motionGeometry?.paths?.[key];
   if (Array.isArray(direct) && direct.length >= 2) return direct;
 
   const a = stationPoint(from, train);
@@ -567,8 +634,17 @@ function scheduledDepartureMs(stops, from, nowMs) {
   return value ? resolveGtfsTimestamp(value, nowMs) : null;
 }
 
-function makeStationState(train, station, nowMs) {
-  return {
+function applyPlatformInfoToStationState(state, info) {
+  if (!state || !info) return state;
+  state.platform = info.platform;
+  state.circuit = info.circuit;
+  state.platformPoint = info.point;
+  state.platformSource = info.source || null;
+  return state;
+}
+
+function makeStationState(train, station, nowMs, info = null) {
+  const state = {
     circulation:train.circulation,
     tripId:train.id,
     line:train.line,
@@ -579,11 +655,25 @@ function makeStationState(train, station, nowMs) {
     startMs:nowMs,
     durationMs:null,
     train,
-    updatedAt:nowMs
+    updatedAt:nowMs,
+    platform:null,
+    circuit:null,
+    platformPoint:null,
+    platformSource:null
   };
+  return applyPlatformInfoToStationState(state, info);
 }
 
-function makeMovingState(train, from, to, startMs, durationMs, nowMs, startSource = 'observed') {
+function makeMovingState(
+  train,
+  from,
+  to,
+  startMs,
+  durationMs,
+  nowMs,
+  startSource = 'observed',
+  { fromInfo = null, toInfo = null } = {}
+) {
   return {
     circulation:train.circulation,
     tripId:train.id,
@@ -596,7 +686,11 @@ function makeMovingState(train, from, to, startMs, durationMs, nowMs, startSourc
     durationMs,
     startSource,
     train,
-    updatedAt:nowMs
+    updatedAt:nowMs,
+    fromPlatform:fromInfo?.platform ?? null,
+    fromCircuit:fromInfo?.circuit ?? null,
+    toPlatform:toInfo?.platform ?? null,
+    toCircuit:toInfo?.circuit ?? null
   };
 }
 
@@ -616,21 +710,28 @@ function reconcileTrain(S, train, nowMs) {
 
   if (train.stationed) {
     const station = String(train.stationed).toUpperCase();
-    const next = makeStationState(train, station, nowMs);
+    const confirmed = platformInfo(station, train, { allowDefault:false });
+    const inherited = previous?.mode === 'station' && previous.station === station && previous.platform !== null
+      ? {
+          station,
+          platform:previous.platform,
+          circuit:previous.circuit,
+          point:previous.platformPoint,
+          source:previous.platformSource || 'remembered-state'
+        }
+      : null;
+    const next = makeStationState(train, station, nowMs, confirmed || inherited);
     if (previous && previous.mode !== 'station') next.resyncUntil = nowMs + 450;
     motionStates.set(train.circulation, next);
     return;
   }
 
-  stationPlatformMemory.delete(train.circulation);
-
   const to = String(train.nextStop || '').toUpperCase();
   if (!to) {
     /* Si el snapshot actual ya no confirma ni estacionamiento ni próxima
-       parada, no conservamos una posición anterior. Evita marcadores
-       fantasma/residuales, especialmente al terminar servicio en terminales. */
+       parada, no conservamos una posición anterior. */
     motionStates.delete(train.circulation);
-    stationPlatformMemory.delete(train.circulation);
+    clearStationPlatformMemory(train.circulation);
     const marker = markerNodes.get(train.circulation);
     if (marker) {
       marker.group.remove();
@@ -650,24 +751,49 @@ function reconcileTrain(S, train, nowMs) {
       previous.startMs = inferMovingStart(train, stops, previous.from, nowMs);
       previous.startSource = 'schedule';
     }
+
+    /* La vía de destino puede aparecer en la caché iSIC durante la marcha. */
+    if (previous.toPlatform === null) {
+      const toInfo = platformInfo(to, train, { allowDefault:true });
+      if (toInfo) {
+        previous.toPlatform = toInfo.platform;
+        previous.toCircuit = toInfo.circuit;
+      }
+    }
     return;
   }
 
   let from = null;
   let startMs = nowMs;
   let startSource = 'unknown';
+  let fromInfo = null;
 
   if (previous?.mode === 'station') {
     from = previous.station;
     startSource = 'departure-observed';
+    fromInfo = previous.platform !== null
+      ? {
+          station:from,
+          platform:previous.platform,
+          circuit:previous.circuit,
+          point:previous.platformPoint,
+          source:previous.platformSource || 'station-state'
+        }
+      : platformInfo(from, train, { allowDefault:true });
   } else if (previous?.mode === 'moving' && previous.to && previous.to !== to) {
     from = previous.to;
     startSource = 'pass-observed';
+    fromInfo = previous.toPlatform !== null
+      ? platformInfoFromNumber(from, train, previous.toPlatform, 'previous-target')
+      : platformInfo(from, train, { allowDefault:true });
   }
 
   if (!from && stops.length) from = previousScheduledStation(stops, to);
   if (!from) from = previousNetworkStation(train, to);
   if (!from) return;
+
+  if (!fromInfo) fromInfo = platformInfo(from, train, { allowDefault:true });
+  const toInfo = platformInfo(to, train, { allowDefault:true });
 
   const durationMs = stops.length ? segmentDurationMs(stops, from, to) : null;
   if (startSource === 'unknown' && stops.length && train.onTime === true) {
@@ -677,7 +803,7 @@ function reconcileTrain(S, train, nowMs) {
 
   motionStates.set(
     train.circulation,
-    makeMovingState(train, from, to, startMs, durationMs, nowMs, startSource)
+    makeMovingState(train, from, to, startMs, durationMs, nowMs, startSource, { fromInfo, toInfo })
   );
 }
 
@@ -835,11 +961,26 @@ function delayMinutes(state, nowMs) {
 function positionForState(state, nowMs) {
   if (!state?.train) return null;
   if (state.mode === 'station') {
-    const point = stationPoint(state.station, state.train, { preferConfirmedPlatform:true });
+    const confirmed = platformInfo(state.station, state.train, { allowDefault:false });
+    if (confirmed) applyPlatformInfoToStationState(state, confirmed);
+
+    const point = Array.isArray(state.platformPoint)
+      ? state.platformPoint
+      : stationPoint(state.station, state.train, { preferConfirmedPlatform:true });
     return point ? { x:point[0], y:point[1], waiting:false } : null;
   }
 
-  const points = pathFor(state.from, state.to, state.train);
+  /* Si conocemos posteriormente la vía de destino, la incorporamos sin
+     generar ninguna consulta nueva desde CTC. */
+  if (state.toPlatform === null) {
+    const toInfo = platformInfo(state.to, state.train, { allowDefault:true });
+    if (toInfo) {
+      state.toPlatform = toInfo.platform;
+      state.toCircuit = toInfo.circuit;
+    }
+  }
+
+  const points = pathFor(state.from, state.to, state.train, state);
   if (!points) return null;
 
   let progress = 0;
@@ -882,7 +1023,7 @@ function updateMarkerVisual(marker, train, state, position, nowMs) {
   }
 
   const label = `+${minutes}`;
-  const delayWidth = Math.max(10, label.length * (TRAIN_FONT_SIZE * 0.56) + 4);
+  const delayWidth = Math.max(8, label.length * (TRAIN_FONT_SIZE * 0.54) + 3.2);
   delayRect.removeAttribute('hidden');
   delayText.removeAttribute('hidden');
   delayRect.setAttribute('x', TRAIN_CODE_WIDTH / 2);
@@ -913,7 +1054,7 @@ function renderFrame(S, nowMs = Date.now()) {
     marker.group.remove();
     markerNodes.delete(code);
     motionStates.delete(code);
-    stationPlatformMemory.delete(code);
+    clearStationPlatformMemory(code);
   }
 }
 
@@ -1002,7 +1143,7 @@ export function updateCTC(S, nowMs = Date.now()) {
   for (const code of [...motionStates.keys()]) {
     if (!liveCodes.has(code)) {
       motionStates.delete(code);
-      stationPlatformMemory.delete(code);
+      clearStationPlatformMemory(code);
     }
   }
 

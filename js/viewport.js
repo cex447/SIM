@@ -75,7 +75,7 @@ function ensureWrapped(view) {
   };
 
   /*
-   * BETA 3.19.0 · PLASTIC / iSIC / LIT / SIV
+   * BETA 3.20.0 · PLASTIC / iSIC / LIT / SIV
    *
    * Un dedo se deja por completo al scroll nativo. El pinch usa únicamente
    * TouchEvent y una referencia inmutable tomada al colocar el segundo dedo.
