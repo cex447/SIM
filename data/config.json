@@ -63,6 +63,7 @@
       "S1": "#F47216",
       "S2": "#59C134"
     },
-    "delayColor": "#FF2C2C"
+    "delayColor": "#FF2C2C",
+    "platformMemoryMs": 1800000
   }
 }
