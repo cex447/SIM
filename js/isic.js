@@ -1,4 +1,4 @@
-import { resolveGtfsTimestamp } from "./time.js?v=3.22.0";
+import { resolveGtfsTimestamp } from "./time.js?v=3.23.0";
 
 /*
  * SIM+ · iSIC visual parser + matching seguro
@@ -30,6 +30,7 @@ const LINE_COLORS = Object.freeze({
 
 const stationImageCache = new Map();
 const platformCache = new Map();
+const circulationPlatformCache = new Map();
 
 /*
  * VÍA 0 es un valor ferroviario válido en algunas situaciones excepcionales.
@@ -389,11 +390,15 @@ export async function fetchIsicStation(config, station, { force = false } = {}) 
 export function fixedPlatformFor(context) {
   const origin = String(context?.effectiveOrigin || "");
   const station = String(context?.station || origin);
+
+  /* L12: Sarrià es siempre vía 4 tanto al iniciar como al finalizar.
+     Esta regla es válida aunque SR no sea el origen efectivo del viaje. */
+  if (context?.line === "L12" && station === "SR") {
+    return { platform:4, source:"fixed", reason:"L12 a SR: via 4 fixa" };
+  }
+
   if (station !== origin) return null;
   if (origin === "TB") return { platform:1, source:"fixed", reason:"TB: única via" };
-  if (context?.line === "L12" && origin === "SR") {
-    return { platform:4, source:"fixed", reason:"L12 a SR: regla fixa" };
-  }
   return null;
 }
 
@@ -570,6 +575,16 @@ function platformKey(tripId, station) {
   return `${String(tripId || "")}|${String(station || "").toUpperCase()}`;
 }
 
+function circulationPlatformKey(circulation, station) {
+  return `${String(circulation || "").toUpperCase()}|${String(station || "").toUpperCase()}`;
+}
+
+function platformFresh(value, staleMs) {
+  if (!value) return false;
+  if (value.source === "fixed") return true;
+  return Date.now() - value.confirmedAt <= Math.max(1000, Number(staleMs) || 30000);
+}
+
 export function rememberPlatform(tripId, station, platform, source = "isic", meta = {}) {
   const normalized = normalizePlatformValue(platform);
   if (!tripId || normalized === null) return null;
@@ -582,22 +597,35 @@ export function rememberPlatform(tripId, station, platform, source = "isic", met
     ...meta
   };
   platformCache.set(platformKey(tripId, station), value);
+  if (value.circulation) {
+    circulationPlatformCache.set(circulationPlatformKey(value.circulation, station), value);
+  }
   return value;
 }
 
 export function clearPlatform(tripId, station) {
-  platformCache.delete(platformKey(tripId, station));
+  const key = platformKey(tripId, station);
+  const existing = platformCache.get(key);
+  platformCache.delete(key);
+  if (existing?.circulation) {
+    const cKey = circulationPlatformKey(existing.circulation, station);
+    const shared = circulationPlatformCache.get(cKey);
+    if (shared?.tripId === String(tripId)) circulationPlatformCache.delete(cKey);
+  }
 }
 
 export function cachedPlatform(tripId, station, staleMs = 30000) {
   const value = platformCache.get(platformKey(tripId, station));
-  if (!value) return null;
-  if (value.source === "fixed") return value;
-  if (Date.now() - value.confirmedAt > Math.max(1000, Number(staleMs) || 30000)) return null;
-  return value;
+  return platformFresh(value, staleMs) ? value : null;
+}
+
+export function cachedPlatformByCirculation(circulation, station, staleMs = 30000) {
+  const value = circulationPlatformCache.get(circulationPlatformKey(circulation, station));
+  return platformFresh(value, staleMs) ? value : null;
 }
 
 export function clearAllIsicCaches() {
   stationImageCache.clear();
   platformCache.clear();
+  circulationPlatformCache.clear();
 }

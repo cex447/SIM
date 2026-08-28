@@ -1,18 +1,19 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.22.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.23.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.22.0";
-import { updateOccupancy } from "./occupancy.js?v=3.22.0";
-import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.22.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.22.0";
+} from "./gtfs.js?v=3.23.0";
+import { updateOccupancy } from "./occupancy.js?v=3.23.0";
+import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.23.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.23.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows,
-  normalizePlatformValue
-} from "./isic.js?v=3.22.0";
+  normalizePlatformValue,
+  rememberPlatform
+} from "./isic.js?v=3.23.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
@@ -58,6 +59,52 @@ function limitPerLineDirection(items) {
       counts.set(key, count + 1);
       return true;
     });
+}
+
+/* BETA 3.23.0 · una circulación sólo puede existir una vez en iSIC.
+   GTFS puede devolver el mismo número de circulación desde más de un service_id
+   y, además, la recuperación live puede aportar el mismo tren por otra vía. La
+   deduplicación se realiza ANTES de matching, contadores y límite 4×línea×sentido. */
+function mergeDuplicateCirculation(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+
+  const aPlatform = normalizePlatformValue(a.platform);
+  const bPlatform = normalizePlatformValue(b.platform);
+  const withPlatform = aPlatform !== null ? a : (bPlatform !== null ? b : null);
+  const withLive = a.live ? a : (b.live ? b : null);
+  const chronological = Number(a.targetMs) <= Number(b.targetMs) ? a : b;
+  const preferred = withPlatform || withLive || chronological;
+  const live = a.live || b.live || null;
+  const platformRecord = withPlatform || preferred;
+  const id = live?.id || preferred.id || chronological.id;
+
+  return {
+    ...chronological,
+    ...preferred,
+    id,
+    key:id || preferred.key || chronological.key,
+    circulation:preferred.circulation || chronological.circulation,
+    live,
+    targetMs:chronological.targetMs,
+    departure:chronological.departure,
+    platform:normalizePlatformValue(platformRecord.platform),
+    isicTime:platformRecord.isicTime ?? preferred.isicTime ?? chronological.isicTime ?? null,
+    platformMode:platformRecord.platformMode ?? preferred.platformMode ?? null,
+    source:withPlatform ? platformRecord.source : preferred.source
+  };
+}
+
+function dedupeByCirculation(items) {
+  const map = new Map();
+  for (const item of items || []) {
+    const circulation = String(item?.circulation || "").toUpperCase();
+    if (!circulation) continue;
+    map.set(circulation, mergeDuplicateCirculation(map.get(circulation), item));
+  }
+  return [...map.values()].sort((a,b) =>
+    a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation)
+  );
 }
 
 function normalizeStationInput(value) {
@@ -170,15 +217,17 @@ async function buildLiveStationRecord(S, live, station, nowMs) {
 }
 
 async function mergeLiveStationRecords(S, records, station, nowMs) {
-  const byId = new Map(records.map(record => [record.id, record]));
+  const base = dedupeByCirculation(records);
+  const known = new Set(base.map(record => record.circulation));
   const related = (S.trains || []).filter(train =>
     String(train.stationed || "") === station || String(train.nextStop || "") === station
   );
   const recovered = await Promise.all(
-    related.filter(train => !byId.has(train.id)).map(train => buildLiveStationRecord(S, train, station, nowMs))
+    related
+      .filter(train => !known.has(train.circulation))
+      .map(train => buildLiveStationRecord(S, train, station, nowMs))
   );
-  for (const record of recovered) if (record) byId.set(record.id, record);
-  return [...byId.values()].sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
+  return dedupeByCirculation([...base, ...recovered.filter(Boolean)]);
 }
 
 
@@ -403,7 +452,7 @@ export function renderISIC(S) {
   const descLabel = $("#isicDescLabel");
 
   /*
-   * BETA 3.22.0 · el estado se decide por sentido.
+   * BETA 3.23.0 · el estado se decide por sentido.
    * Un matcher vacío ya NO significa "sin servicio". Si la imagen oficial
    * contiene filas que todavía no hemos podido identificar, evitamos afirmar
    * ausencia de servicio. Cuando GTFS/live sí han sido resueltos, un sentido
@@ -533,14 +582,14 @@ export async function refreshISIC(S, { force = false } = {}) {
     let parsed = null;
     let isicError = null;
 
-    let scheduled = (await getStationDepartures(
+    let scheduled = dedupeByCirculation((await getStationDepartures(
       S.config.gtfsZipIndexUrl,
       state.station,
       nowMs,
       { fromMinutes:-180, toMinutes:180, limit:500 }
     ))
       .map(departure => buildScheduleRecord(S, departure))
-      .filter(Boolean);
+      .filter(Boolean));
 
 
     /* Recuperación en tiempo real: si el filtro de calendario GTFS o cualquier
@@ -576,10 +625,22 @@ export async function refreshISIC(S, { force = false } = {}) {
           platformMode:match.row?.platformMode || null,
           source:"isic"
         });
+
+        /* Compartimos la vía confirmada con PLASTIC/LIT/CTC. Guardamos tanto
+           el trip_id de horario como el trip_id live cuando difieren. */
+        const cacheIds = new Set([record.id, record.live?.id].filter(Boolean));
+        for (const tripId of cacheIds) {
+          rememberPlatform(tripId, state.station, platform, "isic", {
+            circulation:record.circulation,
+            row:match.row,
+            assessment:match.assessment,
+            imageFetchedAt:parsed.fetchedAt
+          });
+        }
       }
     }
 
-    /* BETA 3.22.0: el límite es por línea + sentido, no por sentido global.
+    /* BETA 3.23.0: el límite es por línea + sentido, no por sentido global.
        Se conservan como máximo las cuatro circulaciones cronológicamente más
        próximas de cada combinación (L6/S1/S2/L7/L12 × asc/desc). */
     const extras = departures
@@ -602,9 +663,8 @@ export async function refreshISIC(S, { force = false } = {}) {
         };
       });
 
-    const byId = new Map();
-    [...matchedItems, ...extras].forEach(item => byId.set(item.id, item));
-    state.items = limitPerLineDirection([...byId.values()]);
+    const uniqueItems = dedupeByCirculation([...matchedItems, ...extras]);
+    state.items = limitPerLineDirection(uniqueItems);
 
     /* Si el iSIC oficial muestra servicio pero no hemos logrado materializar ni
        una circulación, NO afirmamos "SENSE SERVEI COMERCIAL". */

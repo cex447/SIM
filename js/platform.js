@@ -8,6 +8,7 @@
  */
 export {
   cachedPlatform,
+  cachedPlatformByCirculation,
   clearAllIsicCaches,
   clearPlatform,
   fetchIsicStation,
@@ -18,4 +19,4 @@ export {
   pairAssessment,
   parseIsicImageData,
   rememberPlatform
-} from "./isic.js?v=3.22.0";
+} from "./isic.js?v=3.23.0";

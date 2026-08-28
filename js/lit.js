@@ -1,15 +1,15 @@
-import { getTripBundle } from "./gtfs.js?v=3.22.0";
+import { getTripBundle } from "./gtfs.js?v=3.23.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.22.0";
+} from "./time.js?v=3.23.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.22.0";
+} from "./operations.js?v=3.23.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -18,7 +18,7 @@ import {
   matchContextToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.22.0";
+} from "./isic.js?v=3.23.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const LIT_PLATFORM_NEAR_MS = 10000;
@@ -627,7 +627,7 @@ function seedKnownPlatforms(S) {
       station,
       effectiveOrigin
     });
-    if (index === 0 && fixed) {
+    if (fixed) {
       rememberPlatform(live.id, station, fixed.platform, "fixed", { circulation:live.circulation });
       applySelectedPlatform(S, index, fixed.platform, "fixed");
       return;
@@ -641,22 +641,25 @@ function seedKnownPlatforms(S) {
 async function queryLITStationPlatform(S, index, force = false) {
   const selected = S.selected;
   if (!selected?.stops?.[index] || !selected.live) return;
-  if (index >= selected.stops.length - 1) return; // el destí final no té sortida pròpia garantida
 
   const stop = selected.stops[index];
   const station = parentCode(stop);
   const effectiveOrigin = parentCode(selected.stops[0]);
-  const fixed = index === 0 ? fixedPlatformFor({
+  const fixed = fixedPlatformFor({
     line:selected.live.line,
     station,
     effectiveOrigin
-  }) : null;
+  });
 
+  /* Las reglas operativas fijas se aplican incluso en destino final.
+     Ejemplo: L12 RE→SR debe terminar mostrando SR4. */
   if (fixed) {
     rememberPlatform(selected.live.id, station, fixed.platform, "fixed", { circulation:selected.live.circulation });
     applySelectedPlatform(S, index, fixed.platform, "fixed");
     return;
   }
+
+  if (index >= selected.stops.length - 1) return; // sin regla fija no inferimos vía final
 
   const selectionKey = `${selected.live.id}|${selected.circulation}`;
 

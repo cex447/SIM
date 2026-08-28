@@ -1,7 +1,7 @@
-import { getTripBundle } from './gtfs.js?v=3.22.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.22.0';
-import { parentCode } from './operations.js?v=3.22.0';
-import { cachedPlatform, normalizePlatformValue } from './isic.js?v=3.22.0';
+import { getTripBundle } from './gtfs.js?v=3.23.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.23.0';
+import { parentCode } from './operations.js?v=3.23.0';
+import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.23.0';
 
 let initialized = false;
 let active = false;
@@ -95,13 +95,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.22.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.23.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.22.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.23.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -112,7 +112,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.22.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.23.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -415,8 +415,16 @@ function confirmedPlatformInfo(station, train) {
 
   /* CTC no genera consultas iSIC. Reutiliza únicamente vías ya confirmadas
      por la caché compartida de PLASTIC/LIT/iSIC. */
-  const staleMs = Number(latestState?.config?.isic?.staleMs || 30000);
-  const cached = cachedPlatform(train.id, code, staleMs);
+  /* Una vía confirmada puede haberse leído en iSIC/PLASTIC varios minutos
+     antes de que la circulación empiece a moverse. Mientras siga siendo el
+     mismo trip_id conservamos esa confirmación para CTC; no generamos una
+     nueva consulta Cloudflare desde CTC. */
+  const staleMs = Math.max(
+    Number(latestState?.config?.isic?.staleMs || 30000),
+    Number(latestState?.config?.ctc?.platformMemoryMs || 30 * 60 * 1000)
+  );
+  const cached = cachedPlatform(train.id, code, staleMs) ||
+    cachedPlatformByCirculation(train.circulation, code, staleMs);
   const platform = normalizePlatformValue(cached?.platform);
   if (platform !== null) {
     const info = platformInfoFromNumber(code, train, platform, cached?.source || 'isic');
