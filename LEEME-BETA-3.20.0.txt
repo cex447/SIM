@@ -1,0 +1,62 @@
+SIM+ BETA 3.20.0
+=================
+
+Base: SIM+ Beta 3.19.0.
+Fecha: 28/08/2026.
+
+CAMBIOS PRINCIPALES
+-------------------
+
+1. CTC · VIA REAL = CIRCUITO REAL, TAMBIEN EN MOVIMIENTO
+- La via real confirmada ya no solo fija la placa cuando el tren esta estacionado.
+- La trayectoria de entrada/salida arranca y termina en el circuito exacto de esa via.
+- CTC no genera consultas iSIC adicionales: reutiliza la via ya confirmada por la cache compartida.
+- La ultima via confirmada se conserva durante la salida para evitar volver al fallback al abandonar la estacion.
+
+PC:
+- PC1 = via 1, PC2 = via 2, PC3 = via 3, PC4 = via 4, PC5 = via 5.
+- Se han catalogado trayectorias completas PC<->PR para las cinco vias.
+- Ejemplo del fallo corregido: una L7 que sale de via 4 (p.ej. B015) comienza en PC4, no en PC1.
+
+SR:
+- SR5 = via 1.
+- SR21 = via 2.
+- SR20 conserva la correspondencia/alias ya documentado para la tercera via operativa de la tabla aportada y la regla fija L12.
+- Como fallback por sentido para S1/S2/L6: ascendente -> via 1/SR5; descendente -> via 2/SR21.
+- Nunca se coloca una circulacion descendente en una coordenada intermedia entre SR21 y SR5.
+- Se han catalogado trayectorias completas TT<->SR y SR<->PF para cada circuito de estacionamiento conocido.
+- Ejemplos corregidos de la incidencia: D014/F010 en via 2 quedan sobre SR21 y sus movimientos parten/llegan a SR21.
+
+2. CTC · SC <-> VO
+- Se sustituyen las interpolaciones incorrectas por dos recorridos independientes.
+- Ascendentes (impares): siguen el trazado verde aportado por el usuario, desde SC9 por SCA12/SCA6, escape al corredor inferior y continuacion por VO1.
+- Descendentes (pares): siguen el trazado rosa, por VO2 y el escape que enlaza con el corredor superior hacia SC6.
+- Los recorridos son guias invisibles; SIM+ no colorea ni muestra las rutas.
+
+3. CTC · PLACAS DE CIRCULACION
+- Nueva proporcion compacta basada en la segunda imagen D026 aprobada.
+- Placa principal: 22.5 x 8.35 unidades SVG.
+- Fuente: 8.35 unidades.
+- Compensacion optica vertical reforzada para minimizar el aire superior.
+- La misma altura/criterio se aplica al bloque rojo +N de retraso.
+- El bloque rojo sigue sin existir si no hay retraso cuantificable >= +1.
+- La zona tactil continua siendo ligeramente mayor que la placa visible.
+
+4. SE CONSERVA TODO LO ANTERIOR
+- CTC vectorial por viewBox, vista inicial de PC calibrada, memoria de encuadre.
+- Tap circulacion -> LIT; tap ceñido a letras verdes -> iSIC.
+- L7 ascendente por GR11 y geometria GR/PM confirmada.
+- L12 en SR20 y RE1 nominal; RE2 nunca como fallback.
+- SC<->MS separado por sentido.
+- Movimiento por horario GTFS + resincronizacion FGC + espera al 97.5 %.
+- PLASTIC ordena por numero de circulacion dentro de cada linea.
+- Zoom no-CTC mantiene el motor estable de 3.19.0.
+
+PUBLICACION EN GITHUB
+---------------------
+El ZIP esta preparado para subir su CONTENIDO directamente a la raiz del repositorio.
+No existe una carpeta sim_3200 contenedora. Sustituir los archivos homonimos.
+
+VALIDACION
+----------
+Antes de empaquetar se comprueban sintaxis JS, JSON, HTML/SVG, rutas geometricas, integridad ZIP y extraccion byte a byte.
