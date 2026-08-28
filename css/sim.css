@@ -443,7 +443,7 @@ main{ min-height:0; overflow:hidden; }
 .plastic-filters{
   position:sticky;
   top:0;
-  z-index:9;
+  z-index:30;
   width:100%;
   background:var(--bg);
   padding:7px 0 2px;
@@ -1012,7 +1012,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.20.0 · CROM FIX + VIEWPORT PAN/ZOOM
+   BETA 3.21.0 · CROM FIX + VIEWPORT PAN/ZOOM
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1056,8 +1056,11 @@ main{
   overflow:hidden;
 }
 
-/* Cada mòdul és el seu propi viewport. Una sola dit continua fent scroll
-   natiu; dos dits/ctrl+roda controlen el zoom mitjançant viewport.js. */
+/* BETA 3.21 · viewport de documento.
+   Un dedo conserva el scroll nativo. El pinch aplica una sola escala de
+   maquetación (`zoom`) a TODO el contenido de la vista. Así los filtros sticky,
+   iconos, títulos y filas no se desacoplan entre sí como ocurría con
+   transform:scale()+spacer. */
 .view{
   position:relative;
   overflow:auto !important;
@@ -1065,19 +1068,14 @@ main{
   overscroll-behavior:contain;
   padding-bottom:18px;
 }
-.zoom-spacer{
-  position:relative;
-  min-width:100%;
-  min-height:100%;
-}
+.zoom-spacer{ display:contents; }
 .zoom-layer{
-  position:absolute;
-  left:0;
-  top:0;
+  position:relative;
   width:100%;
   min-width:100%;
+  min-height:100%;
+  transform:none !important;
   transform-origin:0 0;
-  will-change:transform;
 }
 
 /* CTC 3.18: el sinòptic se renderiza mediante viewBox real.
