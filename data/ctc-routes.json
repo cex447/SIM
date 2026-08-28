@@ -1,5 +1,5 @@
 {
-  "version": "3.19.0",
+  "version": "3.20.0",
   "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. Beta 3.16.0 lo conserva como política/topología de explotación: el motor de movimiento usa sólo geometrías confirmadas o corredores nominales y no dibuja las rutas.",
   "conventions": {
     "normal": "recorrido ordinario",
@@ -313,6 +313,38 @@
       "type": "alternative",
       "direction": "both",
       "notes": "Ejemplos de uso de la vía/andén contrario en explotación degradada por vía única.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "PC_PLATFORM_EXACT",
+      "zone": "PC",
+      "type": "normal",
+      "direction": "both",
+      "notes": "3.20.0: si la vía real está confirmada, estacionamiento, entrada y salida usan el circuito homónimo PC1..PC5 y la geometría completa de agujas correspondiente; no se fuerza PC1/PC2 por sentido.",
+      "status": "confirmed_operational"
+    },
+    {
+      "id": "SR_PLATFORM_EXACT",
+      "zone": "SR",
+      "type": "normal",
+      "direction": "both",
+      "notes": "3.20.0: vía 1=SR5 y vía 2=SR21. Una circulación de vía 2 queda centrada en SR21 y sus trayectorias TT↔SR/PF↔SR terminan/parten allí; SR20 mantiene la regla específica ya documentada.",
+      "status": "confirmed_operational"
+    },
+    {
+      "id": "SC_VO_ASC",
+      "zone": "SC-VO",
+      "type": "normal",
+      "direction": "asc",
+      "notes": "3.20.0: trazado verde confirmado por el usuario; desde la vía ascendente de SC sigue el corredor inferior y el escape que desemboca en la vía ascendente de VO.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "VO_SC_DESC",
+      "zone": "SC-VO",
+      "type": "normal",
+      "direction": "desc",
+      "notes": "3.20.0: trazado rosa confirmado por el usuario; desde VO sigue el corredor superior y el escape que desemboca en la vía descendente de SC.",
       "status": "confirmed_graphic"
     }
   ]
