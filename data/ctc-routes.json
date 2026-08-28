@@ -1,5 +1,5 @@
 {
-  "version": "3.21.0",
+  "version": "3.22.0",
   "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. Beta 3.16.0 lo conserva como política/topología de explotación: el motor de movimiento usa sólo geometrías confirmadas o corredores nominales y no dibuja las rutas.",
   "conventions": {
     "normal": "recorrido ordinario",
@@ -328,7 +328,7 @@
       "zone": "SR",
       "type": "normal",
       "direction": "both",
-      "notes": "3.20.0: vía 1=SR5 y vía 2=SR21. Una circulación de vía 2 queda centrada en SR21 y sus trayectorias TT↔SR/PF↔SR terminan/parten allí; SR20 mantiene la regla específica ya documentada.",
+      "notes": "3.20.0: vía 1=SR5 y vía 2=SR21. Una circulación de vía 2 queda centrada en SR21 y sus trayectorias TT↔SR/PF↔SR terminan/parten allí; SR20 mantiene la regla específica L12: SR20 corresponde a vía 4; en SR no existe vía 3.",
       "status": "confirmed_operational"
     },
     {

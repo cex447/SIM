@@ -1,5 +1,5 @@
 {
-  "version": "3.21.0",
+  "version": "3.22.0",
   "purpose": "Geometria interna per al moviment estimat de circulacions sobre el CTC. Les línies no es dibuixen: només guien la posició de les etiquetes.",
   "holdProgress": 0.975,
   "stations": {
@@ -587,9 +587,9 @@
     "L12: SR utiliza SR20 (andén vía 4) y RE utiliza RE1 como ruta nominal. RE2 no se usa como fallback.",
     "3.20.0: las circulaciones estacionadas usan vía real confirmada (caché iSIC/PLASTIC) para resolver el circuito exacto cuando existe correspondencia station→platform→circuit; esta prioridad se aplica sólo a la posición estacionada, sin inventar trayectorias de aguja no documentadas.",
     "3.20.0: PC1..PC5 corresponden directamente a vías 1..5 de PC.",
-    "3.20.0: tabla compleja confirmada: GR 1→GR9, 2→GR8, 3→GR11, 4→GR10; SR 1→SR5, 2→SR21, 3→SR20; LP 1→LP7, 2→LP4, 4→LP6 (no existe vía 3); SC 1→SC9, 2→SC6; BT 1→BT5, 2→BT6, 3→BT7; RB 1→RB08, 2→RB20, 0→RB19; CF 1→CF17, 2→CF18, 4→CF19.",
+    "3.22.0: tabla compleja confirmada: GR 1→GR9, 2→GR8, 3→GR11, 4→GR10; SR 1→SR5, 2→SR21, 4→SR20 (no existe vía 3); LP 1→LP7, 2→LP4, 4→LP6 (no existe vía 3); SC 1→SC9, 2→SC6; BT 1→BT5, 2→BT6, 3→BT7; RB 1→RB08, 2→RB20, 0→RB19; CF 1→CF17, 2→CF18, 4→CF19.",
     "3.20.0: SC→MS ascendente (impar) sigue SC9 y el corredor inferior hasta la diagonal hacia la vía ascendente de MS; MS→SC descendente (par) sigue el corredor superior y entra por SC6, según la captura marcada verde/rosa.",
-    "3.20.0: SR admite internamente también vía 4→SR20 como alias de compatibilidad con la regla fija L12 ya existente; geométricamente ambos casos anclan en SR20 hasta cerrar definitivamente la numeración de esa vía.",
+    "3.22.0: Sarrià no tiene vía 3. La correspondencia definitiva es SR5=vía 1, SR21=vía 2 y SR20=vía 4. L12 entra, estaciona y sale por SR20/vía 4.",
     "3.20.0: la vía real confirmada no sólo fija el punto estacionado: también selecciona una trayectoria completa de entrada/salida desde el circuito exacto en PC y SR.",
     "3.20.0: SR por sentido usa como fallback operativo vía 1/SR5 en ascendente y vía 2/SR21 en descendente; nunca una coordenada intermedia entre ambas vías.",
     "3.20.0: SC→VO ascendente sigue SC9/SCA12-SCA6 y baja por el escape al corredor inferior VO1; VO→SC descendente sigue VO2 y sube por el escape al corredor superior SC6, conforme a los trazados verde/rosa aportados.",
@@ -617,7 +617,7 @@
           2534.0
         ],
         "circuit": "SR20",
-        "note": "L12 se ancla en SR20; la numeración de vía no se fuerza aquí si la vía real no está confirmada."
+        "note": "L12 se ancla en SR20, correspondiente a vía 4 de Sarrià; en SR no existe vía 3."
       },
       "RE": {
         "asc": [
@@ -729,7 +729,6 @@
     "SR": {
       "1": "SR5",
       "2": "SR21",
-      "3": "SR20",
       "4": "SR20"
     },
     "LP": {
