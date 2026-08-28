@@ -1,22 +1,22 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.21.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.22.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.21.0";
-import { updateOccupancy } from "./occupancy.js?v=3.21.0";
-import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.21.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.21.0";
+} from "./gtfs.js?v=3.22.0";
+import { updateOccupancy } from "./occupancy.js?v=3.22.0";
+import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.22.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.22.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows,
   normalizePlatformValue
-} from "./isic.js?v=3.21.0";
+} from "./isic.js?v=3.22.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
-const MINIMUM_DIRECTION_ROWS = 8;
+const MAX_ROWS_PER_LINE_DIRECTION = 4;
 
 const $ = selector => document.querySelector(selector);
 let onSelectTrainHandler = null;
@@ -31,6 +31,33 @@ function make(tag, className, text) {
 
 function unitCountText(count) {
   return `${count} ${count === 1 ? "UT" : "UTs"}`;
+}
+
+/* iSIC: a partir de 59:00 la cronometría pasa a h:mm:ss.
+   Ej.: 72:01 -> 1:12:01. Por debajo de 59 min se conserva m:ss. */
+function formatISICCountdown(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  if (total < 59 * 60) return formatCountdown(total);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
+/* Máximo de cuatro circulaciones por combinación línea + sentido.
+   El límite se aplica DESPUÉS de fusionar horario, tiempo real e iSIC para que
+   las cuatro sean siempre las más próximas cronológicamente. */
+function limitPerLineDirection(items) {
+  const counts = new Map();
+  return [...items]
+    .sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation))
+    .filter(item => {
+      const key = `${item.line}:${item.ascending ? "asc" : "desc"}`;
+      const count = counts.get(key) || 0;
+      if (count >= MAX_ROWS_PER_LINE_DIRECTION) return false;
+      counts.set(key, count + 1);
+      return true;
+    });
 }
 
 function normalizeStationInput(value) {
@@ -155,32 +182,6 @@ async function mergeLiveStationRecords(S, records, station, nowMs) {
 }
 
 
-async function ensureMinimumDirectionSchedule(S, station, nowMs, records) {
-  const future = records.filter(record => record.targetMs >= nowMs - 60000);
-  const ascCount = future.filter(record => record.ascending).length;
-  const descCount = future.filter(record => !record.ascending).length;
-  const needAsc = ascCount < MINIMUM_DIRECTION_ROWS;
-  const needDesc = descCount < MINIMUM_DIRECTION_ROWS;
-  if (!needAsc && !needDesc) return records;
-
-  /* Si un sentido es menos frecuente, ampliamos la búsqueda hasta 6 h sólo
-     para ese sentido. Nunca rellenamos con circulaciones ficticias. */
-  const wider = (await getStationDepartures(
-    S.config.gtfsZipIndexUrl,
-    station,
-    nowMs,
-    { fromMinutes:-180, toMinutes:360, limit:1000 }
-  ))
-    .map(departure => buildScheduleRecord(S, departure))
-    .filter(Boolean);
-
-  const byId = new Map(records.map(record => [record.id, record]));
-  for (const record of wider) {
-    if ((record.ascending && needAsc) || (!record.ascending && needDesc)) byId.set(record.id, record);
-  }
-  return [...byId.values()].sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
-}
-
 async function buildMatchContexts(S, records, station, nowMs) {
   return Promise.all(records.map(async record => {
     const delayAdjustmentMinutes = await delayAdjustmentForLive(S, record.live, nowMs);
@@ -283,7 +284,7 @@ function createRow(S, item) {
   const state = countdownState(item.departure, Date.now());
   if (state) {
     const red = state.overdue || state.seconds <= countdownRedThreshold(item.station);
-    row.countdown.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
+    row.countdown.textContent = state.overdue ? "0:00" : formatISICCountdown(state.seconds);
     row.countdown.classList.toggle("red", red);
     row.countdown.classList.toggle("overdue", state.overdue);
   }
@@ -402,7 +403,7 @@ export function renderISIC(S) {
   const descLabel = $("#isicDescLabel");
 
   /*
-   * BETA 3.21.0 · el estado se decide por sentido.
+   * BETA 3.22.0 · el estado se decide por sentido.
    * Un matcher vacío ya NO significa "sin servicio". Si la imagen oficial
    * contiene filas que todavía no hemos podido identificar, evitamos afirmar
    * ausencia de servicio. Cuando GTFS/live sí han sido resueltos, un sentido
@@ -541,7 +542,6 @@ export async function refreshISIC(S, { force = false } = {}) {
       .map(departure => buildScheduleRecord(S, departure))
       .filter(Boolean);
 
-    scheduled = await ensureMinimumDirectionSchedule(S, state.station, nowMs, scheduled);
 
     /* Recuperación en tiempo real: si el filtro de calendario GTFS o cualquier
        índice de estación omite una circulación que FGC confirma estacionada o
@@ -579,11 +579,9 @@ export async function refreshISIC(S, { force = false } = {}) {
       }
     }
 
-    /* No existe un máximo de 8 por sentido. Se muestran TODAS las
-       circulaciones programadas de la ventana de consulta; por ello, cuando
-       existen ocho o más ascendentes/descendentes, iSIC presenta al menos esas
-       ocho y continúa mostrando las restantes. Sólo se excluyen horarios ya
-       pasados que no estén respaldados por una fila iSIC o por un tren vivo. */
+    /* BETA 3.22.0: el límite es por línea + sentido, no por sentido global.
+       Se conservan como máximo las cuatro circulaciones cronológicamente más
+       próximas de cada combinación (L6/S1/S2/L7/L12 × asc/desc). */
     const extras = departures
       .filter(record => {
         if (matchedIds.has(record.id)) return false;
@@ -606,7 +604,7 @@ export async function refreshISIC(S, { force = false } = {}) {
 
     const byId = new Map();
     [...matchedItems, ...extras].forEach(item => byId.set(item.id, item));
-    state.items = [...byId.values()].sort((a,b) => a.targetMs - b.targetMs || a.circulation.localeCompare(b.circulation));
+    state.items = limitPerLineDirection([...byId.values()]);
 
     /* Si el iSIC oficial muestra servicio pero no hemos logrado materializar ni
        una circulación, NO afirmamos "SENSE SERVEI COMERCIAL". */
@@ -644,7 +642,7 @@ export function tickISIC(S) {
     const state = countdownState(item.departure, Date.now());
     if (!cell || !state) return;
     const red = state.overdue || state.seconds <= countdownRedThreshold(item.station);
-    cell.textContent = state.overdue ? "0:00" : formatCountdown(state.seconds);
+    cell.textContent = state.overdue ? "0:00" : formatISICCountdown(state.seconds);
     cell.classList.toggle("red", red);
     cell.classList.toggle("overdue", state.overdue);
   });

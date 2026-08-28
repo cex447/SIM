@@ -1,4 +1,4 @@
-import { resolveGtfsTimestamp } from "./time.js?v=3.21.0";
+import { resolveGtfsTimestamp } from "./time.js?v=3.22.0";
 
 const CACHE = {
   index: null,
@@ -265,7 +265,7 @@ async function activeServiceIds(indexUrl, nowMs = Date.now()) {
   if (CACHE.serviceDates.has(cacheKey)) return CACHE.serviceDates.get(cacheKey);
 
   /*
-   * BETA 3.21.0
+   * BETA 3.22.0
    * GTFS permite definir el servicio ordinario en calendar.txt y modificarlo
    * con calendar_dates.txt. Las betas anteriores consultaban únicamente
    * calendar_dates.txt: en días con alguna excepción añadida podían filtrar
