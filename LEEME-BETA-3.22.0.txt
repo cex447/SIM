@@ -1,0 +1,96 @@
+SIM+ BETA 3.22.0
+=================
+
+Base: SIM+ Beta 3.21.0.
+Fecha: 28/08/2026.
+
+CAMBIOS PRINCIPALES
+-------------------
+
+1. PLASTIC / iSIC / LIT / SIV · ZOOM DE PLANO RÍGIDO
+- Se descarta el CSS `zoom` de 3.21.0 porque Safari/iOS relayoutaba la interfaz durante el gesto.
+- Se recupera el comportamiento visual de las primeras betas, según el vídeo de referencia aportado el 28/08/2026.
+- El contenido de cada vista se trata como un único plano rígido y se escala mediante una única `transform:scale()`.
+- Durante el pinch NO hay reflow: textos, iconos, filas, columnas, separadores y gráficos mantienen posiciones y proporciones relativas.
+- Un dedo mantiene el scroll nativo de la vista.
+- Dos dedos amplían/reducen alrededor de un punto lógico fijo tomado al inicio del gesto; no se recalcula la referencia durante el pinch.
+- GestureEvent de Safari se neutraliza para que no actúe un segundo motor de escala.
+- SIM+/reloj y la barra inferior quedan fuera del zoom.
+- Cada vista conserva independientemente su escala y posición al cambiar de módulo.
+- CTC NO usa este motor: conserva su zoom/pan vectorial independiente mediante `viewBox`.
+
+2. PLASTIC · FILTROS FIJOS DURANTE EL DESPLAZAMIENTO
+- Los pulsadores L6/S1/S2/L7/L12 y 112/113/114/115/TOTS permanecen inmóviles al recorrer el listado.
+- Los filtros sí participan del mismo zoom que el resto de PLASTIC: al hacer pinch se amplían/reducen en la misma proporción que todo el plano.
+- Para evitar el fallo de Safari con `position:sticky` dentro de un ancestro transformado, el anclaje vertical se compensa explícitamente con el scroll en coordenadas lógicas.
+- Se mantienen las composiciones aprobadas: vertical en una columna y horizontal con ASCENDENTS/DESCENDENTS en dos columnas.
+- Se conserva el orden por número de circulación dentro de cada línea comercial.
+
+3. iSIC · MÁXIMO CUATRO CIRCULACIONES POR LÍNEA Y SENTIDO
+- Sustituye el criterio anterior de intentar mostrar ocho por sentido.
+- El máximo se aplica a cada combinación línea + sentido:
+    L6: hasta 4 ascendentes y 4 descendentes.
+    S1: hasta 4 ascendentes y 4 descendentes.
+    S2: hasta 4 ascendentes y 4 descendentes.
+    L7: hasta 4 ascendentes y 4 descendentes.
+    L12: hasta 4 ascendentes y 4 descendentes.
+- Si existen más de cuatro, se conservan las cuatro cronológicamente más próximas de esa línea/sentido.
+- Si existen menos, se muestran sólo las reales; nunca se inventan circulaciones.
+- El límite se aplica después de fusionar GTFS, posicionamiento en tiempo real e iSIC, para no descartar primero una circulación viva o correctamente emparejada.
+
+4. iSIC · FORMATO DE CRONOMETRÍA
+- Por debajo de 59:00 se mantiene `m:ss`.
+- Desde 59:00 inclusive pasa a `h:mm:ss`.
+- Ejemplos:
+    58:59 -> 58:59
+    59:00 -> 0:59:00
+    72:01 -> 1:12:01
+    106:03 -> 1:46:03
+    176:03 -> 2:56:03
+
+5. iSIC · SERVICIO COMERCIAL
+- Se conserva la corrección de 3.21.0 para los falsos `SENSE SERVEI COMERCIAL` observados en PC, PR y GR.
+- Un matcher vacío no equivale automáticamente a ausencia de servicio.
+- Se combinan calendario GTFS, excepciones `calendar_dates`, posicionamiento vivo e iSIC oficial.
+- Si el iSIC oficial muestra servicio pero aún no se ha podido materializar una circulación, SIM+ no declara ausencia de servicio.
+- El estado se evalúa por sentido:
+    ASCENDENTS: SENSE SERVEI COMERCIAL
+    DESCENDENTS: SENSE SERVEI COMERCIAL
+  sólo cuando corresponda realmente.
+- `CAP CIRCULACIÓ` no aparece en iSIC.
+
+6. CTC · SARRIÀ, NUMERACIÓN DEFINITIVA
+- Correspondencia definitiva:
+    vía 1 -> SR5
+    vía 2 -> SR21
+    vía 4 -> SR20
+- En Sarrià NO existe vía 3.
+- L12 entra, estaciona y sale por vía 4 / circuito SR20.
+- Se elimina el antiguo alias provisional vía 3 -> SR20.
+- Se mantienen todas las reglas de vía real confirmada: estacionamiento, entrada y salida parten/llegan al circuito exacto de la vía conocida.
+
+7. SE CONSERVAN LAS MEJORAS CTC YA VALIDADAS
+- PC1..PC5 = vías 1..5, incluida entrada/salida desde la vía real.
+- GR: 1->GR9, 2->GR8, 3->GR11, 4->GR10.
+- LP: 1->LP7, 2->LP4, 4->LP6; no existe vía 3.
+- SC: 1->SC9, 2->SC6.
+- BT: 1->BT5, 2->BT6, 3->BT7.
+- RB: 1->RB08, 2->RB20, 0->RB19.
+- CF: 1->CF17, 2->CF18, 4->CF19.
+- L7 ascendente por GR11 y geometría GR/PM confirmada.
+- L12 SR20 <-> RE1 nominal; RE2 nunca como fallback.
+- SC<->MS separado por sentido según trazados verde/rosa.
+- SC<->VO separado por sentido según trazados verde/rosa.
+- Placas CTC compactas y bloque rojo +N con la misma proporción y centrado.
+- CTC vectorial mediante `viewBox`, vista inicial de PC calibrada y memoria de encuadre.
+- Tap circulación -> LIT; tap sobre las letras verdes de estación -> iSIC.
+- Movimiento por tiempo GTFS + resincronización FGC + espera al 97,5 % si no hay confirmación de llegada.
+
+PUBLICACIÓN EN GITHUB
+---------------------
+El ZIP está preparado para subir su CONTENIDO directamente a la raíz del repositorio.
+No existe una carpeta sim_3220 contenedora. Sustituir los archivos homónimos.
+
+VALIDACIÓN
+----------
+Antes de empaquetar se comprueban sintaxis JS, JSON, HTML/SVG, referencias de versión, reglas iSIC, tabla de circuitos SR, integridad ZIP y extracción byte a byte.
