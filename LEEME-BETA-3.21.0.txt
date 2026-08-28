@@ -1,0 +1,66 @@
+SIM+ BETA 3.21.0
+=================
+
+Base: SIM+ Beta 3.20.0.
+Fecha: 28/08/2026.
+
+CAMBIOS PRINCIPALES
+-------------------
+
+1. PLASTIC / iSIC / LIT / SIV · ZOOM Y DESPLAZAMIENTO
+- Se elimina la arquitectura transform:scale() + spacer de las betas 3.16-3.20.
+- El nuevo viewport aplica una única escala de maquetación CSS `zoom` a toda la vista.
+- Un dedo mantiene el scroll nativo de iOS.
+- Dos dedos realizan pinch con una referencia fija tomada al inicio del gesto; GestureEvent se neutraliza y no actúa como segundo motor.
+- Filtros, iconos, títulos, UT y filas comparten siempre el mismo sistema de coordenadas durante el zoom.
+- En PLASTIC los pulsadores de líneas y UT permanecen sticky/inmóviles al desplazar el listado, tanto en vertical como en horizontal.
+- Cada vista conserva su escala y posición al cambiar de módulo.
+- CTC no usa este motor: mantiene su zoom/pan vectorial independiente mediante viewBox.
+
+2. iSIC · CORRECCION DE FALSOS "SENSE SERVEI COMERCIAL"
+- Un resultado vacío del matcher ya no equivale automáticamente a ausencia de servicio.
+- Se corrige la resolución del calendario GTFS combinando calendar.txt con las altas/bajas de calendar_dates.txt. Las betas anteriores podían filtrar el servicio ordinario completo en determinados días con excepciones.
+- Las circulaciones confirmadas en tiempo real por FGC como estacionadas o aproximándose a la estación se recuperan directamente desde su trip_id si no aparecen en el índice horario de estación.
+- La imagen iSIC oficial sigue siendo la fuente prioritaria para asociar vía cuando el matching es seguro.
+- Si el iSIC oficial muestra filas pero SIM+ todavía no logra identificar ninguna circulación, SIM+ NO declara ausencia de servicio.
+- PC, PR y GR quedan como casos de regresión prioritarios para pruebas reales en hora de servicio.
+
+3. iSIC · NUMERO DE CIRCULACIONES Y ESTADO POR SENTIDO
+- Objetivo mínimo: 8 circulaciones ascendentes y 8 descendentes siempre que realmente existan.
+- La ventana normal consulta hasta 3 horas; si un sentido no alcanza 8 candidatos, se amplía hasta 6 horas sólo para ese sentido.
+- Nunca se inventan circulaciones para completar ocho.
+- No existe máximo artificial de 8: si hay más circulaciones dentro de la ventana resuelta, se muestran todas.
+- Si un sentido realmente no tiene circulaciones, el encabezado pasa a:
+    ASCENDENTS: SENSE SERVEI COMERCIAL
+  o
+    DESCENDENTS: SENSE SERVEI COMERCIAL
+- El texto "CAP CIRCULACIÓ" deja de mostrarse en iSIC.
+- Los dos sentidos permanecen independientes; una estación puede tener servicio en uno y no en el otro.
+
+4. SE CONSERVAN TODAS LAS CORRECCIONES CTC DE 3.20.0
+- Vía real confirmada = circuito real, tanto en estacionamiento como en entrada/salida.
+- PC1..PC5 corresponden a vías 1..5; una salida desde vía 4 parte realmente de PC4.
+- SR: vía 1=SR5, vía 2=SR21; los movimientos de vía 2 parten/llegan centrados en SR21.
+- SR20 conserva la compatibilidad documentada con la regla específica L12 mientras se termina de cerrar su numeración operativa.
+- Tabla de estaciones complejas conservada: GR, SR, LP, SC, BT, RB y CF.
+- SC<->VO separado por sentido según los trazados verde/rosa aportados.
+- SC<->MS separado por sentido.
+- L7 ascendente por GR11 y geometría GR/PM confirmada.
+- L12 en SR20 y RE1 nominal; RE2 nunca como fallback.
+- Placas CTC compactas y bloque rojo +N con la misma proporción/centrado; +N sólo desde +1.
+- CTC vectorial por viewBox, vista inicial de PC calibrada y memoria de encuadre.
+- Tap circulación -> LIT; tap ceñido a las letras verdes de estación -> iSIC.
+- Movimiento por horario GTFS + resincronización FGC + espera al 97,5 %.
+
+5. PLASTIC
+- Se conserva el orden por número de circulación dentro de cada línea comercial.
+- Se conserva la organización por ASCENDENTS/DESCENDENTS y por línea.
+
+PUBLICACION EN GITHUB
+---------------------
+El ZIP está preparado para subir su CONTENIDO directamente a la raíz del repositorio.
+No existe una carpeta sim_3210 contenedora. Sustituir los archivos homónimos.
+
+VALIDACION
+----------
+Antes de empaquetar se comprueban sintaxis JS, JSON, HTML/SVG, referencias de versión, integridad ZIP y extracción byte a byte.
