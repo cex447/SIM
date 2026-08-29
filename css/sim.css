@@ -1012,7 +1012,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.23.0 · CROM FIX + VIEWPORT RÍGIDO
+   BETA 3.24.0 · CROM FIX + VIEWPORT RÍGIDO
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1048,6 +1048,9 @@ pre{ white-space:pre-wrap; font-size:15px; }
   position:relative;
   isolation:isolate;
 }
+.top,.tabs-global,#view-plastic > .plastic-filters{
+  touch-action:pan-x pan-y;
+}
 .top{ z-index:45; }
 main{
   position:relative;
@@ -1056,11 +1059,10 @@ main{
   overflow:hidden;
 }
 
-/* BETA 3.23 · viewport rígido de documento.
-   Referencia: vídeo de zoom de las primeras betas aportado el 28/08/2026.
-   El pinch NO relayouta la interfaz: amplía/reduce un único plano mediante
-   transform:scale(). Iconos, columnas, textos y filas conservan siempre su
-   geometría relativa. Un dedo mantiene el scroll nativo de la vista. */
+/* BETA 3.24 · viewport estable de contenido.
+   La geometría natural heredada de 3.14/Ptichka es la escala mínima (1.00).
+   Sólo el bloque de datos se transforma: cabecera, reloj, campos de consulta,
+   filtros PLASTIC y navegación inferior quedan fuera del plano zoomable. */
 .view{
   position:relative;
   overflow:auto !important;
@@ -1084,15 +1086,6 @@ main{
   min-height:0;
   transform-origin:0 0;
   will-change:transform;
-}
-/* En PLASTIC los filtros se anclan por JS durante el scroll. Se evita
-   position:sticky dentro de un ancestro transformado, combinación inestable en
-   Safari/iOS. Participan del MISMO zoom que todo PLASTIC. */
-#view-plastic .plastic-filters{
-  position:relative !important;
-  top:auto !important;
-  z-index:30;
-  background:var(--bg);
 }
 
 /* CTC 3.18: el sinòptic se renderiza mediante viewBox real.
@@ -1231,7 +1224,7 @@ html[data-view="ctc"] .tabs-global .tab.active{
 
 
 /* =========================================================
-   BETA 3.23.0 · ZOOM DE DOCUMENTO + CONTROLES/SECCIONES STICKY
+   BETA 3.24.0 · ZOOM DE DOCUMENTO + CONTROLES/SECCIONES STICKY
    ========================================================= */
 
 /* PLASTIC: los selectores de línea y UT NO pertenecen al plano zoomable.
@@ -1281,8 +1274,10 @@ html[data-view="ctc"] .tabs-global .tab.active{
   margin-top:0;
 }
 
-/* En la versión 3.23 el zoom mínimo de las vistas de referencia se controla
+/* En la versión 3.24 el zoom mínimo de las vistas de referencia se controla
    por data-viewport-min-portrait/landscape, no por un reflow CSS. */
 .zoom-layer{
-  contain:layout style;
+  contain:style;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
 }
