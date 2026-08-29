@@ -1,0 +1,92 @@
+SIM+ BETA 3.24.0
+29/08/2026
+
+Base: Beta 3.23.0. Esta versión conserva las correcciones CTC, PLASTIC,
+iSIC y LIT ya consolidadas y añade únicamente el paquete aprobado después de
+las pruebas de 3.22.0.
+
+CAMBIOS PRINCIPALES
+
+1. ZOOM / DESPLAZAMIENTO (todo excepto CTC)
+- PLASTIC, iSIC, LIT y SIV mantienen el zoom geométrico de plano rígido:
+  transform uniforme sin reflow durante el pinch.
+- Un dedo = desplazamiento nativo de la vista.
+- Dos dedos = zoom alrededor del punto medio de los dedos.
+- Se bloquean los GestureEvent paralelos de Safari para evitar doble escalado.
+- CTC no utiliza este motor: mantiene zoom/pan vectorial mediante viewBox.
+
+2. LÍMITES MÍNIMOS DE ZOOM
+- iSIC: mínimo 1.00 en vertical y horizontal, según las capturas de referencia.
+- LIT: mínimo 1.00 en vertical y horizontal, según las capturas de referencia.
+- PLASTIC: mínimo 1.00 en horizontal; en vertical se conserva 0.70.
+- SIV conserva mínimo 0.70.
+
+3. PLASTIC · FILTROS FIJOS
+- L6 / S1 / S2 / L7 / L12 y 112 / 113 / 114 / 115 / TOTS quedan fuera del
+  plano zoomable.
+- Mantienen siempre el mismo tamaño y posición visual.
+- Permanecen sticky al desplazar el listado, también con contenido ampliado.
+- El zoom sólo afecta al contenido de PLASTIC, no a los pulsadores de filtro.
+
+4. PLASTIC / iSIC · ENCABEZADOS DE SENTIDO STICKY
+- En vertical, ASCENDENTS permanece fijo mientras se visualizan circulaciones
+  ascendentes.
+- Al llegar DESCENDENTS, el nuevo encabezado empuja al anterior (push-off) y
+  queda fijo durante el bloque descendente.
+- Al desplazar hacia arriba ocurre el relevo inverso.
+- En horizontal se mantienen simultáneamente ASCENDENTS y DESCENDENTS sobre sus
+  respectivas columnas.
+
+5. iSIC · DEDUPLICACIÓN
+- Una misma circulación sólo puede aparecer una vez.
+- Se deduplica por número de circulación antes de matching, contadores y límite
+  de 4 por línea+sentido.
+- Se fusionan GTFS, posicionamiento live e iSIC conservando los datos más
+  fiables de cada fuente.
+- Los contadores UT/UTs dejan de duplicarse por entradas repetidas.
+
+6. iSIC · REGLAS CONSERVADAS
+- Máximo 4 circulaciones distintas por combinación línea + sentido.
+- Se conservan las cuatro cronológicamente más próximas.
+- Desde 59:00 la cuenta atrás se muestra h:mm:ss.
+- SENSE SERVEI COMERCIAL se decide por sentido.
+- CAP CIRCULACIÓ no aparece.
+
+7. VÍA REAL COMPARTIDA CON CTC
+- Una vía confirmada por iSIC se guarda tanto por trip_id como por circulación,
+  de modo que CTC pueda recuperarla aunque GTFS haya devuelto trip_id duplicados.
+- CTC reutiliza estas confirmaciones durante 30 minutos sin realizar consultas
+  Cloudflare propias.
+- La vía real confirmada sigue teniendo prioridad sobre cualquier fallback.
+- Ejemplo: si una L7 está confirmada en vía 4 de PC, CTC la sitúa en PC4 y su
+  salida nace desde PC4. No existe una vía fija por línea comercial.
+
+8. L12 · SARRIÀ EN LIT
+- Para cualquier L12, SR es siempre vía 4.
+- SR→RE: la estación inicial se muestra SR4.
+- RE→SR: la estación final se muestra SR4.
+- Coherencia: LIT SR4 = vía 4 real = circuito CTC SR20.
+
+SE CONSERVA DE BETAS ANTERIORES
+- CTC vectorial por viewBox y vista inicial de PC.
+- Movimiento GTFS + resincronización FGC y espera al 97,5 % sin inventar llegada.
+- Tap circulación CTC → LIT; tap letras verdes estación → iSIC.
+- Placas CTC compactas, retraso +N sólo desde +1 y redimensionado conjunto.
+- Correspondencias de vías/circuitos PC, GR, SR, LP, SC, BT, RB y CF.
+- L7 ascendente en GR11 y rutas específicas por GR.
+- L12 por SR20/RE1.
+- Trayectorias SC↔MS y SC↔VO diferenciadas por sentido.
+- PLASTIC ordenado por número de circulación dentro de cada línea.
+
+DESPLIEGUE GITHUB
+- El ZIP está preparado para subir a la raíz del repositorio.
+- No contiene una carpeta sim_3230 intermedia.
+- Los archivos de fuente Canal+ del usuario no se incluyen; se conservan los ya
+  existentes en la raíz del repositorio.
+
+
+BETA 3.24.0 — ZOOM
+- Geometría natural de 3.14/Ptichka = escala mínima 1.00.
+- Sólo se amplía el contenido de datos.
+- SIM+, reloj, campos iSIC/LIT, filtros PLASTIC y navegación inferior quedan inmóviles y sin escala.
+- Sticky/push-off ASCENDENTS/DESCENDENTS se conserva fuera del plano transformado.
