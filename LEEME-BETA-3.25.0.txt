@@ -1,0 +1,94 @@
+SIM+ BETA 3.25.0
+30/08/2026
+
+Base: Beta 3.24.0 + correcciones observadas en las pruebas de zoom de iPhone.
+Esta versión conserva las mejoras funcionales de 3.24 y endurece la separación
+entre el crom fijo y el plano de datos ampliable.
+
+CAMBIOS PRINCIPALES DE 3.25.0
+
+1. EJE HORIZONTAL BLOQUEADO (PLASTIC / iSIC / LIT / SIV)
+- Fuera de CTC no existe desplazamiento horizontal.
+- Un dedo sólo puede desplazar el contenido verticalmente.
+- Durante el pinch la escala puede aumentar, pero el excedente lateral se
+  recorta: scrollLeft se fuerza siempre a 0.
+- El gesto de zoom conserva el anclaje vertical, nunca crea una traslación X.
+- CTC queda excluido: mantiene pan libre y zoom vectorial por viewBox.
+
+2. CROM FIJO, SIN ESCALA Y SIN TRASLACIÓN
+Nunca participan del zoom ni del scroll del contenido:
+- SIM+ superior izquierdo.
+- Reloj superior derecho.
+- Filtros PLASTIC: L6 / S1 / S2 / L7 / L12 y 112 / 113 / 114 / 115 / TOTS.
+- Campo de estación de iSIC y su cabecera.
+- Campo de circulación de LIT y su cabecera.
+- Navegación inferior PLASTIC / iSIC / CTC / LIT / SIV.
+
+3. MÁSCARA OPACA DE CONTROLES
+- La cabecera, la navegación inferior y la franja de filtros PLASTIC son
+  completamente opacas con el color de fondo.
+- La máscara de filtros se extiende hasta los bordes físicos de la vista,
+  incluidos los aires laterales.
+- El contenido ampliado no puede aparecer entre botones ni por sus laterales.
+- La ampliación de la máscara no modifica la posición X de los iconos.
+
+4. ASCENDENTS / DESCENDENTS SIEMPRE 1:1
+- Ambos encabezados, incluido el contador n UTs, quedan fuera del plano zoomable.
+- Mantienen exactamente el mismo tamaño a cualquier nivel de zoom.
+- Su coordenada X es invariable.
+- Nunca se recentran al hacer zoom en horizontal.
+- Nunca acompañan un desplazamiento lateral.
+- En horizontal ambos permanecen simultáneamente anclados a sus columnas.
+- En vertical sólo pueden moverse en Y para el sticky/push-off:
+  ASCENDENTS queda fijo; DESCENDENTS lo empuja al llegar y toma su posición.
+- Los encabezados originales permanecen en el documento sólo como reserva
+  geométrica invisible; las copias 1:1 son las únicas que se pintan.
+
+5. NIVEL MÍNIMO / ZOOM
+- Escala 1.00 = geometría natural de la referencia 3.14/Ptichka.
+- No es posible reducir por debajo de 1.00.
+- Sólo el bloque de datos se escala; no hay reflow durante el pinch.
+- Safari GestureEvent paralelo se anula para evitar doble escalado.
+
+SE CONSERVA DE 3.24.0
+
+iSIC
+- Deduplicación de circulaciones antes de contar, ordenar y limitar.
+- Máximo 4 circulaciones distintas por línea + sentido.
+- Cuenta atrás h:mm:ss desde 59:00.
+- SENSE SERVEI COMERCIAL evaluado por sentido y sin CAP CIRCULACIÓ.
+
+CTC
+- Vía real confirmada prioritaria y compartida también por número de circulación.
+- Una L7 en PC puede usar cualquier vía real; nunca se fija por línea comercial.
+- PC1..PC5 corresponden a las vías reales 1..5.
+- Correspondencias SR: vía 1=SR5, vía 2=SR21, vía 4=SR20.
+- Rutas GR11, L12/SR20, SC↔MS, SC↔VO y demás correcciones previas.
+- Movimiento GTFS + resincronización FGC y espera al 97,5 % sin inventar llegada.
+- Tap circulación → LIT; tap estación → iSIC.
+- CTC conserva su pan/zoom propio y NO está sujeto al bloqueo horizontal.
+
+LIT
+- Para L12, Sarrià se representa siempre como SR4 al iniciar/finalizar allí.
+- Coherencia: LIT SR4 = vía 4 = circuito CTC SR20.
+
+PLASTIC
+- Orden por número de circulación dentro de cada línea.
+- Filtros superiores fuera del plano zoomable.
+
+DESPLIEGUE
+- ZIP preparado para subir directamente a la raíz de GitHub Pages.
+- Sin carpeta contenedora intermedia.
+- No incluye archivos de fuentes Canal+ del usuario; deben conservarse los que
+  ya existen en la raíz del repositorio.
+
+VALIDACIÓN REALIZADA
+- Sintaxis de todos los módulos JavaScript.
+- Parseo de todos los JSON.
+- Comprobación de referencias locales.
+- Verificación estática de que fuera de CTC no queda ninguna asignación de
+  scrollLeft distinta de 0 en el motor de viewport.
+- Verificación de que ASCENDENTS/DESCENDENTS no reciben scale().
+- Verificación de máscaras opacas y clipping horizontal.
+- Prueba de integridad ZIP y comparación de extracción.
+- La validación multitáctil física final corresponde a Safari/iPhone.
