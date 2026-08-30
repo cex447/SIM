@@ -1,23 +1,17 @@
 /*
- * SIM+ Beta 3.25.0 · viewport estable basado en la geometría natural de 3.14.
+ * SIM+ Beta 3.28.0 · viewport vertical nativo + cabeceras de sentido desacopladas.
  *
- * Principio:
- *   - escala 1 = composición mínima exacta de la página de referencia;
- *   - nunca se reduce por debajo de esa composición;
- *   - sólo escala el contenido de datos de PLASTIC/iSIC/LIT/SIV;
- *   - cabecera SIM+/reloj, campos de consulta, navegación inferior y filtros
- *     PLASTIC permanecen fuera del plano escalado;
- *   - CTC conserva su motor SVG/viewBox independiente.
+ * PLASTIC, iSIC, LIT y SIV:
+ *   - sin zoom;
+ *   - sin desplazamiento horizontal;
+ *   - sólo scroll vertical nativo;
+ *   - ASCENDENTS / DESCENDENTS se pintan en una capa independiente del flujo,
+ *     con X y escala constantes y push-off calculado únicamente en Y.
  *
- * El motor evita medir/remaquetar el layer durante cada touchmove. El tamaño
- * lógico sólo se recalcula cuando cambia realmente el contenido o la vista.
+ * CTC queda excluido y conserva su motor SVG/viewBox propio.
  */
 
 const states = new Map();
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
 
 function selectorToView(viewOrSelector) {
   if (!viewOrSelector) return null;
@@ -25,430 +19,351 @@ function selectorToView(viewOrSelector) {
   return viewOrSelector;
 }
 
+function isManagedView(view) {
+  return Boolean(view && view.classList?.contains("view") && !view.classList.contains("ctc-view"));
+}
+
+function lockHorizontal(view) {
+  if (view.scrollLeft !== 0) view.scrollLeft = 0;
+}
+
 function isLandscape() {
-  if (window.matchMedia) return window.matchMedia("(orientation: landscape)").matches;
-  return window.innerWidth > window.innerHeight;
+  return matchMedia("(orientation: landscape)").matches;
 }
 
-function numericData(view, name, fallback) {
-  const value = Number(view.dataset[name]);
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function minimumScale(view) {
-  const specific = isLandscape()
-    ? numericData(view, "viewportMinLandscape", NaN)
-    : numericData(view, "viewportMinPortrait", NaN);
-  return Number.isFinite(specific) ? specific : numericData(view, "viewportMin", 1);
-}
-
-function maximumScale(view) {
-  return numericData(view, "viewportMax", 2.75);
-}
-
-function touchDistance(touches) {
-  const a = touches[0];
-  const b = touches[1];
-  return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
-}
-
-function touchCenter(view, touches) {
-  const a = touches[0];
-  const b = touches[1];
-  const rect = view.getBoundingClientRect();
-  return {
-    x:((a.clientX + b.clientX) * 0.5) - rect.left,
-    y:((a.clientY + b.clientY) * 0.5) - rect.top
-  };
-}
-
-function viewContentBox(view) {
-  const style = getComputedStyle(view);
-  const px = value => Number.parseFloat(value) || 0;
-  return {
-    width:Math.max(1, view.clientWidth - px(style.paddingLeft) - px(style.paddingRight)),
-    height:Math.max(1, view.clientHeight - px(style.paddingTop) - px(style.paddingBottom))
-  };
-}
-
-function normalizeWrapper(view) {
-  const fixedPlasticFilters = view.id === "view-plastic"
-    ? view.querySelector(":scope > .plastic-filters")
-    : null;
-
-  const existingSpacer = view.querySelector(":scope > .zoom-spacer");
-  const existingLayer = existingSpacer?.querySelector(":scope > .zoom-layer");
-  if (existingSpacer && existingLayer) {
-    return { spacer:existingSpacer, layer:existingLayer, fixedPlasticFilters };
+function directionParts(view) {
+  if (view.id === "view-plastic") {
+    return {
+      asc: view.querySelector("#ascDirection > .direction-title"),
+      desc: view.querySelector("#descDirection > .direction-title")
+    };
   }
-
-  const movableChildren = [...view.childNodes].filter(node => node !== fixedPlasticFilters);
-  const spacer = document.createElement("div");
-  spacer.className = "zoom-spacer";
-  const layer = document.createElement("div");
-  layer.className = "zoom-layer";
-  spacer.appendChild(layer);
-
-  if (fixedPlasticFilters) fixedPlasticFilters.insertAdjacentElement("afterend", spacer);
-  else view.appendChild(spacer);
-
-  for (const child of movableChildren) layer.appendChild(child);
-  return { spacer, layer, fixedPlasticFilters };
+  if (view.id === "view-isic") {
+    return {
+      asc: view.querySelector("#isicAscDirection > .direction-title"),
+      desc: view.querySelector("#isicDescDirection > .direction-title")
+    };
+  }
+  return { asc:null, desc:null };
 }
 
-function measureNatural(state) {
-  if (state.pinching) return state.natural;
+function contentY(el, view) {
+  if (!el?.isConnected) return Number.POSITIVE_INFINITY;
+  const er = el.getBoundingClientRect();
+  const vr = view.getBoundingClientRect();
+  return er.top - vr.top + view.scrollTop;
+}
 
-  const box = viewContentBox(state.view);
-  state.layer.style.width = `${box.width}px`;
-  state.layer.style.minWidth = `${box.width}px`;
-  state.layer.style.minHeight = `${box.height}px`;
-
-  const natural = {
-    width:Math.max(box.width, state.layer.scrollWidth, state.layer.offsetWidth),
-    height:Math.max(box.height, state.layer.scrollHeight, state.layer.offsetHeight)
+function headingGeometry(el, view) {
+  if (!el?.isConnected) return null;
+  const er = el.getBoundingClientRect();
+  const vr = view.getBoundingClientRect();
+  return {
+    left: er.left - vr.left,
+    width: er.width,
+    height: er.height,
+    y: er.top - vr.top + view.scrollTop
   };
-  state.natural = natural;
-  return natural;
 }
 
-function applyScale(state, { measure = false } = {}) {
-  if (!state.view.isConnected) return;
-  state.minScale = minimumScale(state.view);
-  state.maxScale = maximumScale(state.view);
-  state.scale = clamp(state.scale, state.minScale, state.maxScale);
-
-  const natural = measure || !state.natural ? measureNatural(state) : state.natural;
-  state.layer.style.transformOrigin = "0 0";
-  state.layer.style.transform = `scale(${state.scale})`;
-  // BETA 3.25: el eje X no forma parte del viewport. El contenido ampliado
-  // se recorta lateralmente y la vista sólo crece en Y.
-  state.spacer.style.width = "100%";
-  state.spacer.style.minWidth = "100%";
-  state.spacer.style.height = `${Math.max(1, Math.ceil(natural.height * state.scale))}px`;
-  if (state.view.scrollLeft !== 0) state.view.scrollLeft = 0;
-  state.view.dataset.zoom = state.scale.toFixed(3);
-  state.view.style.setProperty("--viewport-scale", String(state.scale));
-  requestAnimationFrame(() => syncDirectionOverlay(state));
+function cloneHeadingContent(source, target) {
+  if (!source || !target) return;
+  const html = source.innerHTML;
+  if (target.innerHTML !== html) target.innerHTML = html;
 }
 
 function ensureDirectionOverlay(state) {
-  if (!state.directional || state.directionOverlay?.isConnected) return;
-  const host = document.createElement("div");
-  host.className = "viewport-direction-overlay";
-  host.setAttribute("aria-hidden", "true");
+  const { view } = state;
+  const parts = directionParts(view);
+  if (!parts.asc || !parts.desc) return null;
 
-  const first = document.createElement("div");
-  first.className = "direction-title viewport-sticky-title";
-  const second = document.createElement("div");
-  second.className = "direction-title viewport-sticky-title";
-  second.hidden = true;
-  host.append(first, second);
-  state.view.insertBefore(host, state.spacer);
-  state.directionOverlay = host;
-  state.directionOverlayFirst = first;
-  state.directionOverlaySecond = second;
+  let overlay = view.querySelector(":scope > .direction-sticky-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.className = "direction-sticky-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+
+    const asc = document.createElement("div");
+    asc.className = "direction-sticky-title direction-sticky-asc";
+    const desc = document.createElement("div");
+    desc.className = "direction-sticky-title direction-sticky-desc";
+    overlay.append(asc, desc);
+
+    /* PLASTIC: por encima del contenido pero por debajo de los filtros.
+       iSIC: al principio de la vista, sin alterar el flujo porque es absoluto. */
+    view.appendChild(overlay);
+  }
+
+  state.overlay = overlay;
+  state.overlayAsc = overlay.querySelector(".direction-sticky-asc");
+  state.overlayDesc = overlay.querySelector(".direction-sticky-desc");
+  return overlay;
 }
 
-function fixedTopPx(state) {
-  if (!state.fixedPlasticFilters) return 0;
-  const vr = state.view.getBoundingClientRect();
-  const fr = state.fixedPlasticFilters.getBoundingClientRect();
-  return Math.max(0, Math.min(vr.height, fr.bottom - vr.top));
+function syncDirectionStickyTop(state) {
+  const { view, plasticFilters } = state;
+  const top = plasticFilters && plasticFilters.isConnected
+    ? Math.max(0, plasticFilters.offsetHeight)
+    : 0;
+  state.stickyTop = top;
+  view.style.setProperty("--direction-sticky-top", `${top}px`);
+  lockHorizontal(view);
 }
 
-function copyTitleContent(target, source) {
-  if (!target || !source) return;
-  target.replaceChildren();
-  for (const child of [...source.childNodes]) {
-    const clone = child.cloneNode(true);
-    if (clone.nodeType === Node.ELEMENT_NODE) {
-      clone.removeAttribute?.("id");
-      clone.querySelectorAll?.("[id]").forEach(node => node.removeAttribute("id"));
+function hideOverlay(state) {
+  if (!state.overlay) return;
+  state.overlay.classList.remove("visible", "landscape");
+  state.overlayAsc.hidden = true;
+  state.overlayDesc.hidden = true;
+}
+
+function updateDirectionOverlay(state) {
+  const { view } = state;
+  if (!view.classList.contains("active")) return;
+  if (!state.overlay) ensureDirectionOverlay(state);
+  if (!state.overlay) return;
+
+  const parts = directionParts(view);
+  if (!parts.asc || !parts.desc) {
+    hideOverlay(state);
+    return;
+  }
+
+  syncDirectionStickyTop(state);
+  const stickyTop = state.stickyTop || 0;
+  const scrollTop = view.scrollTop;
+  const ascGeo = headingGeometry(parts.asc, view);
+  const descGeo = headingGeometry(parts.desc, view);
+  if (!ascGeo || !descGeo) {
+    hideOverlay(state);
+    return;
+  }
+
+  const activationY = scrollTop + stickyTop;
+  const overlay = state.overlay;
+  const ascClone = state.overlayAsc;
+  const descClone = state.overlayDesc;
+
+  cloneHeadingContent(parts.asc, ascClone);
+  cloneHeadingContent(parts.desc, descClone);
+
+  const landscape = isLandscape() && !view.querySelector(".plastic-directions.no-service");
+  overlay.classList.toggle("landscape", landscape);
+
+  if (landscape) {
+    /* En horizontal las dos cabeceras permanecen simultáneamente ancladas a
+       la X exacta de sus columnas y nunca se recentran. */
+    const show = activationY >= Math.min(ascGeo.y, descGeo.y);
+    if (!show) {
+      hideOverlay(state);
+      return;
     }
-    target.appendChild(clone);
-  }
-}
 
-function hideDirectionOverlay(state) {
-  const host = state.directionOverlay;
-  if (!host) return;
-  host.classList.remove("visible", "landscape");
-  state.directionOverlayFirst.hidden = true;
-  state.directionOverlaySecond.hidden = true;
-}
+    overlay.classList.add("visible", "landscape");
+    ascClone.hidden = false;
+    descClone.hidden = false;
 
-function logicalOffsetLeft(node, ancestor) {
-  let x = 0;
-  let current = node;
-  while (current && current !== ancestor) {
-    x += current.offsetLeft || 0;
-    current = current.offsetParent;
-  }
-  return x;
-}
+    const baseY = scrollTop + stickyTop;
+    overlay.style.transform = `translate3d(0, ${baseY}px, 0)`;
 
-function placeDirectionTitle(node, source, { x, y }) {
-  copyTitleContent(node, source);
-  node.hidden = false;
-  node.style.left = `${Math.round(x * 1000) / 1000}px`;
-  node.style.top = `${Math.round(y * 1000) / 1000}px`;
-  node.style.width = `${Math.max(1, source.offsetWidth)}px`;
-  // Nunca hereda la escala del plano de datos.
-  node.style.transform = "none";
-}
-
-function syncDirectionOverlay(state) {
-  if (!state.directional || !state.view.classList.contains("active")) return;
-  ensureDirectionOverlay(state);
-
-  const ascTitle = state.layer.querySelector(".plastic-direction:first-child > .direction-title");
-  const descTitle = state.layer.querySelector(".plastic-direction:nth-child(2) > .direction-title");
-  if (!ascTitle || !descTitle) {
-    hideDirectionOverlay(state);
+    for (const [node, geo] of [[ascClone, ascGeo],[descClone, descGeo]]) {
+      node.style.left = `${geo.left}px`;
+      node.style.width = `${geo.width}px`;
+      node.style.transform = "none";
+    }
     return;
   }
 
-  const viewRect = state.view.getBoundingClientRect();
-  const topOffset = fixedTopPx(state);
-  const stickyY = viewRect.top + topOffset;
-  const ascRect = ascTitle.getBoundingClientRect();
-  const descRect = descTitle.getBoundingClientRect();
-  const host = state.directionOverlay;
-
-  // El host vive fuera del plano transformado: X y tipografía son invariantes.
-  host.style.top = `${topOffset}px`;
-  host.classList.add("visible");
-
-  const ascX = logicalOffsetLeft(ascTitle, state.layer);
-  const descX = logicalOffsetLeft(descTitle, state.layer);
-  const ascNaturalH = Math.max(1, ascTitle.offsetHeight);
-
-  if (isLandscape()) {
-    host.classList.add("landscape");
-    // Ambos encabezados comparten sólo el desplazamiento vertical del listado.
-    // Nunca se recentran ni se desplazan horizontalmente al hacer zoom.
-    const ascY = Math.max(0, ascRect.top - stickyY);
-    const descY = Math.max(0, descRect.top - stickyY);
-    placeDirectionTitle(state.directionOverlayFirst, ascTitle, { x:ascX, y:ascY });
-    placeDirectionTitle(state.directionOverlaySecond, descTitle, { x:descX, y:descY });
+  /* Vertical: una sola cabecera activa. El relevo empieza sólo cuando la
+     siguiente cabecera alcanza físicamente a la actual; el movimiento es Y-only. */
+  if (activationY < ascGeo.y) {
+    hideOverlay(state);
     return;
   }
 
-  host.classList.remove("landscape");
+  overlay.classList.add("visible");
+  ascClone.hidden = true;
+  descClone.hidden = true;
 
-  if (descRect.top <= stickyY + 0.5) {
-    // Ya estamos dentro de DESCENDENTS: sólo queda su cabecera sticky.
-    state.directionOverlayFirst.hidden = true;
-    placeDirectionTitle(state.directionOverlaySecond, descTitle, { x:descX, y:0 });
-    return;
+  const usingDesc = activationY >= descGeo.y;
+  const activeSource = usingDesc ? parts.desc : parts.asc;
+  const activeGeo = usingDesc ? descGeo : ascGeo;
+  const activeClone = usingDesc ? descClone : ascClone;
+  activeClone.hidden = false;
+
+  let pushY = 0;
+  const cloneHeight = Math.max(activeGeo.height, activeClone.getBoundingClientRect().height || 0);
+  if (!usingDesc) {
+    const nextScreenTop = descGeo.y - scrollTop;
+    const collision = stickyTop + cloneHeight - nextScreenTop;
+    if (collision > 0) pushY = -collision;
   }
 
-  // DESCENDENTS todavía no ha tomado el relevo. Su título se dibuja a tamaño
-  // fijo en su posición vertical real para que pueda empujar ASCENDENTS.
-  const descY = descRect.top - stickyY;
-  placeDirectionTitle(state.directionOverlaySecond, descTitle, { x:descX, y:descY });
-
-  if (ascRect.top > stickyY + 0.5) {
-    // Antes de alcanzar el punto sticky, ASCENDENTS también conserva 1:1.
-    const ascY = ascRect.top - stickyY;
-    placeDirectionTitle(state.directionOverlayFirst, ascTitle, { x:ascX, y:ascY });
-    return;
-  }
-
-  // ASCENDENTS sticky. Sólo puede desplazarse en Y durante el push-off.
-  const pushY = Math.min(0, descRect.top - stickyY - ascNaturalH);
-  placeDirectionTitle(state.directionOverlayFirst, ascTitle, { x:ascX, y:pushY });
+  overlay.style.transform = `translate3d(0, ${scrollTop + stickyTop + pushY}px, 0)`;
+  activeClone.style.left = `${activeGeo.left}px`;
+  activeClone.style.width = `${activeGeo.width}px`;
+  activeClone.style.transform = "none";
 }
 
-function scheduleMeasure(state) {
-  if (state.pinching || state.measureQueued) return;
-  state.measureQueued = true;
-  requestAnimationFrame(() => {
-    state.measureQueued = false;
-    if (state.pinching) return;
-    applyScale(state, { measure:true });
+function scheduleOverlayUpdate(state) {
+  if (state.overlayRaf) return;
+  state.overlayRaf = requestAnimationFrame(() => {
+    state.overlayRaf = 0;
+    updateDirectionOverlay(state);
   });
 }
 
-function ensureWrapped(view) {
+function ensureVerticalOnly(view) {
+  if (!isManagedView(view)) return null;
   if (states.has(view)) return states.get(view);
-  const { spacer, layer, fixedPlasticFilters } = normalizeWrapper(view);
+
+  const plasticFilters = view.id === "view-plastic"
+    ? view.querySelector(":scope > .plastic-filters")
+    : null;
+
   const state = {
-    view, spacer, layer, fixedPlasticFilters,
-    directional:view.id === "view-plastic" || view.id === "view-isic",
-    directionOverlay:null, directionOverlayFirst:null, directionOverlaySecond:null,
-    scale:1,
-    minScale:minimumScale(view),
-    maxScale:maximumScale(view),
-    natural:null,
-    pinch:null,
-    pinching:false,
-    measureQueued:false,
+    view,
+    plasticFilters,
+    stickyTop:0,
     resizeObserver:null,
-    mutationObserver:null
+    mutationObserver:null,
+    overlay:null,
+    overlayAsc:null,
+    overlayDesc:null,
+    overlayRaf:0
   };
   states.set(view, state);
-  if (state.directional) view.classList.add("viewport-directional-ready");
+
+  view.classList.add("vertical-only-viewport");
+  view.dataset.zoom = "1.000";
+  view.style.setProperty("--viewport-scale", "1");
+  lockHorizontal(view);
+  syncDirectionStickyTop(state);
   ensureDirectionOverlay(state);
 
-  const ro = new ResizeObserver(() => scheduleMeasure(state));
-  ro.observe(view);
-  if (fixedPlasticFilters) ro.observe(fixedPlasticFilters);
-  state.resizeObserver = ro;
-
-  const mo = new MutationObserver(() => scheduleMeasure(state));
-  mo.observe(layer, { childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:["hidden", "class"] });
-  state.mutationObserver = mo;
-
   view.addEventListener("scroll", () => {
-    // BETA 3.25: nunca existe navegación horizontal fuera de CTC.
-    if (view.scrollLeft !== 0) view.scrollLeft = 0;
-    requestAnimationFrame(() => syncDirectionOverlay(state));
+    lockHorizontal(view);
+    scheduleOverlayUpdate(state);
   }, { passive:true });
 
-  view.addEventListener("touchstart", event => {
-    if (event.touches.length !== 2) return;
-    const distance = touchDistance(event.touches);
-    if (!Number.isFinite(distance) || distance < 8) return;
-
-    // Congelamos geometría natural durante todo el gesto.
-    if (!state.natural) measureNatural(state);
-    const center = touchCenter(view, event.touches);
-    state.pinching = true;
-    state.pinch = {
-      distance,
-      startScale:state.scale,
-      logicalY:(view.scrollTop + center.y) / state.scale
-    };
-    event.preventDefault();
-  }, { passive:false });
-
-  view.addEventListener("touchmove", event => {
-    if (event.touches.length !== 2 || !state.pinch) return;
-    const distance = touchDistance(event.touches);
-    if (!Number.isFinite(distance) || distance < 8) return;
-    const ratio = distance / state.pinch.distance;
-    if (!Number.isFinite(ratio) || ratio <= 0) return;
-
-    const center = touchCenter(view, event.touches);
-    state.scale = clamp(state.pinch.startScale * ratio, minimumScale(view), maximumScale(view));
-    applyScale(state, { measure:false });
-    view.scrollLeft = 0;
-    view.scrollTop = Math.max(0, state.pinch.logicalY * state.scale - center.y);
-    event.preventDefault();
-  }, { passive:false });
-
-  const finishPinch = event => {
-    if (event.touches && event.touches.length >= 2) return;
-    if (!state.pinching) return;
-    state.pinching = false;
-    state.pinch = null;
-    scheduleMeasure(state);
-  };
-  view.addEventListener("touchend", finishPinch, { passive:true });
-  view.addEventListener("touchcancel", finishPinch, { passive:true });
-
-  // Safari puede generar GestureEvent en paralelo: se anula para que jamás
-  // intervenga un segundo motor de zoom sobre el mismo gesto.
+  /* No existe zoom de contenido ni zoom de página en estas vistas. */
   for (const name of ["gesturestart", "gesturechange", "gestureend"]) {
     view.addEventListener(name, event => event.preventDefault(), { passive:false });
   }
 
-  view.addEventListener("wheel", event => {
-    if (!(event.ctrlKey || event.metaKey)) return;
-    event.preventDefault();
-    if (!state.natural) measureNatural(state);
-    const rect = view.getBoundingClientRect();
-    const y = event.clientY - rect.top;
-    const ly = (view.scrollTop + y) / state.scale;
-    state.scale = clamp(state.scale * Math.exp(-event.deltaY * 0.002), minimumScale(view), maximumScale(view));
-    applyScale(state, { measure:false });
-    view.scrollLeft = 0;
-    view.scrollTop = Math.max(0, ly * state.scale - y);
-  }, { passive:false });
-
-  window.addEventListener("orientationchange", () => {
-    requestAnimationFrame(() => {
-      state.scale = clamp(state.scale, minimumScale(view), maximumScale(view));
-      applyScale(state, { measure:true });
-      view.scrollLeft = 0;
+  if ("ResizeObserver" in window) {
+    const ro = new ResizeObserver(() => {
+      syncDirectionStickyTop(state);
+      scheduleOverlayUpdate(state);
     });
-  }, { passive:true });
+    ro.observe(view);
+    if (plasticFilters) ro.observe(plasticFilters);
+    const parts = directionParts(view);
+    if (parts.asc) ro.observe(parts.asc);
+    if (parts.desc) ro.observe(parts.desc);
+    state.resizeObserver = ro;
+  }
 
-  applyScale(state, { measure:true });
+  if ("MutationObserver" in window && (view.id === "view-plastic" || view.id === "view-isic")) {
+    const mo = new MutationObserver(records => {
+      const externalChange = records.some(record => !state.overlay?.contains(record.target));
+      if (externalChange) scheduleOverlayUpdate(state);
+    });
+    mo.observe(view, { subtree:true, childList:true, characterData:true, attributes:true });
+    state.mutationObserver = mo;
+  }
+
+  scheduleOverlayUpdate(state);
   return state;
 }
 
+function refreshAll() {
+  for (const state of states.values()) {
+    syncDirectionStickyTop(state);
+    scheduleOverlayUpdate(state);
+  }
+}
+
+let globalListenersInstalled = false;
+function installGlobalListeners() {
+  if (globalListenersInstalled) return;
+  globalListenersInstalled = true;
+  window.addEventListener("resize", () => requestAnimationFrame(refreshAll), { passive:true });
+  window.addEventListener("orientationchange", () => {
+    requestAnimationFrame(() => requestAnimationFrame(refreshAll));
+  }, { passive:true });
+}
+
 export function setupViewports() {
-  document.querySelectorAll(".view.active:not(.ctc-view)").forEach(ensureWrapped);
+  installGlobalListeners();
+  document.querySelectorAll(".view:not(.ctc-view)").forEach(ensureVerticalOnly);
 }
 
 export function activateViewport(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  if (!view || view.classList.contains("ctc-view")) return null;
-  const state = ensureWrapped(view);
-  requestAnimationFrame(() => applyScale(state, { measure:true }));
+  const state = ensureVerticalOnly(view);
+  if (!state) return null;
+
+  /* Por decisión de producto, no se conserva el scroll vertical al volver. */
+  view.scrollTop = 0;
+  lockHorizontal(view);
+  requestAnimationFrame(() => {
+    syncDirectionStickyTop(state);
+    scheduleOverlayUpdate(state);
+  });
   return state;
 }
 
 export function refreshViewport(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  if (!view || view.classList.contains("ctc-view")) return null;
-  const state = ensureWrapped(view);
-  applyScale(state, { measure:true });
+  const state = ensureVerticalOnly(view);
+  if (!state) return null;
+  syncDirectionStickyTop(state);
+  scheduleOverlayUpdate(state);
   return state;
 }
 
-export function setViewportScale(viewOrSelector, scale, { anchorX = null, anchorY = null } = {}) {
+export function setViewportScale(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  if (!view || view.classList.contains("ctc-view")) return null;
-  const state = ensureWrapped(view);
-  if (!state.natural) measureNatural(state);
-  const y = anchorY ?? view.clientHeight / 2;
-  const ly = (view.scrollTop + y) / state.scale;
-  state.scale = clamp(scale, minimumScale(view), maximumScale(view));
-  applyScale(state, { measure:false });
-  view.scrollLeft = 0;
-  view.scrollTop = Math.max(0, ly * state.scale - y);
-  void anchorX;
-  return state.scale;
+  if (isManagedView(view)) {
+    ensureVerticalOnly(view);
+    lockHorizontal(view);
+  }
+  return 1;
 }
 
-export function focusViewportPoint(viewOrSelector, x, y, { scale = null, alignX = 0.5, alignY = 0.5 } = {}) {
+export function focusViewportPoint(viewOrSelector, _x, y, { alignY = 0.5 } = {}) {
   const view = selectorToView(viewOrSelector);
-  if (!view || view.classList.contains("ctc-view")) return;
-  const state = ensureWrapped(view);
-  if (scale !== null) state.scale = clamp(scale, minimumScale(view), maximumScale(view));
-  applyScale(state, { measure:true });
+  if (!isManagedView(view)) return;
+  const state = ensureVerticalOnly(view);
   view.scrollLeft = 0;
-  view.scrollTop = Math.max(0, y * state.scale - view.clientHeight * alignY);
-  void x;
-  void alignX;
+  view.scrollTop = Math.max(0, Number(y || 0) - view.clientHeight * alignY);
+  scheduleOverlayUpdate(state);
 }
 
-export function resetViewport(viewOrSelector, { scale = 1 } = {}) {
+export function resetViewport(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  if (!view || view.classList.contains("ctc-view")) return;
-  const state = ensureWrapped(view);
-  state.scale = clamp(scale, minimumScale(view), maximumScale(view));
-  applyScale(state, { measure:true });
+  if (!isManagedView(view)) return;
+  const state = ensureVerticalOnly(view);
   view.scrollLeft = 0;
   view.scrollTop = 0;
+  scheduleOverlayUpdate(state);
 }
 
 export function viewportState(viewOrSelector) {
   const view = selectorToView(viewOrSelector);
-  const state = view ? states.get(view) : null;
-  if (!state) return null;
+  if (!isManagedView(view)) return null;
+  const state = ensureVerticalOnly(view);
   return {
-    scale:state.scale,
-    scrollLeft:state.view.scrollLeft,
-    scrollTop:state.view.scrollTop,
-    minScale:state.minScale,
-    maxScale:state.maxScale,
-    engine:"stable-natural-325",
-    plasticFiltersFixed:Boolean(state.fixedPlasticFilters),
-    horizontalLocked:true
+    scale:1,
+    scrollLeft:0,
+    scrollTop:view.scrollTop,
+    minScale:1,
+    maxScale:1,
+    engine:"vertical-only-overlay-327",
+    plasticFiltersFixed:Boolean(state.plasticFilters),
+    horizontalLocked:true,
+    zoomEnabled:false,
+    directionOverlay:Boolean(state.overlay)
   };
 }

@@ -1,4 +1,4 @@
-import { resolveGtfsTimestamp } from "./time.js?v=3.25.0";
+import { resolveGtfsTimestamp } from "./time.js?v=3.28.0";
 
 /*
  * SIM+ · iSIC visual parser + matching seguro

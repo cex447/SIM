@@ -1,7 +1,7 @@
-import { getTripBundle } from './gtfs.js?v=3.25.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.25.0';
-import { parentCode } from './operations.js?v=3.25.0';
-import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.25.0';
+import { getTripBundle } from './gtfs.js?v=3.28.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.28.0';
+import { parentCode } from './operations.js?v=3.28.0';
+import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.28.0';
 
 let initialized = false;
 let active = false;
@@ -95,13 +95,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.25.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.28.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.25.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.28.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -112,7 +112,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.25.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.28.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -258,6 +258,8 @@ function wireCTCInteractions() {
   if (!view) return;
   interactionsWired = true;
 
+  const nativeTouch = ('ontouchstart' in window) || Number(navigator.maxTouchPoints || 0) > 0;
+
   const beginOneFingerPan = point => {
     ctcViewport.pan = {
       startX: point.x,
@@ -268,27 +270,14 @@ function wireCTCInteractions() {
     ctcViewport.pinch = null;
   };
 
-  view.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'mouse' && event.button !== 0) return;
-    ctcViewport.pointers.set(event.pointerId, { x:event.clientX, y:event.clientY });
-
-    if (ctcViewport.pointers.size === 1) {
-      ctcViewport.gestureMoved = false;
-      ctcViewport.hadPinch = false;
-      ctcViewport.tapTarget = actionTarget(event.target);
-      beginOneFingerPan({ x:event.clientX, y:event.clientY });
-    } else if (ctcViewport.pointers.size === 2) {
-      beginPinch();
+  const syncTouches = touches => {
+    ctcViewport.pointers.clear();
+    for (const touch of Array.from(touches || [])) {
+      ctcViewport.pointers.set(touch.identifier, { x:touch.clientX, y:touch.clientY });
     }
+  };
 
-    try { view.setPointerCapture(event.pointerId); } catch {}
-    event.preventDefault();
-  }, { passive:false });
-
-  view.addEventListener('pointermove', event => {
-    if (!ctcViewport.pointers.has(event.pointerId)) return;
-    ctcViewport.pointers.set(event.pointerId, { x:event.clientX, y:event.clientY });
-
+  const applyGestureMove = () => {
     if (ctcViewport.pointers.size >= 2 && ctcViewport.pinch) {
       const center = pointerCenter();
       if (!center) return;
@@ -308,13 +297,13 @@ function wireCTCInteractions() {
       ctcViewport.x = ctcViewport.pinch.anchorMapX - localX / nextScale;
       ctcViewport.y = ctcViewport.pinch.anchorMapY - localY / nextScale;
       applyCTCViewBox();
-      event.preventDefault();
       return;
     }
 
     if (ctcViewport.pointers.size === 1 && ctcViewport.pan) {
-      const dx = event.clientX - ctcViewport.pan.startX;
-      const dy = event.clientY - ctcViewport.pan.startY;
+      const point = [...ctcViewport.pointers.values()][0];
+      const dx = point.x - ctcViewport.pan.startX;
+      const dy = point.y - ctcViewport.pan.startY;
       if (Math.hypot(dx, dy) > TAP_MOVE_THRESHOLD) {
         ctcViewport.gestureMoved = true;
         ctcViewport.tapTarget = null;
@@ -322,11 +311,87 @@ function wireCTCInteractions() {
       ctcViewport.x = ctcViewport.pan.originX - dx / ctcViewport.scale;
       ctcViewport.y = ctcViewport.pan.originY - dy / ctcViewport.scale;
       applyCTCViewBox();
-      event.preventDefault();
     }
+  };
+
+  /* iPhone/iPad: Touch Events directos. Pointer Events se mantienen como
+     fallback para ratón/pen, pero no compiten con el gesto táctil. */
+  if (nativeTouch) {
+    view.addEventListener('touchstart', event => {
+      syncTouches(event.touches);
+      if (ctcViewport.pointers.size === 1) {
+        const point = [...ctcViewport.pointers.values()][0];
+        ctcViewport.gestureMoved = false;
+        ctcViewport.hadPinch = false;
+        ctcViewport.tapTarget = actionTarget(event.target);
+        beginOneFingerPan(point);
+      } else if (ctcViewport.pointers.size >= 2) {
+        beginPinch();
+      }
+      event.preventDefault();
+    }, { passive:false });
+
+    view.addEventListener('touchmove', event => {
+      syncTouches(event.touches);
+      if (ctcViewport.pointers.size >= 2 && !ctcViewport.pinch) beginPinch();
+      applyGestureMove();
+      event.preventDefault();
+    }, { passive:false });
+
+    const finishTouch = (event, allowTap = true) => {
+      const previousCount = ctcViewport.pointers.size;
+      const wasTapCandidate = allowTap && previousCount === 1 && !ctcViewport.gestureMoved && !ctcViewport.hadPinch;
+      syncTouches(event.touches);
+
+      if (ctcViewport.pointers.size === 0) {
+        if (wasTapCandidate) performCTCAction(ctcViewport.tapTarget);
+        ctcViewport.pan = null;
+        ctcViewport.pinch = null;
+        ctcViewport.tapTarget = null;
+        ctcViewport.hadPinch = false;
+      } else if (ctcViewport.pointers.size === 1) {
+        const remaining = [...ctcViewport.pointers.values()][0];
+        beginOneFingerPan(remaining);
+        ctcViewport.gestureMoved = true;
+        ctcViewport.tapTarget = null;
+      } else {
+        beginPinch();
+      }
+      event.preventDefault();
+    };
+
+    view.addEventListener('touchend', event => finishTouch(event, true), { passive:false });
+    view.addEventListener('touchcancel', event => finishTouch(event, false), { passive:false });
+  }
+
+  view.addEventListener('pointerdown', event => {
+    if (nativeTouch && event.pointerType === 'touch') return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    ctcViewport.pointers.set(event.pointerId, { x:event.clientX, y:event.clientY });
+
+    if (ctcViewport.pointers.size === 1) {
+      ctcViewport.gestureMoved = false;
+      ctcViewport.hadPinch = false;
+      ctcViewport.tapTarget = actionTarget(event.target);
+      beginOneFingerPan({ x:event.clientX, y:event.clientY });
+    } else if (ctcViewport.pointers.size === 2) {
+      beginPinch();
+    }
+
+    try { view.setPointerCapture(event.pointerId); } catch {}
+    event.preventDefault();
+  }, { passive:false });
+
+  view.addEventListener('pointermove', event => {
+    if (nativeTouch && event.pointerType === 'touch') return;
+    if (!ctcViewport.pointers.has(event.pointerId)) return;
+    ctcViewport.pointers.set(event.pointerId, { x:event.clientX, y:event.clientY });
+    applyGestureMove();
+    event.preventDefault();
   }, { passive:false });
 
   const finishPointer = event => {
+    if (nativeTouch && event.pointerType === 'touch') return;
     const wasLast = ctcViewport.pointers.size === 1;
     ctcViewport.pointers.delete(event.pointerId);
     try { view.releasePointerCapture(event.pointerId); } catch {}
@@ -451,6 +516,19 @@ function confirmedPlatformInfo(station, train) {
   return null;
 }
 
+function configuredPlatformInfo(tableName, station, train, source) {
+  const code = String(station || '').toUpperCase();
+  const line = String(train?.line || '');
+  const entry = motionGeometry?.[tableName]?.[line]?.[code];
+  if (!entry) return null;
+  const value = entry[directionKey(train)];
+  return platformInfoFromNumber(code, train, value, source);
+}
+
+function operationalPlatformInfo(station, train) {
+  return configuredPlatformInfo('lineOperationalPlatforms', station, train, 'operational-rule');
+}
+
 function defaultPlatformInfo(station, train) {
   const code = String(station || '').toUpperCase();
   const entry = motionGeometry?.defaultPlatforms?.[code];
@@ -459,24 +537,62 @@ function defaultPlatformInfo(station, train) {
   return platformInfoFromNumber(code, train, value, 'operational-default');
 }
 
-function platformInfo(station, train, { allowDefault = false } = {}) {
-  return confirmedPlatformInfo(station, train) || (allowDefault ? defaultPlatformInfo(station, train) : null);
+function heuristicPlatformInfo(station, train) {
+  return configuredPlatformInfo('lineHeuristicPlatforms', station, train, 'heuristic');
+}
+
+/* Jerarquía CTC 3.28:
+   1) vía real confirmada; 2) regla operacional inequívoca;
+   3) default por sentido; 4) heurística. Ninguna capa inferior puede
+   reemplazar nunca una vía real conocida. */
+function platformInfo(
+  station,
+  train,
+  { allowOperational = true, allowDefault = false, allowHeuristic = false } = {}
+) {
+  const confirmed = confirmedPlatformInfo(station, train);
+  if (confirmed) return confirmed;
+  if (allowOperational) {
+    const operational = operationalPlatformInfo(station, train);
+    if (operational) return operational;
+  }
+  if (allowDefault) {
+    const fallback = defaultPlatformInfo(station, train);
+    if (fallback) return fallback;
+  }
+  if (allowHeuristic) {
+    const heuristic = heuristicPlatformInfo(station, train);
+    if (heuristic) return heuristic;
+  }
+  return null;
 }
 
 function confirmedPlatformPoint(station, train) {
-  return platformInfo(station, train)?.point || null;
+  return confirmedPlatformInfo(station, train)?.point || null;
 }
 
-function stationPoint(station, train, { preferConfirmedPlatform = false } = {}) {
+function uncertainStationPoint(station, train) {
+  const code = String(station || '').toUpperCase();
+  const direction = directionKey(train);
+  const point = motionGeometry?.uncertainStationPoints?.[code]?.[direction];
+  return Array.isArray(point) && point.length >= 2 ? point : null;
+}
+
+function stationPoint(
+  station,
+  train,
+  { preferResolvedPlatform = false, allowDefault = false, allowHeuristic = false } = {}
+) {
   const code = String(station || '').toUpperCase();
   const direction = directionKey(train);
 
-  /* Una vía real conocida tiene prioridad absoluta sobre cualquier regla
-     nominal. Las reglas de línea (L7/GR, L12/SR...) siguen siendo el segundo
-     nivel y los puntos por sentido son únicamente el fallback. */
-  if (preferConfirmedPlatform) {
-    const confirmed = confirmedPlatformPoint(code, train);
-    if (confirmed) return confirmed;
+  if (preferResolvedPlatform) {
+    const resolved = platformInfo(code, train, {
+      allowOperational:true,
+      allowDefault,
+      allowHeuristic
+    });
+    if (resolved?.point) return resolved.point;
   }
 
   const override = motionGeometry?.lineStationOverrides?.[train?.line]?.[code];
@@ -484,6 +600,12 @@ function stationPoint(station, train, { preferConfirmedPlatform = false } = {}) 
     const point = override[direction] || override.asc || override.desc || null;
     if (Array.isArray(point) && point.length >= 2) return point;
   }
+
+  /* PC descendente es deliberadamente distinto: si todavía no conocemos la
+     vía de entrada, no fingimos una plataforma. El marcador queda en el
+     último punto común del haz hasta disponer de información real. */
+  const uncertain = uncertainStationPoint(code, train);
+  if (uncertain) return uncertain;
 
   const entry = motionGeometry?.stations?.[code];
   if (!entry) return null;
@@ -496,13 +618,17 @@ function platformSegmentPath(from, to, train, state) {
   if (!rule) return null;
 
   if (rule.from) {
-    const platform = normalizePlatformValue(state?.fromPlatform ?? defaultPlatformInfo(from, train)?.platform);
+    const platform = normalizePlatformValue(
+      state?.fromPlatform ?? platformInfo(from, train, { allowDefault:true, allowHeuristic:true })?.platform
+    );
     const path = platform !== null ? rule.from[String(platform)] : null;
     if (Array.isArray(path) && path.length >= 2) return path;
   }
 
   if (rule.to) {
-    const platform = normalizePlatformValue(state?.toPlatform ?? defaultPlatformInfo(to, train)?.platform);
+    const platform = normalizePlatformValue(
+      state?.toPlatform ?? platformInfo(to, train, { allowDefault:true, allowHeuristic:true })?.platform
+    );
     const path = platform !== null ? rule.to[String(platform)] : null;
     if (Array.isArray(path) && path.length >= 2) return path;
   }
@@ -510,26 +636,60 @@ function platformSegmentPath(from, to, train, state) {
   return null;
 }
 
+function enforceResolvedEndpoints(points, from, to, train, state) {
+  if (!Array.isArray(points) || points.length < 2) return points;
+  const out = points.map(point => Array.isArray(point) ? [...point] : point);
+
+  const fromInfo = state?.fromPlatform !== null && state?.fromPlatform !== undefined
+    ? platformInfoFromNumber(from, train, state.fromPlatform, state.fromPlatformSource || 'state')
+    : null;
+  const toInfo = state?.toPlatform !== null && state?.toPlatform !== undefined
+    ? platformInfoFromNumber(to, train, state.toPlatform, state.toPlatformSource || 'state')
+    : null;
+
+  if (fromInfo?.point) out[0] = [...fromInfo.point];
+  if (toInfo?.point) out[out.length - 1] = [...toInfo.point];
+  return out;
+}
+
 function pathFor(from, to, train, state = null) {
   if (!from || !to || !motionGeometry) return null;
   const key = `${from}>${to}|${directionKey(train)}`;
 
-  /* Una geometría específica de línea tiene máxima prioridad (L7/L12). */
-  const linePath = motionGeometry?.linePaths?.[train?.line]?.[key];
-  if (Array.isArray(linePath) && linePath.length >= 2) return linePath;
-
-  /* Después, si conocemos la vía real de origen/destino, usamos la ruta
-     completa que parte/termina exactamente sobre su circuito. */
+  /* Si existe una ruta por vía concreta, ésta se evalúa primero: el estado
+     ya contiene la mejor vía disponible según la jerarquía 3.28. */
   const platformPath = platformSegmentPath(from, to, train, state);
-  if (Array.isArray(platformPath) && platformPath.length >= 2) return platformPath;
+  if (Array.isArray(platformPath) && platformPath.length >= 2) {
+    return enforceResolvedEndpoints(platformPath, from, to, train, state);
+  }
+
+  const linePath = motionGeometry?.linePaths?.[train?.line]?.[key];
+  if (Array.isArray(linePath) && linePath.length >= 2) {
+    return enforceResolvedEndpoints(linePath, from, to, train, state);
+  }
+
+  /* Una llegada a PC sin vía conocida no continúa ficticiamente hasta PC2.
+     Se detiene en el tramo común a todas las posibilidades. */
+  const uncertainPath = state?.toPlatform == null ? motionGeometry?.uncertainPaths?.[key] : null;
+  if (Array.isArray(uncertainPath) && uncertainPath.length >= 2) return uncertainPath;
 
   const direct = motionGeometry?.paths?.[key];
-  if (Array.isArray(direct) && direct.length >= 2) return direct;
+  if (Array.isArray(direct) && direct.length >= 2) {
+    return enforceResolvedEndpoints(direct, from, to, train, state);
+  }
 
-  const a = stationPoint(from, train);
-  const b = stationPoint(to, train);
+  const a = stationPoint(from, train, {
+    preferResolvedPlatform:true,
+    allowDefault:true,
+    allowHeuristic:true
+  });
+  const b = stationPoint(to, train, {
+    preferResolvedPlatform:true,
+    allowDefault:true,
+    allowHeuristic:true
+  });
   if (!a || !b) return null;
-  return [a, b];
+  return enforceResolvedEndpoints([a, b], from, to, train, state);
 }
 
 function pointAlongPath(points, progress) {
@@ -697,8 +857,10 @@ function makeMovingState(
     updatedAt:nowMs,
     fromPlatform:fromInfo?.platform ?? null,
     fromCircuit:fromInfo?.circuit ?? null,
+    fromPlatformSource:fromInfo?.source ?? null,
     toPlatform:toInfo?.platform ?? null,
-    toCircuit:toInfo?.circuit ?? null
+    toCircuit:toInfo?.circuit ?? null,
+    toPlatformSource:toInfo?.source ?? null
   };
 }
 
@@ -718,7 +880,7 @@ function reconcileTrain(S, train, nowMs) {
 
   if (train.stationed) {
     const station = String(train.stationed).toUpperCase();
-    const confirmed = platformInfo(station, train, { allowDefault:false });
+    const confirmed = platformInfo(station, train, { allowOperational:true, allowDefault:true, allowHeuristic:true });
     const inherited = previous?.mode === 'station' && previous.station === station && previous.platform !== null
       ? {
           station,
@@ -760,12 +922,33 @@ function reconcileTrain(S, train, nowMs) {
       previous.startSource = 'schedule';
     }
 
-    /* La vía de destino puede aparecer en la caché iSIC durante la marcha. */
-    if (previous.toPlatform === null) {
-      const toInfo = platformInfo(to, train, { allowDefault:true });
+    /* Una vía real que aparezca durante la marcha sustituye inmediatamente
+       cualquier default/heurística anterior. No esperamos al siguiente tramo. */
+    const confirmedFrom = confirmedPlatformInfo(previous.from, train);
+    if (confirmedFrom) {
+      previous.fromPlatform = confirmedFrom.platform;
+      previous.fromCircuit = confirmedFrom.circuit;
+      previous.fromPlatformSource = confirmedFrom.source || 'isic';
+    } else if (previous.fromPlatform === null) {
+      const fromInfo = platformInfo(previous.from, train, { allowDefault:true, allowHeuristic:true });
+      if (fromInfo) {
+        previous.fromPlatform = fromInfo.platform;
+        previous.fromCircuit = fromInfo.circuit;
+        previous.fromPlatformSource = fromInfo.source || null;
+      }
+    }
+
+    const confirmedTo = confirmedPlatformInfo(to, train);
+    if (confirmedTo) {
+      previous.toPlatform = confirmedTo.platform;
+      previous.toCircuit = confirmedTo.circuit;
+      previous.toPlatformSource = confirmedTo.source || 'isic';
+    } else if (previous.toPlatform === null) {
+      const toInfo = platformInfo(to, train, { allowDefault:true, allowHeuristic:true });
       if (toInfo) {
         previous.toPlatform = toInfo.platform;
         previous.toCircuit = toInfo.circuit;
+        previous.toPlatformSource = toInfo.source || null;
       }
     }
     return;
@@ -787,21 +970,21 @@ function reconcileTrain(S, train, nowMs) {
           point:previous.platformPoint,
           source:previous.platformSource || 'station-state'
         }
-      : platformInfo(from, train, { allowDefault:true });
+      : platformInfo(from, train, { allowDefault:true, allowHeuristic:true });
   } else if (previous?.mode === 'moving' && previous.to && previous.to !== to) {
     from = previous.to;
     startSource = 'pass-observed';
     fromInfo = previous.toPlatform !== null
       ? platformInfoFromNumber(from, train, previous.toPlatform, 'previous-target')
-      : platformInfo(from, train, { allowDefault:true });
+      : platformInfo(from, train, { allowDefault:true, allowHeuristic:true });
   }
 
   if (!from && stops.length) from = previousScheduledStation(stops, to);
   if (!from) from = previousNetworkStation(train, to);
   if (!from) return;
 
-  if (!fromInfo) fromInfo = platformInfo(from, train, { allowDefault:true });
-  const toInfo = platformInfo(to, train, { allowDefault:true });
+  if (!fromInfo) fromInfo = platformInfo(from, train, { allowDefault:true, allowHeuristic:true });
+  const toInfo = platformInfo(to, train, { allowDefault:true, allowHeuristic:true });
 
   const durationMs = stops.length ? segmentDurationMs(stops, from, to) : null;
   if (startSource === 'unknown' && stops.length && train.onTime === true) {
@@ -969,22 +1152,34 @@ function delayMinutes(state, nowMs) {
 function positionForState(state, nowMs) {
   if (!state?.train) return null;
   if (state.mode === 'station') {
-    const confirmed = platformInfo(state.station, state.train, { allowDefault:false });
+    const confirmed = confirmedPlatformInfo(state.station, state.train);
     if (confirmed) applyPlatformInfoToStationState(state, confirmed);
 
     const point = Array.isArray(state.platformPoint)
       ? state.platformPoint
-      : stationPoint(state.station, state.train, { preferConfirmedPlatform:true });
+      : stationPoint(state.station, state.train, { preferResolvedPlatform:true, allowDefault:true, allowHeuristic:true });
     return point ? { x:point[0], y:point[1], waiting:false } : null;
   }
 
-  /* Si conocemos posteriormente la vía de destino, la incorporamos sin
-     generar ninguna consulta nueva desde CTC. */
-  if (state.toPlatform === null) {
-    const toInfo = platformInfo(state.to, state.train, { allowDefault:true });
+  /* Revalidación continua: una vía real conocida durante el tramo tiene
+     prioridad absoluta y reemplaza cualquier fallback ya guardado. */
+  const confirmedFrom = confirmedPlatformInfo(state.from, state.train);
+  if (confirmedFrom) {
+    state.fromPlatform = confirmedFrom.platform;
+    state.fromCircuit = confirmedFrom.circuit;
+    state.fromPlatformSource = confirmedFrom.source || 'isic';
+  }
+  const confirmedTo = confirmedPlatformInfo(state.to, state.train);
+  if (confirmedTo) {
+    state.toPlatform = confirmedTo.platform;
+    state.toCircuit = confirmedTo.circuit;
+    state.toPlatformSource = confirmedTo.source || 'isic';
+  } else if (state.toPlatform === null) {
+    const toInfo = platformInfo(state.to, state.train, { allowDefault:true, allowHeuristic:true });
     if (toInfo) {
       state.toPlatform = toInfo.platform;
       state.toCircuit = toInfo.circuit;
+      state.toPlatformSource = toInfo.source || null;
     }
   }
 
