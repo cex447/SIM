@@ -1012,13 +1012,13 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.25.0 · CROM FIX + VIEWPORT RÍGIDO
+   BETA 3.28.0 · CROM FIJO + SCROLL VERTICAL NATIVO
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
 }
 
-/* La navegació passa a ser sempre inferior, també en vertical. */
+/* Navegación inferior siempre fuera del contenido desplazable. */
 .tabs-global{
   z-index:40;
   display:flex;
@@ -1043,13 +1043,12 @@ pre{ white-space:pre-wrap; font-size:15px; }
   font-size:clamp(14px,3.7vw,20px);
 }
 
-/* La capçalera i la barra inferior són capes opaques independents. */
+/* Cabecera y navegación son máscaras opacas: nunca transparentan contenido. */
 .top,.tabs-global{
   position:relative;
   isolation:isolate;
-}
-.top,.tabs-global,#view-plastic > .plastic-filters{
-  touch-action:pan-x pan-y;
+  background:var(--bg) !important;
+  overflow:hidden;
 }
 .top{ z-index:45; }
 main{
@@ -1057,39 +1056,109 @@ main{
   z-index:1;
   min-height:0;
   overflow:hidden;
+  overflow-x:hidden !important;
+}
+html,body,#app,main{
+  overflow-x:hidden !important;
 }
 
-/* BETA 3.25 · viewport estable de contenido.
-   La geometría natural heredada de 3.14/Ptichka es la escala mínima (1.00).
-   Sólo el bloque de datos se transforma: cabecera, reloj, campos de consulta,
-   filtros PLASTIC y navegación inferior quedan fuera del plano zoomable. */
-.view{
+/* PLASTIC / iSIC / LIT / SIV: sin zoom y sin eje X. */
+.view:not(.ctc-view){
   position:relative;
-  overflow:auto !important;
-  touch-action:pan-x pan-y;
-  overscroll-behavior:contain;
-  padding-bottom:18px;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior-x:none;
+  overscroll-behavior-y:contain;
+  touch-action:pan-y;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:24px;
 }
-.zoom-spacer{
+.vertical-only-viewport{
+  --viewport-scale:1;
+}
+
+/* PLASTIC: filtros siempre 1:1, pegados arriba y con máscara opaca continua
+   hasta los dos bordes físicos de la pantalla. */
+#view-plastic > .plastic-filters{
+  position:sticky !important;
+  top:0 !important;
+  left:0 !important;
+  z-index:36;
+  width:auto !important;
+  margin-left:calc(0px - env(safe-area-inset-left) - var(--page-x));
+  margin-right:calc(0px - env(safe-area-inset-right) - var(--page-x));
+  padding-left:calc(env(safe-area-inset-left) + var(--page-x)) !important;
+  padding-right:calc(env(safe-area-inset-right) + var(--page-x)) !important;
+  background:var(--bg) !important;
+  overflow:hidden !important;
+  isolation:isolate;
+  transform:none !important;
+  touch-action:pan-y;
+}
+
+/* ASCENDENTS / DESCENDENTS permanecen en el flujo únicamente para reservar
+   su posición y el aire inferior. La versión que queda fija se pinta en una
+   capa independiente controlada por viewport.js: así ninguna fila puede
+   atravesarla y el push-off depende sólo del eje Y. */
+.plastic-direction > .direction-title{
   position:relative;
-  display:block;
+  z-index:1;
   width:100%;
-  min-width:100%;
-  min-height:100%;
-  overflow:visible;
-}
-.zoom-layer{
-  position:absolute;
-  inset:0 auto auto 0;
-  width:auto;
-  min-width:0;
-  min-height:0;
-  transform-origin:0 0;
-  will-change:transform;
+  margin:10px 0 0;
+  padding:0 0 14px;
+  background:var(--bg);
+  transform:none !important;
+  white-space:nowrap;
 }
 
-/* CTC 3.18: el sinòptic se renderiza mediante viewBox real.
-   No se amplía una textura CSS: Safari redibuja el SVG vectorial en cada zoom. */
+.direction-sticky-overlay{
+  position:absolute;
+  inset:0;
+  z-index:34;
+  height:0;
+  pointer-events:none;
+  overflow:visible;
+  visibility:hidden;
+  transform:none;
+}
+.direction-sticky-overlay.visible{ visibility:visible; }
+.direction-sticky-title{
+  position:absolute;
+  top:0;
+  box-sizing:border-box;
+  margin:0 !important;
+  padding:0 0 14px;
+  background:var(--bg) !important;
+  color:var(--fg);
+  font-size:clamp(19px,4.2vw,25px);
+  font-weight:700;
+  font-style:italic;
+  line-height:1;
+  text-align:left;
+  white-space:nowrap;
+  transform:none !important;
+  box-shadow:0 8px 0 var(--bg);
+}
+.direction-sticky-overlay.landscape .direction-sticky-title{
+  padding-bottom:10px;
+  font-size:clamp(15px,2vw,18px);
+  box-shadow:0 6px 0 var(--bg);
+}
+
+/* Separación visual real entre la cabecera y el primer grupo/circulación. */
+.plastic-direction > .direction-title + .plastic-line-group,
+.plastic-direction > .direction-title + .empty{
+  margin-top:0;
+}
+
+/* LIT no tiene cabecera ASC/DESC; se aplica el mismo aire visual entre el
+   campo fijo de circulación y la primera estación del itinerario. */
+#view-lit .lit-route{
+  padding-top:14px;
+  padding-bottom:28vh;
+}
+
+/* CTC: único módulo con zoom y pan X/Y. Se conserva el motor viewBox. */
 .ctc-view{
   padding:0 !important;
   background:#000;
@@ -1105,9 +1174,12 @@ main{
   position:relative;
   background:#000;
   overflow:hidden;
+  touch-action:none;
+  overscroll-behavior:none;
 }
 .ctc-map-vector{
   position:absolute;
+  touch-action:none;
   inset:0;
   display:block;
   width:100%;
@@ -1124,17 +1196,11 @@ main{
   overflow:hidden;
 }
 .ctc-train-layer{ display:none !important; }
-
-/* Zonas táctiles de estación: se ciñen al bounding box real de las dos letras
-   verdes, con sólo 0,5 unidades de tolerancia definidas en ctc-stations.json. */
 .ctc-station-hit{
   fill:transparent;
   stroke:none;
   pointer-events:all;
 }
-
-/* Marcadores CTC vectoriales. El tamaño visual es el 25 % del utilizado en
-   3.16.0; el rectángulo táctil invisible de la circulación sólo excede ligeramente la placa visible. */
 .ctc-train-svg{
   pointer-events:none;
   transform-box:view-box;
@@ -1168,11 +1234,9 @@ main{
 .ctc-train-svg.ctc-resync{
   transition:transform 450ms linear;
 }
-/* En CTC el crom de SIM+ és sempre negre/opac perquè cap element del
-   sinòptic pugui travessar visualment SIM+ ni el rellotge. */
 html[data-view="ctc"] .top,
 html[data-view="ctc"] .tabs-global{
-  background:#000;
+  background:#000 !important;
   border-color:rgba(255,255,255,.24);
 }
 html[data-view="ctc"] .brand,
@@ -1187,11 +1251,9 @@ html[data-view="ctc"] .tabs-global .tab.active{
   background:rgba(128,128,128,.50);
 }
 
-/* Les regles antigues reservaven espai perquè la barra horitzontal estava
-   superposada. Ara forma una fila pròpia del grid i no ha de tapar contingut. */
 @media(orientation:landscape){
-  .view{
-    padding-bottom:10px;
+  .view:not(.ctc-view){
+    padding-bottom:12px;
   }
   .ctc-view{ padding-bottom:0 !important; }
   .tabs-global{
@@ -1207,6 +1269,23 @@ html[data-view="ctc"] .tabs-global .tab.active{
     min-height:28px;
     padding:5px 4px;
   }
+
+  /* En horizontal ambos sentidos permanecen simultáneamente anclados a su
+     columna. Estirar ambos bloques evita que una cabecera desaparezca antes
+     que la otra cuando una columna contiene menos circulaciones. */
+  .plastic-directions:not(.no-service){
+    align-items:stretch;
+  }
+  .plastic-directions:not(.no-service) > .plastic-direction{
+    align-self:stretch;
+  }
+  .plastic-direction > .direction-title{
+    margin-top:6px;
+    padding-bottom:10px;
+  }
+  #view-lit .lit-route{
+    padding-top:9px;
+  }
 }
 
 @media(max-width:430px) and (orientation:portrait){
@@ -1220,140 +1299,4 @@ html[data-view="ctc"] .tabs-global .tab.active{
     padding-left:1px;
     padding-right:1px;
   }
-}
-
-
-/* =========================================================
-   BETA 3.25.0 · ZOOM DE DOCUMENTO + CONTROLES/SECCIONES STICKY
-   ========================================================= */
-
-/* PLASTIC: los selectores de línea y UT NO pertenecen al plano zoomable.
-   Conservan tamaño/posición y quedan siempre pegados a la parte superior de
-   la propia vista mientras se desplaza el listado. */
-#view-plastic > .plastic-filters{
-  position:sticky !important;
-  top:0 !important;
-  left:0 !important;
-  z-index:36;
-  transform:none !important;
-  will-change:auto !important;
-  background:var(--bg);
-}
-
-/* El host sticky está fuera del layer transformado para evitar los errores de
-   Safari con position:sticky dentro de ancestros transformados. No ocupa
-   altura: sólo pinta el encabezado activo sobre el contenido. */
-.viewport-direction-overlay{
-  position:sticky;
-  left:0;
-  z-index:34;
-  width:100%;
-  height:0;
-  overflow:visible;
-  pointer-events:none;
-  visibility:hidden;
-}
-.viewport-direction-overlay.visible{ visibility:visible; }
-.viewport-sticky-title{
-  position:absolute;
-  z-index:1;
-  margin:0 !important;
-  padding:2px 0 5px;
-  transform-origin:0 0;
-  background:var(--bg);
-  white-space:nowrap;
-  pointer-events:none;
-}
-.viewport-direction-overlay.landscape .viewport-sticky-title{
-  padding-bottom:4px;
-}
-
-/* El spacer contiene exclusivamente el plano zoomable. En PLASTIC comienza
-   debajo de los filtros fijos; en iSIC/LIT/SIV ocupa la vista completa. */
-#view-plastic > .zoom-spacer{
-  margin-top:0;
-}
-
-/* En la versión 3.25 el zoom mínimo de las vistas de referencia se controla
-   por data-viewport-min-portrait/landscape, no por un reflow CSS. */
-.zoom-layer{
-  contain:style;
-  backface-visibility:hidden;
-  -webkit-backface-visibility:hidden;
-}
-
-
-/* =========================================================
-   BETA 3.25.0 · EJE X BLOQUEADO + CABECERAS 1:1 + MÁSCARAS
-   ========================================================= */
-
-/* Fuera de CTC nunca existe desplazamiento horizontal. El zoom puede ampliar
-   el plano de datos, pero el excedente lateral se recorta y X permanece a 0. */
-html,body,#app,main{
-  overflow-x:hidden !important;
-}
-.view:not(.ctc-view){
-  overflow-x:hidden !important;
-  overflow-y:auto !important;
-  overscroll-behavior-x:none;
-  touch-action:pan-y;
-}
-.view:not(.ctc-view) > .zoom-spacer{
-  width:100% !important;
-  min-width:100% !important;
-  overflow-x:hidden;
-  overflow-x:clip;
-}
-.view:not(.ctc-view) > .zoom-spacer > .zoom-layer{
-  left:0 !important;
-}
-
-/* Todo el crom fijo se comporta como una máscara opaca. No puede verse el
-   plano ampliado entre controles, en los márgenes ni a través de huecos. */
-.top,
-.tabs-global{
-  background:var(--bg) !important;
-  overflow:hidden;
-}
-.top,
-.tabs-global,
-#view-plastic > .plastic-filters{
-  touch-action:pan-y;
-}
-
-/* PLASTIC vive dentro del padding de .view; expandimos la máscara hasta ambos
-   bordes físicos y reponemos el padding para que los iconos NO cambien de X. */
-#view-plastic > .plastic-filters{
-  width:auto !important;
-  margin-left:calc(0px - env(safe-area-inset-left) - var(--page-x));
-  margin-right:calc(0px - env(safe-area-inset-right) - var(--page-x));
-  padding-left:calc(env(safe-area-inset-left) + var(--page-x)) !important;
-  padding-right:calc(env(safe-area-inset-right) + var(--page-x)) !important;
-  background:var(--bg) !important;
-  overflow:hidden !important;
-  isolation:isolate;
-}
-
-/* Los originales conservan su hueco geométrico dentro del documento, pero no
-   se pintan: las copias 1:1 del overlay son las únicas cabeceras visibles. */
-.viewport-directional-ready .zoom-layer .plastic-direction > .direction-title{
-  visibility:hidden !important;
-}
-
-/* ASCENDENTS/DESCENDENTS nunca forman parte del zoom. Su X y su tamaño son
-   invariantes; en vertical sólo se permite Y para sticky/push-off. */
-.viewport-direction-overlay{
-  left:0 !important;
-  right:auto !important;
-  width:100% !important;
-  overflow:visible;
-  transform:none !important;
-}
-.viewport-sticky-title{
-  transform:none !important;
-  transform-origin:0 0 !important;
-  margin:0 !important;
-  padding:0 !important;
-  white-space:nowrap;
-  background:var(--bg) !important;
 }
