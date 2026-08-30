@@ -1,5 +1,5 @@
 {
-  "version": "3.24.0",
+  "version": "3.25.0",
   "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. Beta 3.16.0 lo conserva como política/topología de explotación: el motor de movimiento usa sólo geometrías confirmadas o corredores nominales y no dibuja las rutas.",
   "conventions": {
     "normal": "recorrido ordinario",
