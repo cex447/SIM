@@ -1,5 +1,5 @@
 /*
- * SIM+ Beta 3.24.0 · viewport estable basado en la geometría natural de 3.14.
+ * SIM+ Beta 3.25.0 · viewport estable basado en la geometría natural de 3.14.
  *
  * Principio:
  *   - escala 1 = composición mínima exacta de la página de referencia;
@@ -121,8 +121,12 @@ function applyScale(state, { measure = false } = {}) {
   const natural = measure || !state.natural ? measureNatural(state) : state.natural;
   state.layer.style.transformOrigin = "0 0";
   state.layer.style.transform = `scale(${state.scale})`;
-  state.spacer.style.width = `${Math.max(1, Math.ceil(natural.width * state.scale))}px`;
+  // BETA 3.25: el eje X no forma parte del viewport. El contenido ampliado
+  // se recorta lateralmente y la vista sólo crece en Y.
+  state.spacer.style.width = "100%";
+  state.spacer.style.minWidth = "100%";
   state.spacer.style.height = `${Math.max(1, Math.ceil(natural.height * state.scale))}px`;
+  if (state.view.scrollLeft !== 0) state.view.scrollLeft = 0;
   state.view.dataset.zoom = state.scale.toFixed(3);
   state.view.style.setProperty("--viewport-scale", String(state.scale));
   requestAnimationFrame(() => syncDirectionOverlay(state));
@@ -174,6 +178,26 @@ function hideDirectionOverlay(state) {
   state.directionOverlaySecond.hidden = true;
 }
 
+function logicalOffsetLeft(node, ancestor) {
+  let x = 0;
+  let current = node;
+  while (current && current !== ancestor) {
+    x += current.offsetLeft || 0;
+    current = current.offsetParent;
+  }
+  return x;
+}
+
+function placeDirectionTitle(node, source, { x, y }) {
+  copyTitleContent(node, source);
+  node.hidden = false;
+  node.style.left = `${Math.round(x * 1000) / 1000}px`;
+  node.style.top = `${Math.round(y * 1000) / 1000}px`;
+  node.style.width = `${Math.max(1, source.offsetWidth)}px`;
+  // Nunca hereda la escala del plano de datos.
+  node.style.transform = "none";
+}
+
 function syncDirectionOverlay(state) {
   if (!state.directional || !state.view.classList.contains("active")) return;
   ensureDirectionOverlay(state);
@@ -191,50 +215,50 @@ function syncDirectionOverlay(state) {
   const ascRect = ascTitle.getBoundingClientRect();
   const descRect = descTitle.getBoundingClientRect();
   const host = state.directionOverlay;
+
+  // El host vive fuera del plano transformado: X y tipografía son invariantes.
   host.style.top = `${topOffset}px`;
+  host.classList.add("visible");
+
+  const ascX = logicalOffsetLeft(ascTitle, state.layer);
+  const descX = logicalOffsetLeft(descTitle, state.layer);
+  const ascNaturalH = Math.max(1, ascTitle.offsetHeight);
 
   if (isLandscape()) {
-    if (Math.min(ascRect.top, descRect.top) > stickyY + 0.5) {
-      hideDirectionOverlay(state);
-      return;
-    }
-    copyTitleContent(state.directionOverlayFirst, ascTitle);
-    copyTitleContent(state.directionOverlaySecond, descTitle);
-    state.directionOverlayFirst.hidden = false;
-    state.directionOverlaySecond.hidden = false;
-    host.classList.add("visible", "landscape");
-
-    const place = (node, source, rect) => {
-      node.style.left = `${rect.left - viewRect.left}px`;
-      node.style.top = "0px";
-      node.style.width = `${Math.max(1, source.offsetWidth)}px`;
-      node.style.transform = `scale(${state.scale})`;
-    };
-    place(state.directionOverlayFirst, ascTitle, ascRect);
-    place(state.directionOverlaySecond, descTitle, descRect);
+    host.classList.add("landscape");
+    // Ambos encabezados comparten sólo el desplazamiento vertical del listado.
+    // Nunca se recentran ni se desplazan horizontalmente al hacer zoom.
+    const ascY = Math.max(0, ascRect.top - stickyY);
+    const descY = Math.max(0, descRect.top - stickyY);
+    placeDirectionTitle(state.directionOverlayFirst, ascTitle, { x:ascX, y:ascY });
+    placeDirectionTitle(state.directionOverlaySecond, descTitle, { x:descX, y:descY });
     return;
   }
 
   host.classList.remove("landscape");
-  state.directionOverlaySecond.hidden = true;
-  if (ascRect.top > stickyY + 0.5) {
-    hideDirectionOverlay(state);
+
+  if (descRect.top <= stickyY + 0.5) {
+    // Ya estamos dentro de DESCENDENTS: sólo queda su cabecera sticky.
+    state.directionOverlayFirst.hidden = true;
+    placeDirectionTitle(state.directionOverlaySecond, descTitle, { x:descX, y:0 });
     return;
   }
 
-  const onDesc = descRect.top <= stickyY + 0.5;
-  const current = onDesc ? descTitle : ascTitle;
-  const currentRect = onDesc ? descRect : ascRect;
-  copyTitleContent(state.directionOverlayFirst, current);
-  state.directionOverlayFirst.hidden = false;
-  host.classList.add("visible");
+  // DESCENDENTS todavía no ha tomado el relevo. Su título se dibuja a tamaño
+  // fijo en su posición vertical real para que pueda empujar ASCENDENTS.
+  const descY = descRect.top - stickyY;
+  placeDirectionTitle(state.directionOverlaySecond, descTitle, { x:descX, y:descY });
 
-  const stickyHeight = Math.max(1, current.offsetHeight * state.scale);
-  const pushY = onDesc ? 0 : Math.min(0, descRect.top - stickyY - stickyHeight);
-  state.directionOverlayFirst.style.left = `${currentRect.left - viewRect.left}px`;
-  state.directionOverlayFirst.style.top = `${pushY}px`;
-  state.directionOverlayFirst.style.width = `${Math.max(1, current.offsetWidth)}px`;
-  state.directionOverlayFirst.style.transform = `scale(${state.scale})`;
+  if (ascRect.top > stickyY + 0.5) {
+    // Antes de alcanzar el punto sticky, ASCENDENTS también conserva 1:1.
+    const ascY = ascRect.top - stickyY;
+    placeDirectionTitle(state.directionOverlayFirst, ascTitle, { x:ascX, y:ascY });
+    return;
+  }
+
+  // ASCENDENTS sticky. Sólo puede desplazarse en Y durante el push-off.
+  const pushY = Math.min(0, descRect.top - stickyY - ascNaturalH);
+  placeDirectionTitle(state.directionOverlayFirst, ascTitle, { x:ascX, y:pushY });
 }
 
 function scheduleMeasure(state) {
@@ -265,6 +289,7 @@ function ensureWrapped(view) {
     mutationObserver:null
   };
   states.set(view, state);
+  if (state.directional) view.classList.add("viewport-directional-ready");
   ensureDirectionOverlay(state);
 
   const ro = new ResizeObserver(() => scheduleMeasure(state));
@@ -277,6 +302,8 @@ function ensureWrapped(view) {
   state.mutationObserver = mo;
 
   view.addEventListener("scroll", () => {
+    // BETA 3.25: nunca existe navegación horizontal fuera de CTC.
+    if (view.scrollLeft !== 0) view.scrollLeft = 0;
     requestAnimationFrame(() => syncDirectionOverlay(state));
   }, { passive:true });
 
@@ -292,7 +319,6 @@ function ensureWrapped(view) {
     state.pinch = {
       distance,
       startScale:state.scale,
-      logicalX:(view.scrollLeft + center.x) / state.scale,
       logicalY:(view.scrollTop + center.y) / state.scale
     };
     event.preventDefault();
@@ -308,8 +334,8 @@ function ensureWrapped(view) {
     const center = touchCenter(view, event.touches);
     state.scale = clamp(state.pinch.startScale * ratio, minimumScale(view), maximumScale(view));
     applyScale(state, { measure:false });
-    view.scrollLeft = state.pinch.logicalX * state.scale - center.x;
-    view.scrollTop = state.pinch.logicalY * state.scale - center.y;
+    view.scrollLeft = 0;
+    view.scrollTop = Math.max(0, state.pinch.logicalY * state.scale - center.y);
     event.preventDefault();
   }, { passive:false });
 
@@ -334,20 +360,19 @@ function ensureWrapped(view) {
     event.preventDefault();
     if (!state.natural) measureNatural(state);
     const rect = view.getBoundingClientRect();
-    const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const lx = (view.scrollLeft + x) / state.scale;
     const ly = (view.scrollTop + y) / state.scale;
     state.scale = clamp(state.scale * Math.exp(-event.deltaY * 0.002), minimumScale(view), maximumScale(view));
     applyScale(state, { measure:false });
-    view.scrollLeft = lx * state.scale - x;
-    view.scrollTop = ly * state.scale - y;
+    view.scrollLeft = 0;
+    view.scrollTop = Math.max(0, ly * state.scale - y);
   }, { passive:false });
 
   window.addEventListener("orientationchange", () => {
     requestAnimationFrame(() => {
       state.scale = clamp(state.scale, minimumScale(view), maximumScale(view));
       applyScale(state, { measure:true });
+      view.scrollLeft = 0;
     });
   }, { passive:true });
 
@@ -380,14 +405,13 @@ export function setViewportScale(viewOrSelector, scale, { anchorX = null, anchor
   if (!view || view.classList.contains("ctc-view")) return null;
   const state = ensureWrapped(view);
   if (!state.natural) measureNatural(state);
-  const x = anchorX ?? view.clientWidth / 2;
   const y = anchorY ?? view.clientHeight / 2;
-  const lx = (view.scrollLeft + x) / state.scale;
   const ly = (view.scrollTop + y) / state.scale;
   state.scale = clamp(scale, minimumScale(view), maximumScale(view));
   applyScale(state, { measure:false });
-  view.scrollLeft = lx * state.scale - x;
-  view.scrollTop = ly * state.scale - y;
+  view.scrollLeft = 0;
+  view.scrollTop = Math.max(0, ly * state.scale - y);
+  void anchorX;
   return state.scale;
 }
 
@@ -397,8 +421,10 @@ export function focusViewportPoint(viewOrSelector, x, y, { scale = null, alignX 
   const state = ensureWrapped(view);
   if (scale !== null) state.scale = clamp(scale, minimumScale(view), maximumScale(view));
   applyScale(state, { measure:true });
-  view.scrollLeft = Math.max(0, x * state.scale - view.clientWidth * alignX);
+  view.scrollLeft = 0;
   view.scrollTop = Math.max(0, y * state.scale - view.clientHeight * alignY);
+  void x;
+  void alignX;
 }
 
 export function resetViewport(viewOrSelector, { scale = 1 } = {}) {
@@ -421,7 +447,8 @@ export function viewportState(viewOrSelector) {
     scrollTop:state.view.scrollTop,
     minScale:state.minScale,
     maxScale:state.maxScale,
-    engine:"stable-natural-324",
-    plasticFiltersFixed:Boolean(state.fixedPlasticFilters)
+    engine:"stable-natural-325",
+    plasticFiltersFixed:Boolean(state.fixedPlasticFilters),
+    horizontalLocked:true
   };
 }

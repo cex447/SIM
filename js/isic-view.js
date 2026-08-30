@@ -1,19 +1,19 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.24.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.25.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.24.0";
-import { updateOccupancy } from "./occupancy.js?v=3.24.0";
-import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.24.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.24.0";
+} from "./gtfs.js?v=3.25.0";
+import { updateOccupancy } from "./occupancy.js?v=3.25.0";
+import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.25.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.25.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.24.0";
+} from "./isic.js?v=3.25.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
@@ -61,7 +61,7 @@ function limitPerLineDirection(items) {
     });
 }
 
-/* BETA 3.24.0 · una circulación sólo puede existir una vez en iSIC.
+/* BETA 3.25.0 · una circulación sólo puede existir una vez en iSIC.
    GTFS puede devolver el mismo número de circulación desde más de un service_id
    y, además, la recuperación live puede aportar el mismo tren por otra vía. La
    deduplicación se realiza ANTES de matching, contadores y límite 4×línea×sentido. */
@@ -452,7 +452,7 @@ export function renderISIC(S) {
   const descLabel = $("#isicDescLabel");
 
   /*
-   * BETA 3.24.0 · el estado se decide por sentido.
+   * BETA 3.25.0 · el estado se decide por sentido.
    * Un matcher vacío ya NO significa "sin servicio". Si la imagen oficial
    * contiene filas que todavía no hemos podido identificar, evitamos afirmar
    * ausencia de servicio. Cuando GTFS/live sí han sido resueltos, un sentido
@@ -640,7 +640,7 @@ export async function refreshISIC(S, { force = false } = {}) {
       }
     }
 
-    /* BETA 3.24.0: el límite es por línea + sentido, no por sentido global.
+    /* BETA 3.25.0: el límite es por línea + sentido, no por sentido global.
        Se conservan como máximo las cuatro circulaciones cronológicamente más
        próximas de cada combinación (L6/S1/S2/L7/L12 × asc/desc). */
     const extras = departures
