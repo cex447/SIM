@@ -1012,7 +1012,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.28.0 · CROM FIJO + SCROLL VERTICAL NATIVO
+   BETA 3.29.0 · CROM FIJO + SCROLL VERTICAL SIN ZOOM NATIVO
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1062,6 +1062,14 @@ html,body,#app,main{
   overflow-x:hidden !important;
 }
 
+/* Safari: fuera de CTC sólo existe gesto vertical; pinch de página prohibido. */
+html:not([data-view="ctc"]),
+html:not([data-view="ctc"]) body,
+html:not([data-view="ctc"]) #app,
+html:not([data-view="ctc"]) main{
+  touch-action:pan-y;
+}
+
 /* PLASTIC / iSIC / LIT / SIV: sin zoom y sin eje X. */
 .view:not(.ctc-view){
   position:relative;
@@ -1096,56 +1104,33 @@ html,body,#app,main{
   touch-action:pan-y;
 }
 
-/* ASCENDENTS / DESCENDENTS permanecen en el flujo únicamente para reservar
-   su posición y el aire inferior. La versión que queda fija se pinta en una
-   capa independiente controlada por viewport.js: así ninguna fila puede
-   atravesarla y el push-off depende sólo del eje Y. */
+/* ASCENDENTS / DESCENDENTS: una única cabecera real.
+   Sin clones ni overlays: ahora que no existe zoom fuera de CTC, sticky nativo
+   proporciona el relevo vertical y mantiene tamaño/X exactamente constantes. */
 .plastic-direction > .direction-title{
-  position:relative;
-  z-index:1;
+  position:sticky;
+  top:var(--direction-sticky-top, 0px);
+  z-index:35;
+  box-sizing:border-box;
   width:100%;
   margin:10px 0 0;
-  padding:0 0 14px;
-  background:var(--bg);
-  transform:none !important;
-  white-space:nowrap;
-}
-
-.direction-sticky-overlay{
-  position:absolute;
-  inset:0;
-  z-index:34;
-  height:0;
-  pointer-events:none;
-  overflow:visible;
-  visibility:hidden;
-  transform:none;
-}
-.direction-sticky-overlay.visible{ visibility:visible; }
-.direction-sticky-title{
-  position:absolute;
-  top:0;
-  box-sizing:border-box;
-  margin:0 !important;
-  padding:0 0 14px;
+  padding:0 0 16px;
   background:var(--bg) !important;
   color:var(--fg);
-  font-size:clamp(19px,4.2vw,25px);
-  font-weight:700;
-  font-style:italic;
-  line-height:1;
-  text-align:left;
-  white-space:nowrap;
   transform:none !important;
-  box-shadow:0 8px 0 var(--bg);
-}
-.direction-sticky-overlay.landscape .direction-sticky-title{
-  padding-bottom:10px;
-  font-size:clamp(15px,2vw,18px);
-  box-shadow:0 6px 0 var(--bg);
+  white-space:nowrap;
+  isolation:isolate;
+  /* prolonga la máscara negra unos píxeles bajo el aire tipográfico para que
+     ninguna fila pueda asomar detrás del encabezado al desplazarse. */
+  box-shadow:0 5px 0 var(--bg);
 }
 
-/* Separación visual real entre la cabecera y el primer grupo/circulación. */
+/* No debe quedar ningún overlay legado aunque una caché antigua del DOM lo
+   hubiera creado antes de actualizar los módulos. */
+.direction-sticky-overlay{ display:none !important; }
+
+/* El aire queda incorporado al propio encabezado sticky y se conserva tanto
+   en reposo como durante el push-off. */
 .plastic-direction > .direction-title + .plastic-line-group,
 .plastic-direction > .direction-title + .empty{
   margin-top:0;
