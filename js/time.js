@@ -64,8 +64,21 @@ export function formatCountdown(totalSeconds) {
   const minutes = Math.floor(seconds / 60);
   const remainder = seconds % 60;
 
-  /* SIM mantiene siempre la semántica m:ss, también por encima de 59 min. */
+  /* Formato compacto genérico usado por LIT. */
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
+/* PLASTIC + iSIC: hasta 58:59 se muestra m:ss.
+   Desde 59:00 inclusive, h:mm:ss para evitar minutos de tres cifras y
+   mantener una columna temporal compacta y legible. */
+export function formatOperationalCountdown(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  if (seconds < 59 * 60) return formatCountdown(seconds);
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
 }
 
 export function formatDeparture(value) {

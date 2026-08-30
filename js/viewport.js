@@ -1,5 +1,5 @@
 /*
- * SIM+ Beta 3.29.0 · saneamiento de viewport.
+ * SIM+ Beta 3.30.0 · saneamiento de viewport.
  *
  * PLASTIC, iSIC, LIT y SIV:
  *   - ningún zoom de aplicación;

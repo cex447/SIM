@@ -1,19 +1,19 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.29.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.30.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.29.0";
-import { updateOccupancy } from "./occupancy.js?v=3.29.0";
-import { countdownState, formatCountdown, resolveGtfsTimestamp } from "./time.js?v=3.29.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.29.0";
+} from "./gtfs.js?v=3.30.0";
+import { updateOccupancy } from "./occupancy.js?v=3.30.0";
+import { countdownState, formatOperationalCountdown, resolveGtfsTimestamp } from "./time.js?v=3.30.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.30.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.29.0";
+} from "./isic.js?v=3.30.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
@@ -34,17 +34,8 @@ function unitCountText(count) {
   return `${count} ${count === 1 ? "UT" : "UTs"}`;
 }
 
-/* iSIC: a partir de 59:00 la cronometría pasa a h:mm:ss.
-   Ej.: 72:01 -> 1:12:01. Por debajo de 59 min se conserva m:ss. */
-function formatISICCountdown(seconds) {
-  const total = Math.max(0, Math.floor(Number(seconds) || 0));
-  if (total < 59 * 60) return formatCountdown(total);
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-}
-
+/* PLASTIC e iSIC comparten formatOperationalCountdown() para que la columna temporal
+   tenga exactamente la misma semántica y anchura en ambos módulos. */
 /* Máximo de cuatro circulaciones por combinación línea + sentido.
    El límite se aplica DESPUÉS de fusionar horario, tiempo real e iSIC para que
    las cuatro sean siempre las más próximas cronológicamente. */
@@ -61,7 +52,7 @@ function limitPerLineDirection(items) {
     });
 }
 
-/* BETA 3.29.0 · una circulación sólo puede existir una vez en iSIC.
+/* BETA 3.30.0 · una circulación sólo puede existir una vez en iSIC.
    GTFS puede devolver el mismo número de circulación desde más de un service_id
    y, además, la recuperación live puede aportar el mismo tren por otra vía. La
    deduplicación se realiza ANTES de matching, contadores y límite 4×línea×sentido. */
@@ -333,7 +324,7 @@ function createRow(S, item) {
   const state = countdownState(item.departure, Date.now());
   if (state) {
     const red = state.overdue || state.seconds <= countdownRedThreshold(item.station);
-    row.countdown.textContent = state.overdue ? "0:00" : formatISICCountdown(state.seconds);
+    row.countdown.textContent = state.overdue ? "0:00" : formatOperationalCountdown(state.seconds);
     row.countdown.classList.toggle("red", red);
     row.countdown.classList.toggle("overdue", state.overdue);
   }
@@ -452,7 +443,7 @@ export function renderISIC(S) {
   const descLabel = $("#isicDescLabel");
 
   /*
-   * BETA 3.29.0 · el estado se decide por sentido.
+   * BETA 3.30.0 · el estado se decide por sentido.
    * Un matcher vacío ya NO significa "sin servicio". Si la imagen oficial
    * contiene filas que todavía no hemos podido identificar, evitamos afirmar
    * ausencia de servicio. Cuando GTFS/live sí han sido resueltos, un sentido
@@ -640,7 +631,7 @@ export async function refreshISIC(S, { force = false } = {}) {
       }
     }
 
-    /* BETA 3.29.0: el límite es por línea + sentido, no por sentido global.
+    /* BETA 3.30.0: el límite es por línea + sentido, no por sentido global.
        Se conservan como máximo las cuatro circulaciones cronológicamente más
        próximas de cada combinación (L6/S1/S2/L7/L12 × asc/desc). */
     const extras = departures
@@ -702,7 +693,7 @@ export function tickISIC(S) {
     const state = countdownState(item.departure, Date.now());
     if (!cell || !state) return;
     const red = state.overdue || state.seconds <= countdownRedThreshold(item.station);
-    cell.textContent = state.overdue ? "0:00" : formatISICCountdown(state.seconds);
+    cell.textContent = state.overdue ? "0:00" : formatOperationalCountdown(state.seconds);
     cell.classList.toggle("red", red);
     cell.classList.toggle("overdue", state.overdue);
   });
