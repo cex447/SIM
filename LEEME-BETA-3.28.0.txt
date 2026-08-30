@@ -1,0 +1,51 @@
+SIM+ BETA 3.28.0
+30/08/2026
+
+Base: Beta 3.27.0.
+Objetivo: consolidar la resolución ferroviaria vía -> circuito -> trayectoria en CTC.
+
+JERARQUÍA CTC
+1. Vía real conocida (iSIC/caché compartida): prioridad absoluta.
+2. Regla operacional inequívoca.
+3. Vía por defecto según estación y sentido.
+4. Heurística, sólo cuando no existe información mejor.
+Una capa inferior nunca puede sustituir una vía real conocida.
+
+REGLAS INCORPORADAS
+- SR: ascendente por defecto vía 1/SR5; descendente por defecto vía 2/SR21.
+- L12 en SR: vía 4/SR20 como regla operacional.
+- RB: ascendente por defecto vía 1/RB08; descendente por defecto vía 2/RB20.
+- L7 en GR: ascendente vía 3/GR11; descendente vía 4/GR10.
+- PC: las llegadas descendentes sin vía conocida ya no se representan en una
+  plataforma concreta; quedan en el último tramo común del haz hasta recibir
+  una vía real.
+- L7 ascendente en PC: vía 4 sólo como heurística provisional cuando todavía
+  no existe vía real confirmada. En cuanto aparece una vía real, ésta manda.
+- Las demás observaciones estadísticas de PC no se convierten todavía en
+  reglas rígidas: SIM+ no dispone de un identificador inequívoco del régimen
+  400/500 ni de la vía futura de entrada de los descendentes.
+
+CORRECCIÓN DE PRIORIDAD DURANTE LA MARCHA
+- Si un tramo comenzó con una vía por defecto/heurística y después aparece una
+  vía real en la caché, el estado CTC se actualiza inmediatamente.
+- Las trayectorias con vía resuelta terminan/nacen en el circuito asociado a
+  esa vía; no se conserva un punto nominal incompatible.
+
+CASOS DE REGRESIÓN
+- B057 en PC: si vía real=4 -> PC4; sin dato real, L7 asc usa provisionalmente PC4.
+- B060 en GR: L7 descendente -> vía 4 / GR10.
+- D048 en RB: descendente -> vía 2 / RB20; si iSIC confirma vía 2, esa
+  confirmación tiene prioridad absoluta.
+
+SE CONSERVA DE 3.27.0
+- PLASTIC/iSIC/LIT/SIV sin zoom ni desplazamiento horizontal; sólo scroll vertical.
+- Cabeceras ASCENDENTS/DESCENDENTS desacopladas y push-off vertical.
+- CTC como única vista con zoom y pan X/Y mediante viewBox.
+- Touch Events específicos para iPhone/iPad en CTC.
+- Deduplicación iSIC, máximo 4 por línea/sentido, SR4 en LIT para L12 y demás
+  correcciones acumuladas.
+
+DESPLIEGUE
+- ZIP preparado para subir directamente a la raíz de GitHub Pages.
+- Sin carpeta intermedia.
+- No incluye fuentes Canal+; conservar las existentes en el repositorio.
