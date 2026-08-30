@@ -1,0 +1,21 @@
+SIM+ Beta 3.30.0
+
+SANEAMIENTO DE INTERFAZ / SAFARI
+- PLASTIC, iSIC, LIT y SIV: sin zoom de aplicación y sin zoom nativo de página.
+- El pinch de Safari se intercepta a nivel document; fuera de CTC sólo hay scroll vertical.
+- Eje X bloqueado; scrollLeft se mantiene a 0.
+- ASCENDENTS / DESCENDENTS: una única cabecera real sticky, sin clones/overlays duplicados.
+- Tamaño y coordenada X constantes; push-off exclusivamente vertical.
+- Máscara negra y aire inferior bajo las cabeceras para impedir mezcla con circulaciones.
+- CTC: conserva pinch + pan X/Y propios sobre viewBox; el navegador no amplía la página.
+- Se conservan las reglas ferroviarias de 3.28 (vía real prioritaria; RB, SR, GR/L7 y PC).
+
+
+- ZIP preparado para subir directamente a la raíz de GitHub Pages.
+- No incluye fuentes Canal+; conservar las existentes en el repositorio.
+
+AJUSTE FINO PLASTIC / iSIC
+- Cronometría restante compartida en ambos módulos: m:ss hasta 58:59 y h:mm:ss desde 59:00 inclusive.
+- La columna de tiempo queda reservada y alineada a la derecha para evitar recortes (p. ej. 3:01 / 23:01 / 43:01 / 1:03:01).
+- Retícula de filas compactada sin reducir tipografía, especialmente el espacio est. → estación actual.
+- LIT conserva su formato de cuenta atrás propio; este ajuste no lo modifica.
