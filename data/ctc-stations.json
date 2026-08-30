@@ -1,5 +1,5 @@
 {
-  "version": "3.25.0",
+  "version": "3.28.0",
   "schemaVersion": 1,
   "source": "ctc_bbox.html",
   "description": "Bounding boxes de los códigos verdes de estación. Zona sensible ceñida a las letras; sólo 0,5 unidades de tolerancia perimetral.",

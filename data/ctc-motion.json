@@ -1,5 +1,5 @@
 {
-  "version": "3.25.0",
+  "version": "3.28.0",
   "purpose": "Geometria interna per al moviment estimat de circulacions sobre el CTC. Les línies no es dibuixen: només guien la posició de les etiquetes.",
   "holdProgress": 0.975,
   "stations": {
@@ -593,17 +593,32 @@
     "3.20.0: la vía real confirmada no sólo fija el punto estacionado: también selecciona una trayectoria completa de entrada/salida desde el circuito exacto en PC y SR.",
     "3.20.0: SR por sentido usa como fallback operativo vía 1/SR5 en ascendente y vía 2/SR21 en descendente; nunca una coordenada intermedia entre ambas vías.",
     "3.20.0: SC→VO ascendente sigue SC9/SCA12-SCA6 y baja por el escape al corredor inferior VO1; VO→SC descendente sigue VO2 y sube por el escape al corredor superior SC6, conforme a los trazados verde/rosa aportados.",
-    "3.20.0: las placas CTC y el bloque rojo +N comparten la nueva altura compacta; el texto lleva compensación óptica vertical específica."
+    "3.20.0: las placas CTC y el bloque rojo +N comparten la nueva altura compacta; el texto lleva compensación óptica vertical específica.",
+    "3.28: vía real confirmada > regla operacional > default por sentido > heurística; ningún fallback puede sustituir una vía real.",
+    "3.28: SR por defecto asc=vía 1/SR5 y desc=vía 2/SR21; L12 en SR=vía 4/SR20.",
+    "3.28: RB por defecto asc=vía 1/RB08 y desc=vía 2/RB20.",
+    "3.28: L7 en GR asc=vía 3/GR11 y desc=vía 4/GR10.",
+    "3.28: PC descendente con vía aún desconocida se mantiene en el acceso común al haz; no se presenta como PC1/PC2 por defecto.",
+    "3.28: L7 ascendente en PC usa vía 4 sólo como heurística provisional si todavía no existe vía real confirmada."
   ],
   "lineStationOverrides": {
     "L7": {
       "GR": {
         "asc": [
-          1427.3,
+          1427.281,
           2598.0
         ],
         "circuit": "GR11",
-        "platformNote": "L7 ascendente estaciona en GR11"
+        "platformNote": "L7 ascendente estaciona en GR11",
+        "desc": [
+          1423.439,
+          2550.0
+        ],
+        "circuitAsc": "GR11",
+        "circuitDesc": "GR10",
+        "platformAsc": 3,
+        "platformDesc": 4,
+        "note": "L7: ascendente por vía 3/GR11; descendente por vía 4/GR10. Una vía real confirmada mantiene prioridad absoluta."
       }
     },
     "L12": {
@@ -670,6 +685,32 @@
         [
           1612.1,
           2630.0
+        ]
+      ],
+      "PM>GR|desc": [
+        [
+          1612.1,
+          2614.0
+        ],
+        [
+          1510.0,
+          2614.0
+        ],
+        [
+          1479.9,
+          2584.5
+        ],
+        [
+          1464.5,
+          2566.0
+        ],
+        [
+          1450.6,
+          2550.0
+        ],
+        [
+          1423.439,
+          2550.0
         ]
       ]
     },
@@ -864,6 +905,10 @@
   },
   "defaultPlatforms": {
     "SR": {
+      "asc": 1,
+      "desc": 2
+    },
+    "RB": {
       "asc": 1,
       "desc": 2
     }
@@ -1545,5 +1590,46 @@
         ]
       }
     }
+  },
+  "lineOperationalPlatforms": {
+    "L7": {
+      "GR": {
+        "asc": 3,
+        "desc": 4
+      }
+    },
+    "L12": {
+      "SR": {
+        "asc": 4,
+        "desc": 4
+      }
+    }
+  },
+  "lineHeuristicPlatforms": {
+    "L7": {
+      "PC": {
+        "asc": 4
+      }
+    }
+  },
+  "uncertainStationPoints": {
+    "PC": {
+      "desc": [
+        1004.9,
+        2566.0
+      ]
+    }
+  },
+  "uncertainPaths": {
+    "PR>PC|desc": [
+      [
+        1189.7,
+        2566.0
+      ],
+      [
+        1004.9,
+        2566.0
+      ]
+    ]
   }
 }
