@@ -1,15 +1,16 @@
-import { getTripBundle } from "./gtfs.js?v=3.31.0";
+export const MODULE_VERSION = "3.36.0";
+import { getTripBundle } from "./gtfs.js?v=3.36.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.31.0";
+} from "./time.js?v=3.36.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.31.0";
+} from "./operations.js?v=3.36.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -20,7 +21,7 @@ import {
   matchContextToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.31.0";
+} from "./isic.js?v=3.36.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const LIT_PLATFORM_NEAR_MS = 10000;
@@ -392,7 +393,10 @@ export async function loadLIT(S, circulation, liveTrain) {
 
   const bundle = await getTripBundle(S.config.gtfsZipIndexUrl, liveTrain.id);
 
-  if (S.query?.code !== circulation || S.query?.state === "inactive") {
+  /* Beta 3.32: si el snapshot vivo desaparece mientras GTFS está cargando,
+     seguimos terminando el LIT. Sólo abortamos si el usuario ha cambiado la
+     circulación solicitada. */
+  if (S.query?.code !== circulation) {
     return false;
   }
 

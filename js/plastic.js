@@ -1,11 +1,11 @@
-import { getTripBundle } from "./gtfs.js?v=3.31.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.31.0";
-import { countdownState, formatOperationalCountdown } from "./time.js?v=3.31.0";
+export const MODULE_VERSION = "3.36.0";
+import { getTripBundle } from "./gtfs.js?v=3.36.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.36.0";
+import { countdownState, formatOperationalCountdown } from "./time.js?v=3.36.0";
 import {
-  countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.31.0";
+} from "./operations.js?v=3.36.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -15,9 +15,12 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.31.0";
+} from "./isic.js?v=3.36.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
+/* Mateixa velocitat lineal que el triangle mòbil de LIT:
+   36 px en 2,5 s, duplicada des de Beta 3.10.0 = 28,8 px/s. */
+const PLASTIC_DELAY_TICKER_SPEED_PX_PER_SECOND = 28.8;
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
 const familyRank = new Map(FAMILY_ORDER.map((family, index) => [family, index]));
 
@@ -27,12 +30,247 @@ const tripContextCache = new Map();
 let onSelectTrainHandler = null;
 let platformRefreshRunning = false;
 let platformRefreshAt = 0;
+const filterUi = { lines:new Map(), units:new Map(), all:null };
+let delayTickerAnimation = null;
+let delayTickerKey = "";
+let delayContextPrimeKey = "";
 
 function make(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+function createFilterDelayMarker() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 18 18");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.setAttribute("aria-hidden", "true");
+  svg.classList.add("plastic-filter-delay-marker");
+
+  const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+  /* Exactament la mateixa geometria que el triangle estacionat de LIT. */
+  polygon.setAttribute("points", "2,2 14.12435565,9 2,16");
+  polygon.setAttribute("fill", "currentColor");
+  polygon.setAttribute("stroke", "currentColor");
+  polygon.setAttribute("stroke-width", "1.8");
+  polygon.setAttribute("stroke-linejoin", "miter");
+  polygon.setAttribute("shape-rendering", "geometricPrecision");
+  svg.appendChild(polygon);
+  svg.hidden = true;
+  return svg;
+}
+
+function wrapFilterControl(button, { type, key, delayMarker = true } = {}) {
+  const wrapper = make("div", `plastic-filter-stat plastic-filter-stat-${type}`);
+  const marker = delayMarker ? createFilterDelayMarker() : null;
+  const count = make("span", "plastic-filter-count", "0 UTs");
+
+  if (marker) wrapper.appendChild(marker);
+  wrapper.append(button, count);
+
+  const model = { wrapper, button, count, marker };
+  if (type === "line") filterUi.lines.set(key, model);
+  if (type === "unit") filterUi.units.set(key, model);
+  if (type === "all") filterUi.all = model;
+  return wrapper;
+}
+
+function uniqueUnitCount(trains) {
+  return new Set((trains || []).map(train => train?.unit).filter(Boolean)).size;
+}
+
+function updateFilterSummary(S) {
+  const trains = S.trains || [];
+  const delayed = trains.filter(train => train.onTime === false);
+  const delayedFamilies = new Set(delayed.map(train => train.family));
+  const delayedSeries = new Set(delayed.map(train => String(train.unit || "").slice(0, 3)));
+
+  for (const family of FAMILY_ORDER) {
+    const model = filterUi.lines.get(family);
+    if (!model) continue;
+    model.count.textContent = unitCountText(uniqueUnitCount(trains.filter(train => train.family === family)));
+    if (model.marker) model.marker.hidden = !delayedFamilies.has(family);
+  }
+
+  for (const series of S.config.allowedUnitSeries || []) {
+    const model = filterUi.units.get(series);
+    if (!model) continue;
+    model.count.textContent = unitCountText(uniqueUnitCount(
+      trains.filter(train => String(train.unit || "").startsWith(`${series}.`))
+    ));
+    if (model.marker) model.marker.hidden = !delayedSeries.has(series);
+  }
+
+  if (filterUi.all) {
+    filterUi.all.count.textContent = unitCountText(uniqueUnitCount(trains));
+  }
+}
+
+function clearDelayTickerAnimation() {
+  delayTickerAnimation?.cancel();
+  delayTickerAnimation = null;
+  delayTickerKey = "";
+}
+
+function ensurePlasticStatusStructure() {
+  const status = document.querySelector("#plasticStatus");
+  if (!status) return null;
+
+  if (status.dataset.enhancedStatus !== "1") {
+    clearDelayTickerAnimation();
+    status.replaceChildren();
+    status.dataset.enhancedStatus = "1";
+
+    const updated = make("span", "plastic-status-updated");
+    const delayGroup = make("span", "plastic-delay-group");
+    delayGroup.hidden = true;
+    const separator = make("span", "plastic-delay-separator", "·");
+    const count = make("span", "plastic-delay-count");
+    const windowNode = make("span", "plastic-delay-window");
+    const track = make("span", "plastic-delay-track");
+    const copyA = make("span", "plastic-delay-copy");
+    const copyB = make("span", "plastic-delay-copy");
+    copyB.setAttribute("aria-hidden", "true");
+    track.append(copyA, copyB);
+    windowNode.appendChild(track);
+    delayGroup.append(separator, count, windowNode);
+    status.append(updated, delayGroup);
+  }
+
+  return {
+    status,
+    updated:status.querySelector(".plastic-status-updated"),
+    delayGroup:status.querySelector(".plastic-delay-group"),
+    count:status.querySelector(".plastic-delay-count"),
+    windowNode:status.querySelector(".plastic-delay-window"),
+    track:status.querySelector(".plastic-delay-track"),
+    copyA:status.querySelectorAll(".plastic-delay-copy")[0],
+    copyB:status.querySelectorAll(".plastic-delay-copy")[1]
+  };
+}
+
+function setPlainPlasticStatus(status, text, error = false) {
+  clearDelayTickerAnimation();
+  if (!status) return;
+  status.removeAttribute("data-enhanced-status");
+  status.replaceChildren(document.createTextNode(text));
+  status.classList.toggle("error", Boolean(error));
+}
+
+function startDelayTicker(refs, key) {
+  if (!refs?.track || !refs.windowNode) return;
+  if (delayTickerKey === key && delayTickerAnimation) return;
+
+  clearDelayTickerAnimation();
+  delayTickerKey = key;
+
+  requestAnimationFrame(() => {
+    if (delayTickerKey !== key) return;
+    const first = refs.copyA?.getBoundingClientRect();
+    const windowRect = refs.windowNode.getBoundingClientRect();
+    const distance = Math.max(0, Number(first?.width) || 0);
+
+    /* Si el text cap íntegrament, es manté estàtic. Si no, es duplica i
+       circula exactament a 28,8 px/s, la velocitat lineal del triangle LIT. */
+    if (!distance || distance <= Math.max(0, windowRect.width - 2) ||
+        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+      refs.copyB.hidden = true;
+      refs.track.style.transform = "translate3d(0,0,0)";
+      return;
+    }
+
+    refs.copyB.hidden = false;
+    const duration = Math.max(1000, (distance / PLASTIC_DELAY_TICKER_SPEED_PX_PER_SECOND) * 1000);
+    delayTickerAnimation = refs.track.animate(
+      [
+        { transform:"translate3d(0,0,0)" },
+        { transform:`translate3d(-${distance}px,0,0)` }
+      ],
+      { duration, easing:"linear", iterations:Infinity }
+    );
+  });
+}
+
+function delayedEntries(S) {
+  const unique = new Map();
+  for (const train of S.trains || []) {
+    if (train.onTime !== false || unique.has(train.circulation)) continue;
+    unique.set(train.circulation, train);
+  }
+  return [...unique.values()]
+    .sort(sortTrains)
+    .map(train => ({ train, minutes:delayMinutes(cachedTripContext(train), train) }))
+    .filter(entry => Number.isFinite(entry.minutes) && entry.minutes >= 1);
+}
+
+function primeDelayContexts(S) {
+  const missing = (S.trains || []).filter(train =>
+    train.onTime === false && !cachedTripContext(train)
+  );
+  if (!missing.length) {
+    delayContextPrimeKey = "";
+    return;
+  }
+
+  const key = missing.map(train => train.id).sort().join("|");
+  if (!key || key === delayContextPrimeKey) return;
+  delayContextPrimeKey = key;
+
+  Promise.all(missing.map(train => ensureTripContext(S, train))).finally(() => {
+    if (delayContextPrimeKey === key) delayContextPrimeKey = "";
+    if (S.activeView === "plastic") renderPlasticStatus(S);
+  });
+}
+
+function renderPlasticStatus(S) {
+  const status = document.querySelector("#plasticStatus");
+  if (!status) return;
+
+  if (S.lastError && !S.lastFetch) {
+    setPlainPlasticStatus(status, "DADES NO DISPONIBLES", true);
+    return;
+  }
+  if (S.lastError && S.lastFetch) {
+    setPlainPlasticStatus(
+      status,
+      `DADES CONSERVADES ${S.lastFetch.toLocaleTimeString("es-ES", { hour12:false })}`,
+      true
+    );
+    return;
+  }
+  if (!S.lastFetch) {
+    setPlainPlasticStatus(status, "ESPERANT DADES", false);
+    return;
+  }
+
+  const refs = ensurePlasticStatusStructure();
+  if (!refs) return;
+  refs.status.classList.remove("error");
+  refs.updated.textContent = `ACTUALITZAT ${S.lastFetch.toLocaleTimeString("es-ES", { hour12:false })}`;
+
+  const entries = delayedEntries(S);
+  if (!entries.length) {
+    refs.delayGroup.hidden = true;
+    clearDelayTickerAnimation();
+    primeDelayContexts(S);
+    return;
+  }
+
+  refs.delayGroup.hidden = false;
+  refs.count.textContent = `${unitCountText(entries.length)}:`;
+  const tickerText = entries
+    .map(({ train, minutes }) => `${train.circulation} +${minutes}`)
+    .join("   ");
+  const loopText = `${tickerText}   `;
+  refs.copyA.hidden = false;
+  refs.copyA.textContent = loopText;
+  refs.copyB.textContent = loopText;
+
+  const key = entries.map(({ train, minutes }) => `${train.circulation}:${minutes}`).join("|");
+  startDelayTicker(refs, key);
+  primeDelayContexts(S);
 }
 
 
@@ -126,7 +364,7 @@ function lineButton(S, family) {
     renderPLASTIC(S);
   });
 
-  return button;
+  return wrapFilterControl(button, { type:"line", key:family, delayMarker:true });
 }
 
 function unitButton(S, series) {
@@ -153,7 +391,7 @@ function unitButton(S, series) {
     renderPLASTIC(S);
   });
 
-  return button;
+  return wrapFilterControl(button, { type:"unit", key:series, delayMarker:true });
 }
 
 export function wirePLASTIC(S, { onSelectTrain } = {}) {
@@ -165,6 +403,13 @@ export function wirePLASTIC(S, { onSelectTrain } = {}) {
 
   lineBox.replaceChildren(...FAMILY_ORDER.map(family => lineButton(S, family)));
   unitBox.replaceChildren(...S.config.allowedUnitSeries.map(series => unitButton(S, series)));
+
+  if (!allButton.closest(".plastic-filter-stat")) {
+    const parent = allButton.parentNode;
+    const next = allButton.nextSibling;
+    const wrapper = wrapFilterControl(allButton, { type:"all", key:"all", delayMarker:false });
+    parent?.insertBefore(wrapper, next);
+  }
 
   allButton.addEventListener("click", () => {
     S.plasticFilters.units.clear();
@@ -412,13 +657,15 @@ function updateOriginCountdown(model, train) {
     return;
   }
 
-  const threshold = countdownRedThreshold(origin);
-  const red = state.overdue || state.seconds <= threshold;
+  // PLASTIC: el rojo queda reservado exclusivamente a retraso real
+  // confirmado por Posicionament dels trens (onTime === false).
+  // Los umbrales de cuenta atrás y 0:00 no cambian de color por sí solos.
+  const delayed = train.onTime === false;
 
   model.countdown.textContent = state.overdue ? "0:00" : formatOperationalCountdown(state.seconds);
   model.countdown.className = "plastic-countdown";
-  model.countdown.classList.toggle("red", red);
-  model.countdown.classList.toggle("overdue", state.overdue);
+  model.countdown.classList.toggle("red", delayed);
+  model.countdown.removeAttribute("data-overdue");
 }
 
 function updateOperationalFromCache(model, train, S) {
@@ -643,18 +890,6 @@ function setEmpty(direction, empty, text) {
   host.textContent = empty ? text : "";
 }
 
-function statusText(S, count) {
-  if (S.lastError && !S.lastFetch) return "DADES NO DISPONIBLES";
-
-  if (S.lastError && S.lastFetch) {
-    return `DADES CONSERVADES ${S.lastFetch.toLocaleTimeString("es-ES", { hour12: false })}`;
-  }
-
-  if (!S.lastFetch) return "ESPERANT DADES";
-
-  return `ACTUALITZAT ${S.lastFetch.toLocaleTimeString("es-ES", { hour12: false })} · ${unitCountText(count)}`;
-}
-
 function reconcileDirection(S, direction, trains) {
   const grouped = new Map(FAMILY_ORDER.map(family => [family, []]));
   for (const train of trains) grouped.get(train.family)?.push(train);
@@ -738,9 +973,8 @@ export function renderPLASTIC(S) {
     document.querySelector("#descCount").textContent = unitCountText(desc.length);
   }
 
-  const status = document.querySelector("#plasticStatus");
-  status.textContent = statusText(S, filtered.length);
-  status.classList.toggle("error", Boolean(S.lastError));
+  updateFilterSummary(S);
+  renderPlasticStatus(S);
 
   syncFilterVisuals(S);
   /* Les vies d'origen via iSIC només es consulten mentre PLASTIC és visible.

@@ -1,38 +1,44 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.31.0";
+} from "./fgc-api.js?v=3.36.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
-  revealSearchedTrain
-} from "./plastic.js?v=3.31.0";
+  revealSearchedTrain,
+  MODULE_VERSION as PLASTIC_MODULE_VERSION
+} from "./plastic.js?v=3.36.0";
 
 import {
   clearLIT,
   focusCurrentLIT,
   loadLIT,
-  tickLIT
-} from "./lit.js?v=3.31.0";
+  tickLIT,
+  MODULE_VERSION as LIT_MODULE_VERSION
+} from "./lit.js?v=3.36.0";
 
 import {
   wireISIC,
   renderISIC,
   refreshISIC,
   syncISICQuery,
-  tickISIC
-} from "./isic-view.js?v=3.31.0";
+  tickISIC,
+  MODULE_VERSION as ISIC_MODULE_VERSION
+} from "./isic-view.js?v=3.36.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.31.0";
-import { BackgroundAudio } from "./audio.js?v=3.31.0";
+import { updateOccupancy } from "./occupancy.js?v=3.36.0";
+import { BackgroundAudio } from "./audio.js?v=3.36.0";
 
-import { setupViewports, activateViewport } from "./viewport.js?v=3.31.0";
+import { setupViewports, activateViewport } from "./viewport.js?v=3.36.0";
 import {
   initCTC, enterCTC, leaveCTC, updateCTC, ctcDiagnostic,
-  requestCTCStationFocus, requestCTCTrainFocus
-} from "./ctc.js?v=3.31.0";
+  requestCTCStationFocus, requestCTCTrainFocus,
+  MODULE_VERSION as CTC_MODULE_VERSION
+} from "./ctc.js?v=3.36.0";
+
+const APP_MODULE_VERSION = "3.36.0";
 
 const S = {
   config: null,
@@ -121,8 +127,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.31.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.31.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.36.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.36.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -300,9 +306,11 @@ async function resolveQuery(code) {
     const currentTrain = findTrain(code);
 
     if (!currentTrain) {
+      /* Beta 3.32: una ausencia transitoria del snapshot de posicionament no
+         destruye un LIT que ya se ha cargado. Conservamos itinerario y estado
+         funcional; cuando reaparezca la circulación, el live se resincroniza. */
       S.query.state = "inactive";
       S.query.train = null;
-      clearLIT(S);
     } else {
       S.query.state = loaded ? "active" : S.query.state;
       S.query.train = currentTrain;
@@ -462,7 +470,9 @@ function syncActiveQueryAfterRefresh() {
     S.query.train = null;
     renderQuery();
 
-    if (S.selected?.circulation === S.query.code) clearLIT(S);
+    /* Beta 3.32: no borrar LIT por una ausencia transitoria en un refresco.
+       El usuario sólo pierde el LIT al introducir/borrar explícitamente otra
+       circulación. */
     return;
   }
 
@@ -559,7 +569,12 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.31.0",
+      "SIM+ Beta 3.36.0",
+      `APP: ${APP_MODULE_VERSION}`,
+      `PLASTIC: ${PLASTIC_MODULE_VERSION}`,
+      `iSIC: ${ISIC_MODULE_VERSION}`,
+      `CTC: ${CTC_MODULE_VERSION}`,
+      `LIT: ${LIT_MODULE_VERSION}`,
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,

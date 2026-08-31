@@ -1,7 +1,8 @@
-import { getTripBundle } from './gtfs.js?v=3.31.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.31.0';
-import { parentCode } from './operations.js?v=3.31.0';
-import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.31.0';
+export const MODULE_VERSION = "3.36.0";
+import { getTripBundle } from './gtfs.js?v=3.36.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.36.0';
+import { parentCode } from './operations.js?v=3.36.0';
+import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.36.0';
 
 let initialized = false;
 let active = false;
@@ -97,13 +98,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.31.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.36.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.31.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.36.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -114,7 +115,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.31.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.36.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -1107,7 +1108,9 @@ function markerFor(train) {
     y:-TRAIN_HEIGHT / 2,
     width:TRAIN_CODE_WIDTH,
     height:TRAIN_HEIGHT,
-    class:'ctc-train-code-bg'
+    class:'ctc-train-code-bg',
+    opacity:'1',
+    'fill-opacity':'0.75'
   });
   const codeText = svgElement('text', {
     x:0,
@@ -1239,6 +1242,14 @@ function updateMarkerVisual(marker, train, state, position, nowMs) {
   hitRect.dataset.circulation = train.circulation;
 
   codeRect.setAttribute('fill', lineColor(train.line));
+  /* Safari: opacitat aplicada directament al node SVG a cada frame.
+     Només el fons de matrícula és translúcid; text i retard queden al 100%. */
+  codeRect.setAttribute('opacity', '1');
+  codeRect.setAttribute('fill-opacity', '0.75');
+  codeRect.style.opacity = '1';
+  codeRect.style.fillOpacity = '0.75';
+  codeText.setAttribute('opacity', '1');
+  codeText.setAttribute('fill-opacity', '1');
   codeText.textContent = train.circulation;
 
   const minutes = delayMinutes(state, nowMs);
