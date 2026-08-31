@@ -1,0 +1,26 @@
+SIM+ Beta 3.35.0
+
+Base: Beta 3.34.0. Hotfix localizado; resto de SIM+ preservado.
+
+PLASTIC
+- Cada filtro de línea (L6, S1, S2, L7, L12) muestra junto al pulsador el número global de UTs activas en esa línea.
+- Cada filtro de serie (112, 113, 114, 115) muestra el número global de UTs activas de esa serie.
+- TOTS muestra el total global de UTs activas.
+- Los contadores utilizan la misma familia visual, tamaño y peso ligero/cursiva que ACTUALITZAT.
+- Si Posicionament dels trens confirma retraso (en_hora=false), aparece un triángulo rojo relleno a la izquierda del pulsador de línea y del pulsador de serie afectados. Un único triángulo por pulsador, independientemente del número de circulaciones retrasadas.
+- ACTUALITZAT deja de mostrar el total global de UTs, ya visible junto a TOTS.
+- Si existen retrasos confirmados y cuantificables, tras ACTUALITZAT aparece el total en rojo/bold y un ticker rojo/bold con circulación + minutos. Tres espacios visuales separan circulaciones.
+- Si no hay retrasos confirmados, sólo se muestra ACTUALITZAT hh:mm:ss.
+- El ticker usa 28,8 px/s, la misma velocidad lineal del triángulo móvil de LIT.
+- El estado de retraso nunca se infiere: sólo se activa con el dato real en_hora=false de Posicionament dels trens.
+- En PLASTIC, el rojo de la cuenta atrás queda reservado exclusivamente a retraso real confirmado (en_hora=false). 0:15, 0:10, 0:05 y 0:00 permanecen blancos si no existe retraso.
+- Esta regla es exclusiva de PLASTIC: LIT e iSIC conservan intacta su semántica actual de color y cuenta atrás.
+
+CTC
+- El fondo coloreado de cada matrícula de circulación se fuerza directamente en el SVG a opacity=0.75 y fill-opacity=0.75.
+- El texto de la circulación permanece al 100% de opacidad.
+- La placa roja de retraso permanece al 100% y no se modifica.
+
+IMPORTANTE
+- No se incluyen fuentes tipográficas en este ZIP. Conservar en el repositorio las fuentes privadas ya existentes.
+- ZIP preparado para desplegar directamente en la raíz de GitHub Pages.
