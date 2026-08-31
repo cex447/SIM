@@ -1,0 +1,24 @@
+SIM+ Beta 3.39.0
+
+Base: SIM+ Beta 3.38.0.
+
+Corrección cerrada:
+- PLASTIC / Safari iOS: los triángulos rojos de retraso nacen siempre ocultos
+  mediante CSS (`display:none`) y un atributo SVG `hidden` real.
+- La visibilidad ya no depende de asignar la propiedad JavaScript `.hidden` a
+  un SVG, comportamiento que Safari no refleja de forma fiable en el DOM.
+- Al existir un retraso validado de +1 o superior se retira explícitamente el
+  atributo `hidden` y se añade la clase `is-visible`.
+- Al no existir retraso, o al desaparecer el último retraso validado, se elimina
+  la clase visible y se repone explícitamente el atributo `hidden`.
+- La lista que gobierna los triángulos sigue siendo exactamente la misma que
+  alimenta el ticker de retrasos: `en_hora=false` por sí solo no es suficiente.
+
+Se conservan íntegramente los cambios de la Beta 3.38.0:
+- punta del triángulo en contacto con el logotipo o el primer 1 de la serie;
+- contadores superiores exclusivamente numéricos;
+- UT/UTs conservado en ASCENDENTS, DESCENDENTS y grupos interiores de línea.
+
+Cache busting y diagnóstico actualizados de forma coherente a 3.39.0.
+
+No se incluyen fuentes tipográficas. Conservar las fuentes ya presentes en el repositorio.
