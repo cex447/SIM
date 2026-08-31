@@ -1,11 +1,11 @@
-export const MODULE_VERSION = "3.37.0";
-import { getTripBundle } from "./gtfs.js?v=3.37.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.37.0";
-import { countdownState, formatOperationalCountdown } from "./time.js?v=3.37.0";
+export const MODULE_VERSION = "3.38.0";
+import { getTripBundle } from "./gtfs.js?v=3.38.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.38.0";
+import { countdownState, formatOperationalCountdown } from "./time.js?v=3.38.0";
 import {
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.37.0";
+} from "./operations.js?v=3.38.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -15,7 +15,7 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.37.0";
+} from "./isic.js?v=3.38.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 /* Mateixa velocitat lineal que el triangle mòbil de LIT:
@@ -65,9 +65,13 @@ function createFilterDelayMarker() {
 function wrapFilterControl(button, { type, key, delayMarker = true } = {}) {
   const wrapper = make("div", `plastic-filter-stat plastic-filter-stat-${type}`);
   const marker = delayMarker ? createFilterDelayMarker() : null;
-  const count = make("span", "plastic-filter-count", "0 UTs");
+  const count = make("span", "plastic-filter-count", "0");
 
-  if (marker) wrapper.appendChild(marker);
+  if (marker) {
+    const touchTarget = button.querySelector(".plastic-filter-touch-target");
+    if (touchTarget) touchTarget.appendChild(marker);
+    else wrapper.appendChild(marker);
+  }
   wrapper.append(button, count);
 
   const model = { wrapper, button, count, marker };
@@ -81,30 +85,37 @@ function uniqueUnitCount(trains) {
   return new Set((trains || []).map(train => train?.unit).filter(Boolean)).size;
 }
 
+function filterCountText(count) {
+  return String(count);
+}
+
 function updateFilterSummary(S) {
   const trains = S.trains || [];
-  const delayed = trains.filter(train => train.onTime === false);
+  /* Los indicadores de filtro comparten exactamente el mismo criterio que
+     el ticker: en_hora=false no basta si el retraso no puede cuantificarse.
+     Sólo un +1 o superior confirmado activa el triángulo. */
+  const delayed = delayedEntries(S).map(entry => entry.train);
   const delayedFamilies = new Set(delayed.map(train => train.family));
   const delayedSeries = new Set(delayed.map(train => String(train.unit || "").slice(0, 3)));
 
   for (const family of FAMILY_ORDER) {
     const model = filterUi.lines.get(family);
     if (!model) continue;
-    model.count.textContent = unitCountText(uniqueUnitCount(trains.filter(train => train.family === family)));
+    model.count.textContent = filterCountText(uniqueUnitCount(trains.filter(train => train.family === family)));
     if (model.marker) model.marker.hidden = !delayedFamilies.has(family);
   }
 
   for (const series of S.config.allowedUnitSeries || []) {
     const model = filterUi.units.get(series);
     if (!model) continue;
-    model.count.textContent = unitCountText(uniqueUnitCount(
+    model.count.textContent = filterCountText(uniqueUnitCount(
       trains.filter(train => String(train.unit || "").startsWith(`${series}.`))
     ));
     if (model.marker) model.marker.hidden = !delayedSeries.has(series);
   }
 
   if (filterUi.all) {
-    filterUi.all.count.textContent = unitCountText(uniqueUnitCount(trains));
+    filterUi.all.count.textContent = filterCountText(uniqueUnitCount(trains));
   }
 }
 
@@ -220,7 +231,10 @@ function primeDelayContexts(S) {
 
   Promise.all(missing.map(train => ensureTripContext(S, train))).finally(() => {
     if (delayContextPrimeKey === key) delayContextPrimeKey = "";
-    if (S.activeView === "plastic") renderPlasticStatus(S);
+    if (S.activeView === "plastic") {
+      updateFilterSummary(S);
+      renderPlasticStatus(S);
+    }
   });
 }
 
@@ -345,7 +359,9 @@ function lineButton(S, family) {
     fallback.hidden = false;
   });
 
-  button.append(image, fallback);
+  const touchTarget = make("span", "plastic-filter-touch-target");
+  touchTarget.append(image, fallback);
+  button.appendChild(touchTarget);
 
   button.addEventListener("click", () => {
     const set = S.plasticFilters.lines;
@@ -369,7 +385,7 @@ function lineButton(S, family) {
 
 function unitButton(S, series) {
   const button = make("button", "text-filter ut-filter dimmed");
-  button.appendChild(make("span", "plate-label", series));
+  button.appendChild(make("span", "plate-label plastic-filter-touch-target", series));
   button.type = "button";
   button.dataset.series = series;
   button.setAttribute("aria-pressed", "false");

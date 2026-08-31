@@ -1,8 +1,8 @@
-export const MODULE_VERSION = "3.37.0";
-import { getTripBundle } from './gtfs.js?v=3.37.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.37.0';
-import { parentCode } from './operations.js?v=3.37.0';
-import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.37.0';
+export const MODULE_VERSION = "3.38.0";
+import { getTripBundle } from './gtfs.js?v=3.38.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.38.0';
+import { parentCode } from './operations.js?v=3.38.0';
+import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.38.0';
 
 let initialized = false;
 let active = false;
@@ -98,13 +98,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.37.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.38.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.37.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.38.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -115,7 +115,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.37.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.38.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
