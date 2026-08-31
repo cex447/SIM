@@ -1,11 +1,11 @@
-export const MODULE_VERSION = "3.38.0";
-import { getTripBundle } from "./gtfs.js?v=3.38.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.38.0";
-import { countdownState, formatOperationalCountdown } from "./time.js?v=3.38.0";
+export const MODULE_VERSION = "3.39.0";
+import { getTripBundle } from "./gtfs.js?v=3.39.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.39.0";
+import { countdownState, formatOperationalCountdown } from "./time.js?v=3.39.0";
 import {
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.38.0";
+} from "./operations.js?v=3.39.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -15,7 +15,7 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.38.0";
+} from "./isic.js?v=3.39.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 /* Mateixa velocitat lineal que el triangle mòbil de LIT:
@@ -58,8 +58,18 @@ function createFilterDelayMarker() {
   polygon.setAttribute("stroke-linejoin", "miter");
   polygon.setAttribute("shape-rendering", "geometricPrecision");
   svg.appendChild(polygon);
-  svg.hidden = true;
+  /* SVGElement.hidden no se refleja de forma fiable como atributo en Safari.
+     El marcador nace oculto mediante atributo real y CSS por defecto. */
+  svg.setAttribute("hidden", "hidden");
   return svg;
+}
+
+function setFilterDelayMarkerVisible(marker, visible) {
+  if (!marker) return;
+
+  marker.classList.toggle("is-visible", Boolean(visible));
+  if (visible) marker.removeAttribute("hidden");
+  else marker.setAttribute("hidden", "hidden");
 }
 
 function wrapFilterControl(button, { type, key, delayMarker = true } = {}) {
@@ -102,7 +112,7 @@ function updateFilterSummary(S) {
     const model = filterUi.lines.get(family);
     if (!model) continue;
     model.count.textContent = filterCountText(uniqueUnitCount(trains.filter(train => train.family === family)));
-    if (model.marker) model.marker.hidden = !delayedFamilies.has(family);
+    setFilterDelayMarkerVisible(model.marker, delayedFamilies.has(family));
   }
 
   for (const series of S.config.allowedUnitSeries || []) {
@@ -111,7 +121,7 @@ function updateFilterSummary(S) {
     model.count.textContent = filterCountText(uniqueUnitCount(
       trains.filter(train => String(train.unit || "").startsWith(`${series}.`))
     ));
-    if (model.marker) model.marker.hidden = !delayedSeries.has(series);
+    setFilterDelayMarkerVisible(model.marker, delayedSeries.has(series));
   }
 
   if (filterUi.all) {
