@@ -241,10 +241,11 @@ button{ -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
 .query-delay{ color:var(--red); }
 .delayed-text{ color:var(--red) !important; }
 
-.lit-query-bar,.isic-query-bar{ display:none; }
+.lit-query-bar,.isic-query-bar,.ctc-query-bar{ display:none; }
 .query-bar[hidden]{ display:none !important; }
 html[data-view="lit"] .lit-query-bar:not([hidden]){ display:grid; }
 html[data-view="isic"] .isic-query-bar:not([hidden]){ display:grid; }
+html[data-view="ctc"] .ctc-query-bar:not([hidden]){ display:grid; }
 
 /* =========================================================
    OCUPACIÓN
@@ -1019,7 +1020,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.31.0 · CROM FIJO + SCROLL VERTICAL SIN ZOOM NATIVO
+   BETA 3.32.0 · CROM FIJO + SCROLL VERTICAL SIN ZOOM NATIVO
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1293,27 +1294,34 @@ html[data-view="ctc"] .tabs-global .tab.active{
   }
 }
 
-/* BETA 3.31.0 · ajuste fino común PLASTIC/iSIC */
+/* BETA 3.32.0 · ajuste fino común PLASTIC/iSIC */
 .trainrow{ gap:1px; }
 .train-state{ padding-right:0; }
 .train-current{ padding-left:0; }
 
 /* =========================================================
-   NAVEGACIÓ CONTEXTUAL CTC · BETA 3.31
+   NAVEGACIÓ CONTEXTUAL CTC · BETA 3.32
    ========================================================= */
+.lit-query-bar,.isic-query-bar{
+  position:relative;
+  overflow:visible;
+}
 .context-ctc-button{
-  grid-column:1;
-  justify-self:center;
-  align-self:center;
-  min-width:calc(var(--pointer-col) + 8px);
+  position:absolute;
+  left:calc(0px - var(--page-x) + 1px);
+  top:50%;
+  transform:translateY(-50%);
+  z-index:3;
+  width:clamp(34px,9.5vw,42px);
+  min-width:0;
   min-height:30px;
   margin:0;
   border:0;
   border-radius:0;
-  padding:5px 4px;
+  padding:5px 2px;
   background:var(--selected);
   color:#fff;
-  font-size:var(--lit-size);
+  font-size:clamp(13px,3.55vw,17px);
   font-weight:700;
   font-style:italic;
   line-height:1;
@@ -1321,10 +1329,13 @@ html[data-view="ctc"] .tabs-global .tab.active{
   align-items:center;
   justify-content:center;
   text-align:center;
+  white-space:nowrap;
   touch-action:manipulation;
 }
 
+
 .ctc-query-bar{
+  position:relative;
   background:#000;
   color:#fff;
   overflow:visible;
@@ -1360,7 +1371,12 @@ html[data-view="ctc"] .tabs-global .tab.active{
 .query-code-input.query-invalid{ color:#ff2c2c; border-color:#ff2c2c; }
 
 @media(orientation:landscape){
-  .context-ctc-button{ min-height:27px; padding:4px 3px; }
+  .context-ctc-button{
+    min-height:27px;
+    width:clamp(31px,4.5vw,39px);
+    padding:4px 2px;
+    font-size:clamp(12px,1.7vw,15px);
+  }
   .ctc-quick-button{
     min-height:28px;
     padding:5px 3px;
