@@ -456,6 +456,48 @@ main{ min-height:0; overflow:hidden; }
   gap:clamp(6px,2vw,11px);
 }
 .ut-filters{ display:contents; }
+.plastic-filter-stat{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  width:max-content;
+  max-width:100%;
+  justify-self:center;
+  overflow:visible;
+  white-space:nowrap;
+}
+.plastic-filter-stat .line-filter,
+.plastic-filter-stat .text-filter{
+  flex:0 0 auto;
+}
+.plastic-filter-count{
+  flex:0 0 auto;
+  color:var(--muted);
+  font-size:var(--plastic-small);
+  font-weight:300;
+  font-style:italic;
+  line-height:1.1;
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.plastic-filter-delay-marker{
+  position:absolute;
+  right:calc(100% + 2px);
+  top:50%;
+  width:var(--pointer-col);
+  height:var(--pointer-col);
+  transform:translateY(-50%);
+  overflow:visible;
+  color:var(--red);
+  pointer-events:none;
+}
+.plastic-filter-delay-marker[hidden]{ display:none !important; }
+
 .line-filter{
   display:flex;
   align-items:center;
@@ -536,6 +578,51 @@ main{ min-height:0; overflow:hidden; }
   margin:4px 0 0;
 }
 .plastic-status.error{ color:var(--red); }
+.plastic-status{
+  display:flex;
+  align-items:baseline;
+  width:100%;
+  min-width:0;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.plastic-status-updated{ flex:0 0 auto; }
+.plastic-delay-group{
+  display:flex;
+  align-items:baseline;
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+  color:var(--red);
+  font-weight:700;
+}
+.plastic-delay-group[hidden]{ display:none !important; }
+.plastic-delay-separator{
+  flex:0 0 auto;
+  margin:0 .45em;
+  color:var(--muted);
+  font-weight:300;
+}
+.plastic-delay-count{ flex:0 0 auto; margin-right:.45em; }
+.plastic-delay-window{
+  display:block;
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.plastic-delay-track{
+  display:inline-flex;
+  width:max-content;
+  white-space:pre;
+  will-change:transform;
+}
+.plastic-delay-copy{
+  flex:0 0 auto;
+  white-space:pre;
+  padding-right:1.1em;
+}
+
 
 /* =========================================================
    PLASTIC · CIRCULACIONES
@@ -827,6 +914,10 @@ pre{ white-space:pre-wrap; font-size:15px; }
   .line-filter{ min-width:40px; }
   .line-filter img{ height:27px; max-width:40px; }
   .text-filter{ min-width:44px; padding:0 6px; }
+  .plastic-filter-stat .line-filter{ min-width:28px; padding-left:1px; padding-right:1px; }
+  .plastic-filter-stat .text-filter{ min-width:34px; padding-left:4px; padding-right:4px; }
+  .plastic-filter-stat{ gap:2px; }
+  .plastic-filter-delay-marker{ right:calc(100% + 1px); }
 
   .trainrow{
     gap:2px;
@@ -937,6 +1028,10 @@ pre{ white-space:pre-wrap; font-size:15px; }
     flex-wrap:nowrap;
   }
   .ut-filters{ display:flex; gap:4px; flex-wrap:nowrap; }
+  .plastic-filter-stat{ flex:0 0 auto; gap:2px; }
+  .plastic-filter-stat .line-filter{ min-width:27px; }
+  .plastic-filter-stat .text-filter{ min-width:29px; }
+  .plastic-filter-delay-marker{ width:14px; height:14px; right:calc(100% + 1px); }
   .text-filter{
     min-width:34px;
     min-height:27px;
@@ -1020,7 +1115,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
 }
 
 /* =========================================================
-   BETA 3.33.0 · CROM FIJO + SCROLL VERTICAL SIN ZOOM NATIVO
+   BETA 3.34.0 · CROM FIJO + SCROLL VERTICAL SIN ZOOM NATIVO
    ========================================================= */
 #app{
   grid-template-rows:auto minmax(0,1fr) auto;
@@ -1203,9 +1298,9 @@ html:not([data-view="ctc"]) main{
 .ctc-train-delay-bg{
   shape-rendering:geometricPrecision;
 }
-/* Beta 3.33: sólo el fondo de la matrícula de circulación es translúcido.
+/* Beta 3.34: sólo el fondo de la matrícula de circulación es translúcido.
    El texto conserva opacidad total y la placa roja de retraso no cambia. */
-.ctc-train-code-bg{ fill-opacity:.75; }
+.ctc-train-code-bg{ fill-opacity:.75 !important; opacity:1 !important; }
 .ctc-train-code-text{ fill-opacity:1; opacity:1; }
 .ctc-train-code-text,
 .ctc-train-delay-text{
@@ -1298,13 +1393,13 @@ html[data-view="ctc"] .tabs-global .tab.active{
   }
 }
 
-/* BETA 3.33.0 · ajuste fino común PLASTIC/iSIC */
+/* BETA 3.34.0 · ajuste fino común PLASTIC/iSIC */
 .trainrow{ gap:1px; }
 .train-state{ padding-right:0; }
 .train-current{ padding-left:0; }
 
 /* =========================================================
-   NAVEGACIÓ CONTEXTUAL CTC · BETA 3.33
+   NAVEGACIÓ CONTEXTUAL CTC · BETA 3.34
    ========================================================= */
 .lit-query-bar,.isic-query-bar{
   position:relative;
@@ -1336,7 +1431,7 @@ html[data-view="ctc"] .tabs-global .tab.active{
   white-space:nowrap;
   touch-action:manipulation;
 }
-/* Beta 3.33: el recuadro conserva exactamente su geometría; sólo se
+/* Beta 3.34: el recuadro conserva exactamente su geometría; sólo se
    compacta la palabra CTC para que ninguna de sus tres letras quede recortada. */
 .context-ctc-button .plate-label{
   font-size:.86em;
