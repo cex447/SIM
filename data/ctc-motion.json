@@ -599,7 +599,8 @@
     "3.28: RB por defecto asc=vía 1/RB08 y desc=vía 2/RB20.",
     "3.28: L7 en GR asc=vía 3/GR11 y desc=vía 4/GR10.",
     "3.28: PC descendente con vía aún desconocida se mantiene en el acceso común al haz; no se presenta como PC1/PC2 por defecto.",
-    "3.28: L7 ascendente en PC usa vía 4 sólo como heurística provisional si todavía no existe vía real confirmada."
+    "3.28: L7 ascendente en PC usa vía 4 sólo como heurística provisional si todavía no existe vía real confirmada.",
+    "3.37.0: TB vía 1 se resuelve explícitamente al circuito TB1 (1823.3, 2630.0)."
   ],
   "lineStationOverrides": {
     "L7": {
@@ -795,6 +796,9 @@
       "1": "CF17",
       "2": "CF18",
       "4": "CF19"
+    },
+    "TB": {
+      "1": "TB1"
     }
   },
   "circuitPoints": {
@@ -901,6 +905,10 @@
     "CF19": [
       4885.496,
       2566.0
+    ],
+    "TB1": [
+      1823.3,
+      2630.0
     ]
   },
   "defaultPlatforms": {
