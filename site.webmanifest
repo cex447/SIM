@@ -1,7 +1,7 @@
 {
   "name": "SIM+",
   "short_name": "SIM+",
-  "start_url": "./",
+  "start_url": "./?sim=3.36.0",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
