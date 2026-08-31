@@ -1,0 +1,27 @@
+SIM+ Beta 3.38.0
+
+Base: SIM+ Beta 3.37.0.
+
+Cambios cerrados:
+- PLASTIC: los triángulos rojos de los filtros ya no se activan únicamente
+  porque en_hora=false. Usan exactamente la misma lista validada que el ticker
+  y sólo aparecen con un retraso cuantificable de +1 o superior.
+- PLASTIC: mientras el contexto horario esté pendiente o el retraso no pueda
+  cuantificarse, el triángulo permanece oculto. El resumen se actualiza de
+  nuevo en cuanto termina de resolverse el contexto GTFS.
+- PLASTIC: la punta del triángulo queda anclada al borde izquierdo visible del
+  logotipo de línea (L6, S1, S2, L7 o L12) y al primer 1 de las series
+  112, 113, 114 y 115. El anclaje es independiente del contador y funciona en
+  orientación vertical y horizontal.
+- PLASTIC: los contadores superiores de filtros de línea, serie y TOTS muestran
+  sólo la cifra, sin UT ni UTs.
+- PLASTIC: los contadores de ASCENDENTS, DESCENDENTS y grupos interiores de
+  línea conservan UT/UTs y su concordancia singular/plural.
+- Cache busting actualizado de forma coherente a 3.38.0 en index, módulos,
+  datos locales de arranque y manifest.
+- Diagnóstico actualizado a SIM+ Beta 3.38.0 y módulos APP / PLASTIC / iSIC /
+  CTC / LIT 3.38.0.
+
+Se conservan íntegramente las correcciones y reglas de la Beta 3.37.0.
+
+No se incluyen fuentes tipográficas. Conservar las fuentes ya presentes en el repositorio.
