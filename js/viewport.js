@@ -1,5 +1,5 @@
 /*
- * SIM+ Beta 3.30.0 · saneamiento de viewport.
+ * SIM+ Beta 3.31.0 · saneamiento de viewport.
  *
  * PLASTIC, iSIC, LIT y SIV:
  *   - ningún zoom de aplicación;
@@ -186,7 +186,7 @@ export function viewportState(viewOrSelector) {
     scrollTop:view.scrollTop,
     minScale:1,
     maxScale:1,
-    engine:"vertical-only-native-sticky-329",
+    engine:"vertical-only-native-sticky-331",
     plasticFiltersFixed:view.id === "view-plastic",
     horizontalLocked:true,
     nativePagePinchBlocked:true,

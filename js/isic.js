@@ -1,4 +1,4 @@
-import { resolveGtfsTimestamp } from "./time.js?v=3.30.0";
+import { resolveGtfsTimestamp } from "./time.js?v=3.31.0";
 
 /*
  * SIM+ · iSIC visual parser + matching seguro
@@ -387,19 +387,84 @@ export async function fetchIsicStation(config, station, { force = false } = {}) 
   return promise;
 }
 
-export function fixedPlatformFor(context) {
-  const origin = String(context?.effectiveOrigin || "");
-  const station = String(context?.station || origin);
+function contextAscending(context) {
+  if (typeof context?.ascending === "boolean") return context.ascending;
+  const last = Number(String(context?.circulation || "").slice(-1));
+  return Number.isFinite(last) ? last % 2 === 1 : null;
+}
 
-  /* L12: Sarrià es siempre vía 4 tanto al iniciar como al finalizar.
-     Esta regla es válida aunque SR no sea el origen efectivo del viaje. */
-  if (context?.line === "L12" && station === "SR") {
-    return { platform:4, source:"fixed", reason:"L12 a SR: via 4 fixa" };
+/* Política ferroviaria común SIM+ 3.31.
+   - Una vía real confirmada se obtiene fuera de esta función y manda siempre.
+   - Aquí sólo se describen reglas operativas inequívocas, supresiones de vía
+     en terminales de recepción y, por último, el fallback 1/2 por sentido. */
+export function platformPolicyFor(context) {
+  const origin = String(context?.effectiveOrigin || "").toUpperCase();
+  const destination = String(context?.effectiveDestination || "").toUpperCase();
+  const station = String(context?.station || origin).toUpperCase();
+  const line = String(context?.line || "");
+  const ascending = contextAscending(context);
+  const isOrigin = typeof context?.isOrigin === "boolean"
+    ? context.isOrigin
+    : Boolean(origin && station === origin);
+  const isFinal = typeof context?.isFinal === "boolean"
+    ? context.isFinal
+    : Boolean(destination && station === destination);
+
+  if (line === "L12" && station === "SR") {
+    return { platform:4, source:"fixed", hard:true, reason:"L12 a SR: via 4 fixa" };
   }
 
-  if (station !== origin) return null;
-  if (origin === "TB") return { platform:1, source:"fixed", reason:"TB: única via" };
-  return null;
+  if (line === "L7" && station === "GR" && ascending !== null) {
+    return {
+      platform:ascending ? 3 : 4,
+      source:"fixed",
+      hard:true,
+      reason:ascending ? "L7 ascendent a GR: via 3" : "L7 descendent a GR: via 4"
+    };
+  }
+
+  if (station === "TB") {
+    return { platform:1, source:"fixed", hard:true, reason:"TB: única via" };
+  }
+
+  /* Terminales de recepción: no mostramos una cifra que no podemos conocer
+     con seguridad. PC descendente termina sin vía; NA/PN/RE ascendentes idem. */
+  if (station === "PC" && ascending === false && isFinal) {
+    return { platform:null, source:"terminal-unknown", suppress:true, reason:"PC recepció descendent: via desconeguda" };
+  }
+  if (["NA","PN","RE"].includes(station) && ascending === true && isFinal) {
+    return { platform:null, source:"terminal-unknown", suppress:true, reason:`${station} recepció ascendent: via desconeguda` };
+  }
+
+  /* En PC sólo usamos vía de salida realmente conocida. En los terminales
+     NA/PN/RE de salida descendente tampoco inventamos la vía si iSIC no la da. */
+  if (station === "PC") return { platform:null, source:"no-default", reason:"PC: sense fallback de via" };
+  if (["NA","PN","RE"].includes(station) && ascending === false && isOrigin) {
+    return { platform:null, source:"no-default", reason:`${station}: sortida, esperar via real` };
+  }
+
+  if (ascending === null) return { platform:null, source:"no-default" };
+  return {
+    platform:ascending ? 1 : 2,
+    source:"direction-default",
+    hard:false,
+    reason:ascending ? "fallback ascendent: via 1" : "fallback descendent: via 2"
+  };
+}
+
+export function fixedPlatformFor(context) {
+  const policy = platformPolicyFor(context);
+  return policy?.hard ? policy : null;
+}
+
+export function fallbackPlatformFor(context) {
+  const policy = platformPolicyFor(context);
+  if (!policy || policy.hard || policy.suppress) return null;
+  return normalizePlatformValue(policy.platform) === null ? null : policy;
+}
+
+export function suppressPlatformFor(context) {
+  return platformPolicyFor(context)?.suppress === true;
 }
 
 function rowMinute(row) {
@@ -468,6 +533,12 @@ export function pairAssessment(context, row, nowMs = Date.now()) {
   if (platformValue === null) eligible = false;
   if (platformConfidence < platformMinimum || timeConfidence < 0.65) eligible = false;
   if (eligible && timeConfidence < 0.80) cost += 0.25;
+
+  /* La vía habitual por sentido es una pista de matching, no una verdad:
+     ayuda a no emparejar un descendente con la fila ascendente (PR1/PR2),
+     pero una vía real excepcional sigue siendo elegible si es la única segura. */
+  const platformHint = normalizePlatformValue(context?.platformHint);
+  if (eligible && platformHint !== null && platformValue !== platformHint) cost += 1.0;
 
   return {
     eligible,

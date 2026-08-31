@@ -1,19 +1,21 @@
-import { decodeCirculation } from "./fgc-api.js?v=3.30.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.31.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.30.0";
-import { updateOccupancy } from "./occupancy.js?v=3.30.0";
-import { countdownState, formatOperationalCountdown, resolveGtfsTimestamp } from "./time.js?v=3.30.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.30.0";
+} from "./gtfs.js?v=3.31.0";
+import { updateOccupancy } from "./occupancy.js?v=3.31.0";
+import { countdownState, formatOperationalCountdown, resolveGtfsTimestamp } from "./time.js?v=3.31.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.31.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
+  fallbackPlatformFor,
+  suppressPlatformFor,
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.30.0";
+} from "./isic.js?v=3.31.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
@@ -52,7 +54,7 @@ function limitPerLineDirection(items) {
     });
 }
 
-/* BETA 3.30.0 · una circulación sólo puede existir una vez en iSIC.
+/* BETA 3.31.0 · una circulación sólo puede existir una vez en iSIC.
    GTFS puede devolver el mismo número de circulación desde más de un service_id
    y, además, la recuperación live puede aportar el mismo tren por otra vía. La
    deduplicación se realiza ANTES de matching, contadores y límite 4×línea×sentido. */
@@ -222,17 +224,38 @@ async function mergeLiveStationRecords(S, records, station, nowMs) {
 }
 
 
+function platformContextForRecord(record, station = record?.station) {
+  const code = String(station || "").toUpperCase();
+  return {
+    line:record?.line,
+    circulation:record?.circulation,
+    ascending:Boolean(record?.ascending),
+    station:code,
+    effectiveOrigin:record?.effectiveOrigin || "",
+    effectiveDestination:record?.effectiveDestination || "",
+    isOrigin:Boolean(record?.effectiveOrigin && code === record.effectiveOrigin),
+    isFinal:Boolean(record?.effectiveDestination && code === record.effectiveDestination)
+  };
+}
+
 async function buildMatchContexts(S, records, station, nowMs) {
   return Promise.all(records.map(async record => {
     const delayAdjustmentMinutes = await delayAdjustmentForLive(S, record.live, nowMs);
+    const platformContext = platformContextForRecord(record, station);
+    const hint = fallbackPlatformFor(platformContext);
     return {
       key:record.key,
       id:record.id,
       circulation:record.circulation,
       line:record.line,
       onTime:record.live?.onTime ?? null,
+      ascending:Boolean(record.ascending),
       station,
       effectiveOrigin:record.effectiveOrigin,
+      effectiveDestination:record.effectiveDestination,
+      isOrigin:platformContext.isOrigin,
+      isFinal:platformContext.isFinal,
+      platformHint:hint?.platform ?? null,
       departure:record.departure,
       delayAdjustmentMinutes,
       originHold:Boolean(
@@ -443,7 +466,7 @@ export function renderISIC(S) {
   const descLabel = $("#isicDescLabel");
 
   /*
-   * BETA 3.30.0 · el estado se decide por sentido.
+   * BETA 3.31.0 · el estado se decide por sentido.
    * Un matcher vacío ya NO significa "sin servicio". Si la imagen oficial
    * contiene filas que todavía no hemos podido identificar, evitamos afirmar
    * ausencia de servicio. Cuando GTFS/live sí han sido resueltos, un sentido
@@ -608,30 +631,37 @@ export async function refreshISIC(S, { force = false } = {}) {
         const platform = normalizePlatformValue(match?.platform);
         if (platform === null || (match.status !== "safe" && match.status !== "safe-delay")) continue;
 
+        const policyContext = platformContextForRecord(record, state.station);
+        const fixed = fixedPlatformFor(policyContext);
+        const suppress = suppressPlatformFor(policyContext);
+        const effectivePlatform = suppress ? null : (fixed?.platform ?? platform);
+
         matchedIds.add(record.id);
         matchedItems.push({
           ...record,
-          platform,
+          platform:effectivePlatform,
           isicTime:match.row?.time || null,
           platformMode:match.row?.platformMode || null,
-          source:"isic"
+          source:fixed ? "fixed" : (suppress ? "terminal-unknown" : "isic")
         });
 
-        /* Compartimos la vía confirmada con PLASTIC/LIT/CTC. Guardamos tanto
-           el trip_id de horario como el trip_id live cuando difieren. */
-        const cacheIds = new Set([record.id, record.live?.id].filter(Boolean));
-        for (const tripId of cacheIds) {
-          rememberPlatform(tripId, state.station, platform, "isic", {
-            circulation:record.circulation,
-            row:match.row,
-            assessment:match.assessment,
-            imageFetchedAt:parsed.fetchedAt
-          });
+        /* Sólo compartimos con LIT/CTC una vía realmente utilizable. Las
+           recepciones de terminal suprimidas no deben contaminar la caché. */
+        if (effectivePlatform !== null) {
+          const cacheIds = new Set([record.id, record.live?.id].filter(Boolean));
+          for (const tripId of cacheIds) {
+            rememberPlatform(tripId, state.station, effectivePlatform, fixed ? "fixed" : "isic", {
+              circulation:record.circulation,
+              row:match.row,
+              assessment:match.assessment,
+              imageFetchedAt:parsed.fetchedAt
+            });
+          }
         }
       }
     }
 
-    /* BETA 3.30.0: el límite es por línea + sentido, no por sentido global.
+    /* BETA 3.31.0: el límite es por línea + sentido, no por sentido global.
        Se conservan como máximo las cuatro circulaciones cronológicamente más
        próximas de cada combinación (L6/S1/S2/L7/L12 × asc/desc). */
     const extras = departures
@@ -642,15 +672,14 @@ export async function refreshISIC(S, { force = false } = {}) {
       })
       .sort((a, b) => a.targetMs - b.targetMs)
       .map(record => {
-        const fixed = fixedPlatformFor({
-          line:record.line,
-          station:record.station,
-          effectiveOrigin:record.effectiveOrigin
-        });
+        const policyContext = platformContextForRecord(record, state.station);
+        const fixed = fixedPlatformFor(policyContext);
+        const fallback = fallbackPlatformFor(policyContext);
+        const suppress = suppressPlatformFor(policyContext);
         return {
           ...record,
-          platform:fixed?.platform ?? null,
-          source:fixed ? "fixed" : record.source
+          platform:suppress ? null : (fixed?.platform ?? fallback?.platform ?? null),
+          source:fixed ? "fixed" : (fallback ? fallback.source : (suppress ? "terminal-unknown" : record.source))
         };
       });
 

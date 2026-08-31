@@ -1,24 +1,26 @@
-import { getTripBundle } from "./gtfs.js?v=3.30.0";
+import { getTripBundle } from "./gtfs.js?v=3.31.0";
 import {
   countdownState,
   formatCountdown,
   formatDeparture
-} from "./time.js?v=3.30.0";
+} from "./time.js?v=3.31.0";
 import {
   countdownRedThreshold,
   isSpecialCountdownStation,
   locateOperationalTarget,
   parentCode
-} from "./operations.js?v=3.30.0";
+} from "./operations.js?v=3.31.0";
 import {
   cachedPlatform,
   clearPlatform,
   fetchIsicStation,
   fixedPlatformFor,
+  fallbackPlatformFor,
+  suppressPlatformFor,
   matchContextToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.30.0";
+} from "./isic.js?v=3.31.0";
 
 const MANUAL_SCROLL_HOLD_MS = 2500;
 const LIT_PLATFORM_NEAR_MS = 10000;
@@ -618,23 +620,41 @@ function seedKnownPlatforms(S) {
   const stops = S.selected.stops;
   const live = S.selected.live;
   const effectiveOrigin = parentCode(stops[0]);
+  const effectiveDestination = parentCode(stops[stops.length - 1]);
 
   stops.forEach((stop, index) => {
     const station = parentCode(stop);
-
-    const fixed = fixedPlatformFor({
+    const context = {
       line:live.line,
+      circulation:live.circulation,
+      ascending:Boolean(live.ascending),
       station,
-      effectiveOrigin
-    });
+      effectiveOrigin,
+      effectiveDestination,
+      isOrigin:index === 0,
+      isFinal:index === stops.length - 1
+    };
+
+    const fixed = fixedPlatformFor(context);
     if (fixed) {
       rememberPlatform(live.id, station, fixed.platform, "fixed", { circulation:live.circulation });
       applySelectedPlatform(S, index, fixed.platform, "fixed");
       return;
     }
 
+    if (suppressPlatformFor(context)) {
+      clearSelectedPlatform(S, index);
+      return;
+    }
+
     const cached = cachedPlatform(live.id, station, S.config.isic?.staleMs || 30000);
-    if (normalizePlatformValue(cached?.platform) !== null) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+    if (normalizePlatformValue(cached?.platform) !== null) {
+      applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+      return;
+    }
+
+    const fallback = fallbackPlatformFor(context);
+    if (fallback) applySelectedPlatform(S, index, fallback.platform, fallback.source);
   });
 }
 
@@ -645,21 +665,39 @@ async function queryLITStationPlatform(S, index, force = false) {
   const stop = selected.stops[index];
   const station = parentCode(stop);
   const effectiveOrigin = parentCode(selected.stops[0]);
-  const fixed = fixedPlatformFor({
+  const effectiveDestination = parentCode(selected.stops[selected.stops.length - 1]);
+  const policyContext = {
     line:selected.live.line,
+    circulation:selected.circulation,
+    ascending:Boolean(selected.live.ascending),
     station,
-    effectiveOrigin
-  });
+    effectiveOrigin,
+    effectiveDestination,
+    isOrigin:index === 0,
+    isFinal:index === selected.stops.length - 1
+  };
+  const fixed = fixedPlatformFor(policyContext);
+  const fallback = fallbackPlatformFor(policyContext);
 
-  /* Las reglas operativas fijas se aplican incluso en destino final.
-     Ejemplo: L12 RE→SR debe terminar mostrando SR4. */
+  /* Reglas inequívocas: L12/SR, L7/GR y TB1. */
   if (fixed) {
     rememberPlatform(selected.live.id, station, fixed.platform, "fixed", { circulation:selected.live.circulation });
     applySelectedPlatform(S, index, fixed.platform, "fixed");
     return;
   }
 
-  if (index >= selected.stops.length - 1) return; // sin regla fija no inferimos vía final
+  /* Nunca inventamos vía de recepción en PC(desc) ni NA/PN/RE(asc). */
+  if (suppressPlatformFor(policyContext)) {
+    clearSelectedPlatform(S, index);
+    return;
+  }
+
+  /* En un destino final no consultamos una pantalla de salidas para deducir
+     una vía de llegada: usamos únicamente la regla/fallback permitido. */
+  if (index >= selected.stops.length - 1) {
+    if (fallback) applySelectedPlatform(S, index, fallback.platform, fallback.source);
+    return;
+  }
 
   const selectionKey = `${selected.live.id}|${selected.circulation}`;
 
@@ -674,8 +712,13 @@ async function queryLITStationPlatform(S, index, force = false) {
       circulation:selected.circulation,
       line:selected.live.line,
       onTime:selected.live.onTime,
+      ascending:Boolean(selected.live.ascending),
       station,
       effectiveOrigin,
+      effectiveDestination,
+      isOrigin:index === 0,
+      isFinal:index === selected.stops.length - 1,
+      platformHint:fallback?.platform ?? null,
       departure:stop.departure_time || stop.arrival_time,
       delayAdjustmentMinutes,
       originHold:index === 0 && String(selected.live.stationed || "") === effectiveOrigin
@@ -692,12 +735,14 @@ async function queryLITStationPlatform(S, index, force = false) {
       applySelectedPlatform(S, index, match.platform, "isic");
     } else {
       clearPlatform(selected.live.id, station);
-      clearSelectedPlatform(S, index);
+      if (fallback) applySelectedPlatform(S, index, fallback.platform, fallback.source);
+      else clearSelectedPlatform(S, index);
     }
   } catch (error) {
     console.warn(`SIM+ LIT: iSIC ${station}`, error);
     const cached = cachedPlatform(selected.live.id, station, S.config.isic?.staleMs || 30000);
     if (normalizePlatformValue(cached?.platform) !== null) applySelectedPlatform(S, index, cached.platform, cached.source || "isic");
+    else if (fallback) applySelectedPlatform(S, index, fallback.platform, fallback.source);
   }
 }
 

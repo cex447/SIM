@@ -1,7 +1,7 @@
-import { getTripBundle } from './gtfs.js?v=3.30.0';
-import { resolveGtfsTimestamp } from './time.js?v=3.30.0';
-import { parentCode } from './operations.js?v=3.30.0';
-import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.30.0';
+import { getTripBundle } from './gtfs.js?v=3.31.0';
+import { resolveGtfsTimestamp } from './time.js?v=3.31.0';
+import { parentCode } from './operations.js?v=3.31.0';
+import { cachedPlatform, cachedPlatformByCirculation, normalizePlatformValue } from './isic.js?v=3.31.0';
 
 let initialized = false;
 let active = false;
@@ -12,6 +12,8 @@ let motionGeometry = null;
 let stationHitGeometry = null;
 let animationFrame = 0;
 let latestState = null;
+let pendingFocus = null;
+let ctcToolbarWired = false;
 let interactionsWired = false;
 let svgLayersReady = false;
 let onSelectTrainHandler = null;
@@ -95,13 +97,13 @@ async function loadJson(url, label) {
 }
 
 async function loadRouteCatalog() {
-  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.30.0', 'ctc-routes.json');
+  if (!routesPromise) routesPromise = loadJson('data/ctc-routes.json?v=3.31.0', 'ctc-routes.json');
   return routesPromise;
 }
 
 async function loadMotionGeometry() {
   if (!motionPromise) {
-    motionPromise = loadJson('data/ctc-motion.json?v=3.30.0', 'ctc-motion.json')
+    motionPromise = loadJson('data/ctc-motion.json?v=3.31.0', 'ctc-motion.json')
       .then(value => {
         motionGeometry = value;
         return value;
@@ -112,7 +114,7 @@ async function loadMotionGeometry() {
 
 async function loadStationHitGeometry() {
   if (!stationHitPromise) {
-    stationHitPromise = loadJson('data/ctc-stations.json?v=3.30.0', 'ctc-stations.json')
+    stationHitPromise = loadJson('data/ctc-stations.json?v=3.31.0', 'ctc-stations.json')
       .then(value => {
         stationHitGeometry = value;
         return value;
@@ -468,9 +470,17 @@ function platformInfoFromNumber(station, train, platform, source = 'default') {
   const code = String(station || '').toUpperCase();
   const normalized = normalizePlatformValue(platform);
   if (!code || normalized === null || !motionGeometry) return null;
-  const circuit = motionGeometry?.platformCircuits?.[code]?.[String(normalized)];
-  const point = circuit ? motionGeometry?.circuitPoints?.[circuit] : null;
-  if (!circuit || !Array.isArray(point) || point.length < 2) return null;
+  const circuit = motionGeometry?.platformCircuits?.[code]?.[String(normalized)] || null;
+  let point = circuit ? motionGeometry?.circuitPoints?.[circuit] : null;
+
+  /* Para estaciones sin catálogo de circuitos individual, la geometría base
+     ya está trazada sobre la vía operativa correspondiente al sentido. Así
+     podemos aplicar el fallback 1/2 sin inventar un identificador de circuito. */
+  if (!Array.isArray(point) || point.length < 2) {
+    const base = motionGeometry?.stations?.[code];
+    point = base?.[directionKey(train)] || null;
+  }
+  if (!Array.isArray(point) || point.length < 2) return null;
   return { station:code, platform:normalized, circuit, point, source };
 }
 
@@ -531,9 +541,24 @@ function operationalPlatformInfo(station, train) {
 
 function defaultPlatformInfo(station, train) {
   const code = String(station || '').toUpperCase();
+  const direction = directionKey(train);
+
+  /* PC nunca recibe un fallback de vía. Para una llegada descendente ya
+     disponemos del punto común de aproximación; para salidas esperamos vía
+     real o, sólo en L7, la heurística provisional aprobada. */
+  if (code === 'PC') return null;
+
+  /* NA/PN/RE: una llegada ascendente no debe afirmar vía de recepción; una
+     salida descendente espera igualmente la vía real si no ha llegado iSIC. */
+  if (['NA','PN','RE'].includes(code)) {
+    if (train?.ascending && String(train?.destination || '') === code) return null;
+    if (!train?.ascending && String(train?.origin || '') === code) return null;
+  }
+
+  if (code === 'TB') return platformInfoFromNumber(code, train, 1, 'operational-fixed');
+
   const entry = motionGeometry?.defaultPlatforms?.[code];
-  if (!entry) return null;
-  const value = entry[directionKey(train)];
+  const value = entry?.[direction] ?? (train?.ascending ? 1 : 2);
   return platformInfoFromNumber(code, train, value, 'operational-default');
 }
 
@@ -541,7 +566,7 @@ function heuristicPlatformInfo(station, train) {
   return configuredPlatformInfo('lineHeuristicPlatforms', station, train, 'heuristic');
 }
 
-/* Jerarquía CTC 3.28:
+/* Jerarquía CTC 3.31:
    1) vía real confirmada; 2) regla operacional inequívoca;
    3) default por sentido; 4) heurística. Ninguna capa inferior puede
    reemplazar nunca una vía real conocida. */
@@ -657,7 +682,7 @@ function pathFor(from, to, train, state = null) {
   const key = `${from}>${to}|${directionKey(train)}`;
 
   /* Si existe una ruta por vía concreta, ésta se evalúa primero: el estado
-     ya contiene la mejor vía disponible según la jerarquía 3.28. */
+     ya contiene la mejor vía disponible según la jerarquía 3.31. */
   const platformPath = platformSegmentPath(from, to, train, state);
   if (Array.isArray(platformPath) && platformPath.length >= 2) {
     return enforceResolvedEndpoints(platformPath, from, to, train, state);
@@ -1252,6 +1277,8 @@ function renderFrame(S, nowMs = Date.now()) {
     updateMarkerVisual(marker, train, state, position, nowMs);
   }
 
+  if (pendingFocus?.type === 'train') applyPendingFocus(S);
+
   for (const [code, marker] of markerNodes) {
     if (liveCodes.has(code)) continue;
     marker.group.remove();
@@ -1323,6 +1350,7 @@ export async function initCTC(S, { onSelectTrain = null, onSelectStation = null 
   ensureSvgLayers();
   renderStationHitboxes();
   wireCTCInteractions();
+  wireCTCToolbar();
 }
 
 export function updateCTC(S, nowMs = Date.now()) {
@@ -1356,6 +1384,115 @@ export function updateCTC(S, nowMs = Date.now()) {
   }
 }
 
+function stationFocusPoint(code) {
+  const station = String(code || '').toUpperCase();
+  const box = stationHitGeometry?.stations?.[station];
+  if (box) {
+    return {
+      x:Number(box.x) + Number(box.w || 0) / 2,
+      y:Number(box.y) + Number(box.h || 0) / 2
+    };
+  }
+
+  const base = motionGeometry?.stations?.[station];
+  const point = base?.asc || base?.desc || null;
+  return Array.isArray(point) ? { x:Number(point[0]), y:Number(point[1]) } : null;
+}
+
+function focusScale(S) {
+  const view = ctcView();
+  return view ? initialScale(S || latestState || {}, view) : ctcViewport.scale;
+}
+
+function applyStationFocus(code, S = latestState) {
+  const point = stationFocusPoint(code);
+  if (!point) return false;
+  focusCTCPoint(point.x, point.y, { scale:focusScale(S), alignX:0.5, alignY:0.42 });
+  return true;
+}
+
+function applyTrainFocus(code, S = latestState) {
+  const circulation = String(code || '').toUpperCase();
+  const train = (S?.trains || []).find(item => item.circulation === circulation) || null;
+  if (!train) return false;
+  if (!motionStates.has(circulation)) reconcileTrain(S, train, Date.now());
+  const state = motionStates.get(circulation);
+  if (!state) return false;
+  state.train = train;
+  const position = positionForState(state, Date.now());
+  if (!position) return false;
+  focusCTCPoint(position.x, position.y, { scale:focusScale(S), alignX:0.5, alignY:0.48 });
+  return true;
+}
+
+function applyPendingFocus(S = latestState) {
+  if (!pendingFocus) return false;
+  const request = pendingFocus;
+  const done = request.type === 'train'
+    ? applyTrainFocus(request.code, S)
+    : applyStationFocus(request.code, S);
+  if (done) pendingFocus = null;
+  return done;
+}
+
+export function requestCTCStationFocus(code) {
+  const station = String(code || '').replace(/[^a-zA-Z]/g, '').slice(0,2).toUpperCase();
+  if (!station) return false;
+  pendingFocus = { type:'station', code:station };
+  if (active) return applyPendingFocus(latestState);
+  return true;
+}
+
+export function requestCTCTrainFocus(code) {
+  const circulation = String(code || '').replace(/[^a-zA-Z0-9]/g, '').slice(0,4).toUpperCase();
+  if (!circulation) return false;
+  pendingFocus = { type:'train', code:circulation };
+  if (active) return applyPendingFocus(latestState);
+  return true;
+}
+
+function wireCTCToolbar() {
+  if (ctcToolbarWired) return;
+  ctcToolbarWired = true;
+
+  document.querySelectorAll('[data-ctc-focus-station]').forEach(button => {
+    button.addEventListener('click', () => {
+      const code = String(button.dataset.ctcFocusStation || '').toUpperCase();
+      if (applyStationFocus(code, latestState)) {
+        const input = document.querySelector('#ctcStationInput');
+        if (input) input.value = code;
+      }
+    });
+  });
+
+  const input = document.querySelector('#ctcStationInput');
+  if (!input) return;
+
+  const submit = () => {
+    const code = String(input.value || '').replace(/[^a-zA-Z]/g, '').slice(0,2).toUpperCase();
+    input.value = code;
+    if (code.length !== 2) return false;
+    const valid = Boolean(stationHitGeometry?.stations?.[code] || motionGeometry?.stations?.[code]);
+    input.classList.toggle('query-invalid', !valid);
+    if (!valid) return false;
+    applyStationFocus(code, latestState);
+    input.blur();
+    return true;
+  };
+
+  input.addEventListener('input', () => {
+    input.value = String(input.value || '').replace(/[^a-zA-Z]/g, '').slice(0,2).toUpperCase();
+    input.classList.remove('query-invalid');
+    if (input.value.length === 2) submit();
+  });
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submit();
+    }
+  });
+}
+
 export function enterCTC(S) {
   const view = ctcView();
   if (!view) return;
@@ -1382,6 +1519,7 @@ export function enterCTC(S) {
     }
 
     updateCTC(S);
+    applyPendingFocus(S);
     startAnimation();
   });
 }

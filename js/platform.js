@@ -13,10 +13,13 @@ export {
   clearPlatform,
   fetchIsicStation,
   fixedPlatformFor,
+  fallbackPlatformFor,
+  platformPolicyFor,
+  suppressPlatformFor,
   matchContextToRows,
   matchContextsToRows,
   normalizePlatformValue,
   pairAssessment,
   parseIsicImageData,
   rememberPlatform
-} from "./isic.js?v=3.30.0";
+} from "./isic.js?v=3.31.0";

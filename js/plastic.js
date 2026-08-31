@@ -1,20 +1,21 @@
-import { getTripBundle } from "./gtfs.js?v=3.30.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.30.0";
-import { countdownState, formatOperationalCountdown } from "./time.js?v=3.30.0";
+import { getTripBundle } from "./gtfs.js?v=3.31.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.31.0";
+import { countdownState, formatOperationalCountdown } from "./time.js?v=3.31.0";
 import {
   countdownRedThreshold,
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.30.0";
+} from "./operations.js?v=3.31.0";
 import {
   cachedPlatform,
   clearPlatform,
   fetchIsicStation,
   fixedPlatformFor,
+  fallbackPlatformFor,
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.30.0";
+} from "./isic.js?v=3.31.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A: "L6", D: "S1", F: "S2", B: "L7", L: "L12" });
@@ -434,11 +435,27 @@ function updateOperationalFromCache(model, train, S) {
       origin,
       S.config.isic?.staleMs || 30000
     );
-    const platform = normalizePlatformValue(result?.platform);
+    let platform = normalizePlatformValue(result?.platform);
+    let source = result?.source || "unknown";
+
+    if (platform === null) {
+      const fallback = fallbackPlatformFor({
+        line:train.line,
+        circulation:train.circulation,
+        ascending:Boolean(train.ascending),
+        station:origin,
+        effectiveOrigin:origin,
+        effectiveDestination:context?.effectiveDestination || train.destination || "",
+        isOrigin:true,
+        isFinal:Boolean(context?.effectiveDestination && origin === context.effectiveDestination)
+      });
+      platform = normalizePlatformValue(fallback?.platform);
+      source = fallback?.source || source;
+    }
     if (platform === null) return;
 
     model.operational.textContent = `VÍA ${platform}`;
-    model.operational.dataset.source = result.source || "unknown";
+    model.operational.dataset.source = source;
     model.operational.classList.toggle("red", train.onTime === false);
     return;
   }
@@ -485,8 +502,13 @@ async function refreshOriginPlatforms(S, { force = false } = {}) {
 
       const fixed = fixedPlatformFor({
         line:train.line,
+        circulation:train.circulation,
+        ascending:Boolean(train.ascending),
         station:context.effectiveOrigin,
-        effectiveOrigin:context.effectiveOrigin
+        effectiveOrigin:context.effectiveOrigin,
+        effectiveDestination:context.effectiveDestination,
+        isOrigin:true,
+        isFinal:context.effectiveOrigin === context.effectiveDestination
       });
 
       if (fixed) {
@@ -504,17 +526,34 @@ async function refreshOriginPlatforms(S, { force = false } = {}) {
     await Promise.all([...groups.entries()].map(async ([station, items]) => {
       try {
         const parsed = await fetchIsicStation(S.config.isic, station, { force });
-        const contexts = items.map(({ train, context }) => ({
-          key:train.id,
-          id:train.id,
-          circulation:train.circulation,
-          line:train.line,
-          onTime:train.onTime,
-          station,
-          effectiveOrigin:context.effectiveOrigin,
-          departure:context.departure,
-          originHold:true
-        }));
+        const contexts = items.map(({ train, context }) => {
+          const fallback = fallbackPlatformFor({
+            line:train.line,
+            circulation:train.circulation,
+            ascending:Boolean(train.ascending),
+            station,
+            effectiveOrigin:context.effectiveOrigin,
+            effectiveDestination:context.effectiveDestination,
+            isOrigin:true,
+            isFinal:context.effectiveOrigin === context.effectiveDestination
+          });
+          return {
+            key:train.id,
+            id:train.id,
+            circulation:train.circulation,
+            line:train.line,
+            onTime:train.onTime,
+            ascending:Boolean(train.ascending),
+            station,
+            effectiveOrigin:context.effectiveOrigin,
+            effectiveDestination:context.effectiveDestination,
+            isOrigin:true,
+            isFinal:context.effectiveOrigin === context.effectiveDestination,
+            platformHint:fallback?.platform ?? null,
+            departure:context.departure,
+            originHold:true
+          };
+        });
 
         const matches = matchContextsToRows(contexts, parsed.rows, parsed.fetchedAt);
         for (const { train } of items) {

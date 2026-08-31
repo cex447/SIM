@@ -1,21 +1,21 @@
 import {
   fetchPositioning,
   normalizeTrain
-} from "./fgc-api.js?v=3.30.0";
+} from "./fgc-api.js?v=3.31.0";
 
 import {
   wirePLASTIC,
   renderPLASTIC,
   tickPLASTIC,
   revealSearchedTrain
-} from "./plastic.js?v=3.30.0";
+} from "./plastic.js?v=3.31.0";
 
 import {
   clearLIT,
   focusCurrentLIT,
   loadLIT,
   tickLIT
-} from "./lit.js?v=3.30.0";
+} from "./lit.js?v=3.31.0";
 
 import {
   wireISIC,
@@ -23,13 +23,16 @@ import {
   refreshISIC,
   syncISICQuery,
   tickISIC
-} from "./isic-view.js?v=3.30.0";
+} from "./isic-view.js?v=3.31.0";
 
-import { updateOccupancy } from "./occupancy.js?v=3.30.0";
-import { BackgroundAudio } from "./audio.js?v=3.30.0";
+import { updateOccupancy } from "./occupancy.js?v=3.31.0";
+import { BackgroundAudio } from "./audio.js?v=3.31.0";
 
-import { setupViewports, activateViewport } from "./viewport.js?v=3.30.0";
-import { initCTC, enterCTC, leaveCTC, updateCTC, ctcDiagnostic } from "./ctc.js?v=3.30.0";
+import { setupViewports, activateViewport } from "./viewport.js?v=3.31.0";
+import {
+  initCTC, enterCTC, leaveCTC, updateCTC, ctcDiagnostic,
+  requestCTCStationFocus, requestCTCTrainFocus
+} from "./ctc.js?v=3.31.0";
 
 const S = {
   config: null,
@@ -118,8 +121,8 @@ function setupClock() {
 
 async function loadStaticData() {
   const [configResponse, networkResponse] = await Promise.all([
-    fetch("data/config.json?v=3.30.0", { cache: "no-store" }),
-    fetch("data/network.json?v=3.30.0", { cache: "no-store" })
+    fetch("data/config.json?v=3.31.0", { cache: "no-store" }),
+    fetch("data/network.json?v=3.31.0", { cache: "no-store" })
   ]);
 
   if (!configResponse.ok) {
@@ -136,15 +139,18 @@ async function loadStaticData() {
 function syncQueryBars(view = S.activeView) {
   const litBar = $("#litQueryBar");
   const isicBar = $("#isicQueryBar");
+  const ctcBar = $("#ctcQueryBar");
 
   if (litBar) litBar.hidden = view !== "lit";
   if (isicBar) isicBar.hidden = view !== "isic";
+  if (ctcBar) ctcBar.hidden = view !== "ctc";
 
   /* Safari/iOS puede conservar el valor de un input al cambiar de vista.
      Ocultamos también el foco para que nunca quede visible ni activo el
      campo perteneciente a otro módulo. */
   if (view !== "lit") $("#circulationInput")?.blur();
   if (view !== "isic") $("#stationInput")?.blur();
+  if (view !== "ctc") $("#ctcStationInput")?.blur();
 }
 
 function hideQueryMeta() {
@@ -343,7 +349,7 @@ function setupSearch() {
   });
 }
 
-async function activateView(name, { clearQuery = true } = {}) {
+async function activateView(name, { clearQuery = false } = {}) {
   if (name === S.activeView) return;
 
   const previousView = S.activeView;
@@ -365,7 +371,12 @@ async function activateView(name, { clearQuery = true } = {}) {
     view.classList.toggle("active", view.id === `view-${name}`);
   });
 
-  if (name !== "ctc") activateViewport(`#view-${name}`);
+  /* Conservamos contenido/selección, pero no persistimos el scroll vertical. */
+  if (name !== "ctc") {
+    const targetView = $(`#view-${name}`);
+    if (targetView) targetView.scrollTop = 0;
+    activateViewport(`#view-${name}`);
+  }
 
   if (name === "siv") {
     audio?.enterSIV();
@@ -397,6 +408,25 @@ async function openStationFromCTC(code) {
   input.value = String(code || "").toUpperCase().slice(0, 2);
   await activateView("isic");
   await syncISICQuery(S, { blur:true });
+}
+
+async function openCTCFromLIT() {
+  const code = String(S.selected?.circulation || S.query?.code || "").toUpperCase();
+  if (!code) return;
+  requestCTCTrainFocus(code);
+  await activateView("ctc", { clearQuery:false });
+}
+
+async function openCTCFromISIC() {
+  const code = String(S.isicView?.station || $("#stationInput")?.value || "").toUpperCase();
+  if (!code) return;
+  requestCTCStationFocus(code);
+  await activateView("ctc", { clearQuery:false });
+}
+
+function setupContextualCTCButtons() {
+  $("#litCtcButton")?.addEventListener("click", openCTCFromLIT);
+  $("#isicCtcButton")?.addEventListener("click", openCTCFromISIC);
 }
 
 function setupTabs() {
@@ -529,7 +559,7 @@ function setupDiagnostics() {
     const audioState = audio?.state?.() || {};
 
     $("#diagText").textContent = [
-      "SIM+ Beta 3.30.0",
+      "SIM+ Beta 3.31.0",
       `Vista: ${S.activeView}`,
       `Registres API: ${S.rawCount}`,
       `BV vàlids: ${S.trains.length}`,
@@ -595,6 +625,7 @@ async function init() {
   });
 
   setupTabs();
+  setupContextualCTCButtons();
   setupSearch();
   setupDiagnostics();
   wirePLASTIC(S, { onSelectTrain: openCirculationFromPlastic });
