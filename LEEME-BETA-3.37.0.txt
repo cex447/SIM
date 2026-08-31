@@ -1,0 +1,15 @@
+SIM+ Beta 3.37.0
+
+Beta de saneamiento / consistencia de carga.
+
+Cambios cerrados:
+- Cache busting físico: index carga CSS y módulos desde rutas nuevas v336.
+- Diagnóstico muestra versiones APP / PLASTIC / iSIC / CTC / LIT.
+- PLASTIC: cuenta atrás blanca incluso en 0:00 salvo retraso confirmado (en_hora=false).
+- PLASTIC: contadores junto a filtros de línea, serie y TOTS.
+- PLASTIC: triángulos rojos en línea/serie si existe retraso confirmado.
+- PLASTIC: ACTUALITZAT sin total global; ticker rojo sólo para retrasos confirmados.
+- CTC: fondo de matrícula exactamente al 75% (fill-opacity), texto al 100%.
+- CTC: TB vía 1 anclado explícitamente a TB1.
+
+No se incluyen fuentes tipográficas. Conservar las fuentes ya presentes en el repositorio.
