@@ -8,7 +8,7 @@
 <meta content="SIM+" name="apple-mobile-web-app-title"/>
 <meta content="SIM+" name="application-name"/>
 <script>
-/* SIM+ 3.29 · bloqueig immediat del zoom natiu de Safari.
+/* SIM+ 3.31 · bloqueig immediat del zoom natiu de Safari.
    CTC rep igualment els Touch Events i fa el seu zoom intern via viewBox. */
 (()=>{
   if(window.__SIM_NATIVE_PINCH_GUARD__) return;
@@ -28,7 +28,7 @@
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
 <link href="site.webmanifest" rel="manifest"/>
-<link href="css/sim.css?v=3.30.0" rel="stylesheet"/>
+<link href="css/sim.css?v=3.31.0" rel="stylesheet"/>
 </head>
 <body>
 <div id="app">
@@ -39,6 +39,7 @@
 </div>
 
 <div class="query-bar lit-query-bar" hidden="" id="litQueryBar">
+<button aria-label="Veure la circulació al CTC" class="context-ctc-button" id="litCtcButton" type="button"><span class="plate-label">CTC</span></button>
 <div class="query-input-wrap">
 <input aria-label="Cercar circulació" autocapitalize="characters" autocomplete="off" class="query-code-input circulation-input" id="circulationInput" inputmode="text" maxlength="4" spellcheck="false"/>
 </div>
@@ -50,10 +51,23 @@
 </div>
 </div>
 <div class="query-bar isic-query-bar" hidden="" id="isicQueryBar">
+<button aria-label="Veure l'estació al CTC" class="context-ctc-button" id="isicCtcButton" type="button"><span class="plate-label">CTC</span></button>
 <div class="query-input-wrap">
 <input aria-label="Codi d'estació iSIC" autocapitalize="characters" autocomplete="off" class="query-code-input station-input" id="stationInput" inputmode="text" maxlength="2" spellcheck="false"/>
 </div>
 <div aria-live="polite" class="station-query-name" id="stationName"></div>
+</div>
+<div class="query-bar ctc-query-bar" hidden="" id="ctcQueryBar">
+<div class="query-input-wrap">
+<input aria-label="Codi d'estació CTC" autocapitalize="characters" autocomplete="off" class="query-code-input station-input" id="ctcStationInput" inputmode="text" maxlength="2" spellcheck="false"/>
+</div>
+<div aria-label="Accessos ràpids CTC" class="ctc-quick-stations">
+<button class="ctc-quick-button" data-ctc-focus-station="PC" type="button"><span class="plate-label">PC</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="TB" type="button"><span class="plate-label">TB</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="SR" type="button"><span class="plate-label">SR</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="NA" type="button"><span class="plate-label">NA</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="PN" type="button"><span class="plate-label">PN</span></button>
+</div>
 </div>
 </header>
 <main><section class="view active" id="view-plastic">
@@ -11418,6 +11432,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app.js?v=3.30.0" type="module"></script>
+<script src="js/app.js?v=3.31.0" type="module"></script>
 </body>
 </html>

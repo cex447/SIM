@@ -1,0 +1,41 @@
+SIM+ Beta 3.31.0
+
+BASE
+- Parte estrictamente de Beta 3.30.0, que se mantiene como base estable.
+- PLASTIC, iSIC, LIT y SIV continúan sin zoom y sin desplazamiento horizontal: sólo scroll vertical.
+- CTC continúa como único módulo con pinch + pan X/Y propios mediante viewBox.
+- Se mantienen sin cambios la cronometría compacta de PLASTIC/iSIC, sticky/push-off, máscaras, deduplicación iSIC y reglas CTC ya aprobadas.
+
+NAVEGACIÓN CONTEXTUAL CTC
+- LIT incorpora botón fijo CTC a la izquierda del campo de circulación. Abre CTC centrado en la posición actual de la circulación cargada.
+- iSIC incorpora botón fijo CTC a la izquierda del campo de estación. Abre CTC centrado en la estación visualizada.
+- La T de CTC queda centrada en la misma columna/eje que el indicador de posición de LIT.
+- Los botones contextuales, igual que SIM+, reloj y campos, no forman parte del contenido desplazable/zoomable.
+
+ACCESOS RÁPIDOS EN CTC
+- CTC incorpora campo fijo de código de estación en la misma columna que los campos de iSIC/LIT.
+- Acepta códigos de estación válidos (GR, RB, CF, etc.) y centra directamente el viewBox en esa estación.
+- Accesos rápidos fijos: PC · TB · SR · NA · PN.
+- Campo y botones CTC no se desplazan ni se amplían; sólo se mueve/escala el sinóptico.
+- Entrada normal mediante la pestaña CTC conserva el último encuadre; entrada contextual desde LIT/iSIC reposiciona expresamente el mapa.
+
+PERSISTENCIA ENTRE PESTAÑAS
+- Cambiar de módulo ya no borra la circulación cargada en LIT ni la estación cargada en iSIC.
+- CTC conserva su último viewBox/zoom entre entradas normales.
+- Se conserva el estado funcional, pero NO se memoriza la posición vertical de scroll de PLASTIC/iSIC/LIT/SIV.
+
+REGLA GENERAL DE VÍAS
+- La vía real confirmada sigue teniendo prioridad absoluta sobre cualquier fallback.
+- En estaciones normales, si no hay vía real: ascendente → vía 1; descendente → vía 2.
+- El fallback se utiliza como pista de matching iSIC para evitar cruces como un descendente asociado a PR1 cuando corresponde PR2, sin impedir una vía real excepcional si está claramente confirmada.
+- L7 en GR: ascendente → vía 3 / GR11; descendente → vía 4 / GR10.
+- L12 en SR: siempre vía 4 / SR20.
+- TB: siempre TB1.
+- PC descendente final: no se muestra ninguna cifra de vía si no existe certeza de recepción.
+- NA, PN y RE ascendentes finales: no se muestra ninguna cifra de vía si no existe certeza de recepción.
+- PC de salida y NA/PN/RE de salida descendente esperan vía real; no se inventa un fallback de salida.
+- CTC reutiliza la misma jerarquía: vía real → regla operacional → fallback por sentido → heurística permitida.
+
+EMPAQUETADO
+- ZIP preparado para subir directamente a la raíz de GitHub Pages.
+- No incluye fuentes Canal+; conservar las existentes en el repositorio.
