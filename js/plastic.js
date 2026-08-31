@@ -1,11 +1,11 @@
-export const MODULE_VERSION = "3.36.0";
-import { getTripBundle } from "./gtfs.js?v=3.36.0";
-import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.36.0";
-import { countdownState, formatOperationalCountdown } from "./time.js?v=3.36.0";
+export const MODULE_VERSION = "3.37.0";
+import { getTripBundle } from "./gtfs.js?v=3.37.0";
+import { occupancyFingerprint, updateOccupancy } from "./occupancy.js?v=3.37.0";
+import { countdownState, formatOperationalCountdown } from "./time.js?v=3.37.0";
 import {
   isOriginHold,
   parentCode
-} from "./operations.js?v=3.36.0";
+} from "./operations.js?v=3.37.0";
 import {
   cachedPlatform,
   clearPlatform,
@@ -15,7 +15,7 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.36.0";
+} from "./isic.js?v=3.37.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 /* Mateixa velocitat lineal que el triangle mòbil de LIT:

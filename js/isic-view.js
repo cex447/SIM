@@ -1,13 +1,13 @@
-export const MODULE_VERSION = "3.36.0";
-import { decodeCirculation } from "./fgc-api.js?v=3.36.0";
+export const MODULE_VERSION = "3.37.0";
+import { decodeCirculation } from "./fgc-api.js?v=3.37.0";
 import {
   getStationCatalog,
   getStationDepartures,
   getTripBundle
-} from "./gtfs.js?v=3.36.0";
-import { updateOccupancy } from "./occupancy.js?v=3.36.0";
-import { countdownState, formatOperationalCountdown, resolveGtfsTimestamp } from "./time.js?v=3.36.0";
-import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.36.0";
+} from "./gtfs.js?v=3.37.0";
+import { updateOccupancy } from "./occupancy.js?v=3.37.0";
+import { countdownState, formatOperationalCountdown, resolveGtfsTimestamp } from "./time.js?v=3.37.0";
+import { locateOperationalTarget, parentCode, countdownRedThreshold } from "./operations.js?v=3.37.0";
 import {
   fetchIsicStation,
   fixedPlatformFor,
@@ -16,7 +16,7 @@ import {
   matchContextsToRows,
   normalizePlatformValue,
   rememberPlatform
-} from "./isic.js?v=3.36.0";
+} from "./isic.js?v=3.37.0";
 
 const FAMILY_ORDER = Object.freeze(["A", "D", "F", "B", "L"]);
 const LINE_BY_FAMILY = Object.freeze({ A:"L6", D:"S1", F:"S2", B:"L7", L:"L12" });
