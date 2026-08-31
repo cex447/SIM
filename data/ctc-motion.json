@@ -1,5 +1,5 @@
 {
-  "version": "3.30.0",
+  "version": "3.31.0",
   "purpose": "Geometria interna per al moviment estimat de circulacions sobre el CTC. Les línies no es dibuixen: només guien la posició de les etiquetes.",
   "holdProgress": 0.975,
   "stations": {
