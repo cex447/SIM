@@ -471,6 +471,14 @@ main{ min-height:0; overflow:hidden; }
 .plastic-filter-stat .line-filter,
 .plastic-filter-stat .text-filter{
   flex:0 0 auto;
+  overflow:visible;
+}
+.plastic-filter-touch-target{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  overflow:visible;
 }
 .plastic-filter-count{
   flex:0 0 auto;
@@ -487,15 +495,21 @@ main{ min-height:0; overflow:hidden; }
 }
 .plastic-filter-delay-marker{
   position:absolute;
-  right:calc(100% + 2px);
+  /* El vértice del polígono está en x=14.12435565 dentro de un viewBox
+     de 18 unidades. Este desplazamiento hace coincidir matemáticamente
+     la punta con el borde izquierdo del logotipo o del primer "1". */
+  left:0;
+  right:auto;
   top:50%;
   width:var(--pointer-col);
   height:var(--pointer-col);
-  transform:translateY(-50%);
+  transform:translate(-78.4686425%,-50%);
   overflow:visible;
   color:var(--red);
   pointer-events:none;
+  display:none;
 }
+.plastic-filter-delay-marker.is-visible{ display:block; }
 .plastic-filter-delay-marker[hidden]{ display:none !important; }
 
 .line-filter{
@@ -917,7 +931,6 @@ pre{ white-space:pre-wrap; font-size:15px; }
   .plastic-filter-stat .line-filter{ min-width:28px; padding-left:1px; padding-right:1px; }
   .plastic-filter-stat .text-filter{ min-width:34px; padding-left:4px; padding-right:4px; }
   .plastic-filter-stat{ gap:2px; }
-  .plastic-filter-delay-marker{ right:calc(100% + 1px); }
 
   .trainrow{
     gap:2px;
@@ -1031,7 +1044,7 @@ pre{ white-space:pre-wrap; font-size:15px; }
   .plastic-filter-stat{ flex:0 0 auto; gap:2px; }
   .plastic-filter-stat .line-filter{ min-width:27px; }
   .plastic-filter-stat .text-filter{ min-width:29px; }
-  .plastic-filter-delay-marker{ width:14px; height:14px; right:calc(100% + 1px); }
+  .plastic-filter-delay-marker{ width:14px; height:14px; }
   .text-filter{
     min-width:34px;
     min-height:27px;
