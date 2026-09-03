@@ -1,0 +1,120 @@
+SIM+ Beta 3.42.0
+
+Base validada: SIM+ Beta 3.41.0.
+
+NOVEDADES Y CORRECCIONES
+
+1. Calendario anual y día ferroviario
+- El calendario data/servei-calendari-2026.json pasa a ser la autoridad para
+  conocer el tipo de servicio diario.
+- El cambio de servicio se realiza cada día a las 03:00, no a medianoche.
+- Junto a SIM+ se muestra el código vigente sin ceros iniciales: 000 se ve
+  como 0, 100 como 100, etc.
+- El nombre se resuelve por año mediante servei-calendari-{year}.json. Para
+  el cambio de año basta con incorporar previamente el fichero del año nuevo.
+- Los servicios ordinarios derivados (por ejemplo 101 o 504) utilizan el
+  cuadro exacto si existe y, en caso contrario, su bloque 100 o 500.
+
+2. Turnos de servicios especiales 6xx/7xx
+- Estos servicios nunca heredan turnos ordinarios ni se deducen a partir del
+  identificador vivo. Sin un cuadro específico se muestra Q?.
+- Se admite un único JSON anual con uno o varios días:
+
+  data/sim-turnos-especiales-2026.json
+
+  {
+    "year": 2026,
+    "date_format": "DD/MM/YYYY",
+    "dates": {
+      "11/09/2026": {
+        "A001": "001",
+        "D203": "QP03"
+      },
+      "24/09/2026": {
+        "F101": "202"
+      }
+    }
+  }
+
+- También se acepta un fichero de un solo día con las propiedades date y
+  circulations. Los valores de turno pueden escribirse como 001 o Q001.
+- Si el archivo no existe, la fecha no está incluida o una circulación no
+  consta, el comportamiento seguro sigue siendo Q?.
+
+3. PLASTIC, iSIC y LIT
+- El turno aparece entre el número de circulación y la ocupación; cuando no
+  existe una correspondencia segura se muestra Q?.
+- El scroll de retrasos se lee en orden operativo: turno, UT, circulación y
+  retraso. Ejemplo: Q123 113.03 D221 +3.
+- El orden único de líneas en filtros y listados pasa a ser:
+  S1, S2, L6, L7 y L12.
+- Se conserva el mismo espaciado de la retícula anterior y la reserva de la
+  columna de cronometría.
+- Se conserva la cronometría LIT por hora programada, independiente de la
+  posición recibida, y el salto automático a la estación siguiente al vencer.
+- Se conservan el tramo inmediato, la ocupación, la vía y el campo rellenable
+  en sus posiciones aprobadas.
+
+4. Nueva pestaña TORNS
+- Se añade TORNS después de SIV sin segunda fila, desplazamiento horizontal
+  ni zoom. Todos los botones inferiores permanecen accesibles en pantalla
+  ancha y estrecha; TORNS sólo permite desplazamiento vertical.
+- Sólo se muestran turnos que están realizando una circulación activa.
+- MATÍ contiene turnos cuya última cifra es impar; TARDA, los de última cifra
+  par.
+- Dentro de cada periodo se separan y cuentan cinco dependencias, en orden:
+  0/P (PC), 1/S (SR), 2/R (RB), 3/N (NA) y 4/F (PN).
+- Los turnos numéricos se ordenan primero. Los alfanuméricos siguen el orden
+  P, S, R, N y F, y el número dentro de cada letra.
+- Cada fila conserva UT, circulación, turno, ocupación, tramo, dato operativo
+  y cronometría. Delante de Q aparece el icono de la línea al 40 % del tamaño
+  empleado por el selector de líneas de PLASTIC.
+- Los retrasos usan el mismo color y scroll de PLASTIC, sin triángulos.
+- Cuando un periodo queda vacío se muestra exactamente:
+  ACTUALMENT NO HI HA TORNS DE MATÍ / ACTUALMENT NO HI HA TORNS DE TARDA.
+
+5. Consulta directa de turno
+- El campo acepta Q seguido de tres caracteres y normaliza mayúsculas/prefijo.
+- Al pulsar una fila se escribe su turno y queda visible únicamente esa fila.
+- Debajo aparece LIT, que abre la circulación realizada por ese turno.
+- El botón contextual CTC sólo aparece cuando existe un turno válido.
+- Si el turno no está disponible se muestra TORN NO DISPONIBLE.
+
+6. Botones y campos rellenables
+- Los accesos rápidos de iSIC y CTC son PC, SR, SC, EN y NA. Al pulsarlos no
+  escriben el código en el campo: sólo queda seleccionado un botón, con letra
+  blanca y fondo gris. Una consulta escrita manualmente elimina la selección.
+- Todos los campos borran automáticamente su contenido anterior al tocarlos.
+  En TORNS también se elimina la Q, para poder escribir el turno desde cero.
+- Los botones contextuales CTC de los campos son más altos y fáciles de pulsar.
+
+REGRESIONES PRESERVADAS
+
+- Los triángulos rojos superiores nacen ocultos y sólo aparecen con retraso
+  cuantificable de +1 minuto o superior. No se muestra +0.
+- Se conservan las correcciones de posicionamiento TB/TB1, el CTC vectorial,
+  sus rutas y estaciones, el zoom/pan exclusivo de CTC, iSIC, las ocupaciones,
+  las vías, el audio y toda la navegación contextual de Beta 3.41.0.
+
+BLINDAJE DE CACHÉ
+
+- CSS, JavaScript, manifiesto y JSON usan nombres físicos terminados en
+  -3.42.0. Safari no puede combinar módulos de esta beta con versiones previas.
+- index.html apunta exclusivamente a archivos de Beta 3.42.0, salvo los JSON
+  anuales, cuyo año forma parte del nombre para permitir el relevo automático.
+
+INTEGRIDAD DEL CATÁLOGO DE TURNOS
+
+SHA-256 de data/sim-turnos-servicios-3.42.0.json:
+50804e6ee68b838a2a1a05235358ed1be5eb4521d1741677c582c63dcf647af1
+
+SHA-256 de data/servei-calendari-2026.json:
+01d1743d15f175b56e87b5df9e03fd2f167bece56afcb305f076e19eb8e27b88
+
+INSTALACIÓN
+
+- Copiar todo el contenido del ZIP en la raíz utilizada por SIM+ y sustituir
+  index.html.
+- Los archivos antiguos pueden conservarse: index.html ya no los referencia.
+- No se incluyen fuentes tipográficas. Conservar en la raíz del repositorio
+  las fuentes Canal+ utilizadas por las betas anteriores.
