@@ -1,0 +1,70 @@
+{
+  "positioningUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/posicionament-dels-trens/records?limit=100",
+  "gtfsZipIndexUrl": "https://dadesobertes.fgc.cat/api/explore/v2.1/catalog/datasets/gtfs_zip/records?limit=20",
+  "turnAssignmentsUrl": "data/sim-turnos-servicios-3.41.0.json",
+  "refreshMs": 5000,
+  "requestTimeoutMs": 8000,
+  "allowedLines": [
+    "S1",
+    "S2",
+    "L6",
+    "L7",
+    "L12"
+  ],
+  "allowedUnitSeries": [
+    "112",
+    "113",
+    "114",
+    "115"
+  ],
+  "idPrefix": "6c4bdae",
+  "udPrefix": "1f2cc",
+  "lineAssets": {
+    "S1": "assets/lines/s1.png",
+    "S2": "assets/lines/s2.png",
+    "L6": "assets/lines/l6.png",
+    "L7": "assets/lines/l7.png",
+    "L12": "assets/lines/l12.png"
+  },
+  "audio": {
+    "enabled": true,
+    "manifestUrl": "data/audio-3.41.0.json",
+    "githubOwner": "cex447",
+    "githubRepo": "SIM",
+    "githubBranch": "main"
+  },
+  "isic": {
+    "enabled": true,
+    "proxyUrl": "https://sim-isic-proxy2.cex447.workers.dev/",
+    "urlTemplate": "https://geotren.fgc.cat/isic/{station}",
+    "refreshMs": 10000,
+    "viewRefreshMs": 10000,
+    "cacheMs": 9000,
+    "timeoutMs": 7000,
+    "staleMs": 30000
+  },
+  "ctc": {
+    "enabled": true,
+    "mapUrl": "assets/ctc/sinoptico-bv.svg",
+    "mapWidth": 6566.92,
+    "mapHeight": 4954.34,
+    "defaultFocus": {
+      "station": "PC",
+      "x": 820,
+      "y": 2558,
+      "alignX": 0.19,
+      "alignY": 0.25
+    },
+    "defaultLogicalWidthPortrait": 132,
+    "defaultLogicalWidthLandscape": 288,
+    "lineColors": {
+      "L6": "#847DC6",
+      "L7": "#AE6118",
+      "L12": "#B6B3E1",
+      "S1": "#F47216",
+      "S2": "#59C134"
+    },
+    "delayColor": "#FF2C2C",
+    "platformMemoryMs": 1800000
+  }
+}
