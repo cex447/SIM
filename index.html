@@ -11,7 +11,7 @@
 <meta content="SIM+" name="apple-mobile-web-app-title"/>
 <meta content="SIM+" name="application-name"/>
 <script>
-/* SIM+ 3.37 · bloqueig immediat del zoom natiu de Safari.
+/* SIM+ 3.41 · bloqueig immediat del zoom natiu de Safari.
    CTC rep igualment els Touch Events i fa el seu zoom intern via viewBox. */
 (()=>{
   if(window.__SIM_NATIVE_PINCH_GUARD__) return;
@@ -30,8 +30,8 @@
 <link href="assets/icons/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
-<link href="site.webmanifest" rel="manifest"/>
-<link href="css/sim.css?v=3.39.0" rel="stylesheet"/>
+<link href="site-3.41.0.webmanifest" rel="manifest"/>
+<link href="css/sim-3.41.0.css" rel="stylesheet"/>
 </head>
 <body>
 <div id="app">
@@ -49,6 +49,7 @@
 <div class="query-meta" hidden="" id="queryMeta">
 <span class="query-status" hidden="" id="queryStatus"></span>
 <span class="query-unit" hidden="" id="queryUnit"></span>
+<span class="query-turn" hidden="" id="queryTurn"></span>
 <span class="query-occupancy occupancy" hidden="" id="queryOccupancy"></span>
 <span class="query-delay" hidden="" id="queryDelay"></span>
 </div>
@@ -58,7 +59,13 @@
 <div class="query-input-wrap">
 <input aria-label="Codi d'estació iSIC" autocapitalize="characters" autocomplete="off" class="query-code-input station-input" id="stationInput" inputmode="text" maxlength="2" spellcheck="false"/>
 </div>
-<div aria-live="polite" class="station-query-name" id="stationName"></div>
+<div aria-label="Accessos ràpids iSIC" class="ctc-quick-stations isic-quick-stations">
+<button class="ctc-quick-button" data-isic-station="PC" type="button"><span class="plate-label">PC</span></button>
+<button class="ctc-quick-button" data-isic-station="SR" type="button"><span class="plate-label">SR</span></button>
+<button class="ctc-quick-button" data-isic-station="SC" type="button"><span class="plate-label">SC</span></button>
+<button class="ctc-quick-button" data-isic-station="EN" type="button"><span class="plate-label">EN</span></button>
+<button class="ctc-quick-button" data-isic-station="NA" type="button"><span class="plate-label">NA</span></button>
+</div>
 </div>
 <div class="query-bar ctc-query-bar" hidden="" id="ctcQueryBar">
 <div class="query-input-wrap">
@@ -66,10 +73,23 @@
 </div>
 <div aria-label="Accessos ràpids CTC" class="ctc-quick-stations">
 <button class="ctc-quick-button" data-ctc-focus-station="PC" type="button"><span class="plate-label">PC</span></button>
-<button class="ctc-quick-button" data-ctc-focus-station="TB" type="button"><span class="plate-label">TB</span></button>
 <button class="ctc-quick-button" data-ctc-focus-station="SR" type="button"><span class="plate-label">SR</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="SC" type="button"><span class="plate-label">SC</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="EN" type="button"><span class="plate-label">EN</span></button>
 <button class="ctc-quick-button" data-ctc-focus-station="NA" type="button"><span class="plate-label">NA</span></button>
-<button class="ctc-quick-button" data-ctc-focus-station="PN" type="button"><span class="plate-label">PN</span></button>
+</div>
+</div>
+<div class="torns-filters" hidden="" id="tornsFiltersBar">
+<div aria-label="Grups de torns" class="torns-station-filters" id="tornsStationFilters"></div>
+</div>
+<div class="query-bar torns-query-bar" hidden="" id="tornsQueryBar">
+<button aria-label="Veure la circulació del torn al CTC" class="context-ctc-button" id="tornsCtcButton" type="button"><span class="plate-label">CTC</span></button>
+<div class="query-input-wrap">
+<input aria-label="Cercar torn" autocapitalize="characters" autocomplete="off" class="query-code-input turn-input" id="turnInput" inputmode="text" maxlength="4" spellcheck="false"/>
+</div>
+<div aria-live="polite" class="query-meta torns-query-meta" hidden="" id="tornsQueryMeta">
+<span class="query-status" hidden="" id="tornsQueryStatus"></span>
+<span class="query-unit" hidden="" id="tornsQueryUnit"></span>
 </div>
 </div>
 </header>
@@ -11418,6 +11438,22 @@
 <div class="lit-route" id="litRoute"></div>
 </section><section class="view" id="view-siv">
 <div class="siv-placeholder">SIV</div>
+</section><section class="view" id="view-torns">
+<div class="plastic-directions torns-directions" id="tornsDirections">
+<section class="plastic-direction" id="tornsMatiDirection">
+<h2 class="direction-title"><span>MATÍ</span> <span class="direction-count" id="tornsMatiCount">0 TORNS</span></h2>
+<div id="tornsMatiList"></div>
+<div class="empty" hidden="" id="tornsMatiEmpty"></div>
+</section>
+<section class="plastic-direction" id="tornsTardaDirection">
+<h2 class="direction-title"><span>TARDA</span> <span class="direction-count" id="tornsTardaCount">0 TORNS</span></h2>
+<div id="tornsTardaList"></div>
+<div class="empty" hidden="" id="tornsTardaEmpty"></div>
+</section>
+</div>
+<div class="torns-lit-action" hidden="" id="tornsLitAction">
+<button aria-label="Veure la circulació del torn al LIT" class="torns-lit-button" id="tornsLitButton" type="button"><span class="plate-label">LIT</span></button>
+</div>
 </section></main>
 <nav aria-label="Mòduls SIM+" class="tabs tabs-global">
 <button class="tab active" data-view="plastic" type="button"><span class="plate-label">PLASTIC</span></button>
@@ -11425,6 +11461,7 @@
 <button class="tab" data-view="ctc" type="button"><span class="plate-label">CTC</span></button>
 <button class="tab" data-view="lit" type="button"><span class="plate-label">LIT</span></button>
 <button class="tab" data-view="siv" type="button"><span class="plate-label">SIV</span></button>
+<button class="tab" data-view="torns" type="button"><span class="plate-label">TORNS</span></button>
 </nav>
 <button aria-label="Diagnòstic" id="diagHotspot" type="button"></button>
 <dialog id="diag">
@@ -11435,6 +11472,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app.js?v=3.39.0" type="module"></script>
+<script src="js/app-3.41.0.js" type="module"></script>
 </body>
 </html>

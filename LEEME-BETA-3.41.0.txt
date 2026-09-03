@@ -1,0 +1,84 @@
+SIM+ Beta 3.41.0
+
+Base validada: SIM+ Beta 3.40.0.
+
+NOVEDADES Y CORRECCIONES
+
+1. Nueva pestaña TORNS
+- Se añade TORNS después de SIV en la navegación inferior.
+- La lista muestra exclusivamente los turnos que están realizando una
+  circulación activa en ese momento.
+- MATÍ agrupa los turnos cuya última cifra es impar y TARDA los que terminan
+  en cifra par.
+- Primero se ordenan los turnos numéricos de menor a mayor. Después se
+  ordenan los alfanuméricos por P, S, R, N y F, y por número dentro de cada
+  letra. Por ejemplo, QP03 aparece antes que QF01.
+- Se conserva íntegramente la fila operacional de PLASTIC: UT, circulación,
+  turno, ocupación, tramo inmediato, vía/retraso y cronometría.
+- Si dos registros del posicionamiento coinciden transitoriamente en un mismo
+  turno, sólo se muestra una fila para evitar duplicados.
+
+2. Grupos de TORNS
+- La fila superior contiene únicamente PC, SR, RB, NA y PN, en ese orden.
+- Cada grupo muestra en gris el número de turnos activos que contiene.
+- Correspondencia: Q0xx/QPxx=PC, Q1xx/QSxx=SR, Q2xx/QRxx=RB,
+  Q3xx/QNxx=NA y Q4xx/QFxx=PN.
+- Los cinco filtros son combinables y no existe una segunda fila de filtros
+  por serie de UT.
+
+3. Consulta directa de turno
+- El campo acepta el formato Q seguido de tres caracteres y normaliza
+  automáticamente mayúsculas y el prefijo Q.
+- Una consulta válida deja visible únicamente ese turno.
+- Debajo de su fila aparece el pulsador LIT, que abre el itinerario de la
+  circulación que realiza el turno en ese momento. La placa conserva la
+  misma proporción, altura, centrado y estilo que una pestaña inferior.
+- El pulsador contextual CTC abre y centra esa misma circulación en el CTC.
+- Si el turno no existe o no realiza ninguna circulación activa, junto al
+  campo se muestra exactamente TORN NO DISPONIBLE.
+
+4. Turnos no resueltos
+- PLASTIC, iSIC y LIT muestran Q? cuando no existe una correspondencia segura
+  entre servicio, circulación y turno. Nunca queda un hueco silencioso.
+- El scroll superior de retrasos incorpora el turno con un espacio simple y
+  uniforme: D221 Q123 +3. Si no puede resolverse: D221 Q? +3.
+
+5. Navegación y gestos
+- La barra inferior contiene siempre las seis pestañas completas:
+  PLASTIC, iSIC, CTC, LIT, SIV y TORNS.
+- Todos los botones permanecen visibles, centrados y accesibles en pantalla
+  ancha, estrecha, vertical y horizontal; nunca se crea una segunda fila ni
+  desplazamiento horizontal.
+- TORNS sólo permite desplazamiento vertical. No admite zoom, pinch ni
+  desplazamiento horizontal, igual que PLASTIC, iSIC, LIT y SIV.
+
+REGRESIONES PRESERVADAS
+
+- Se conserva íntegramente la cronometría LIT por hora programada y su salto
+  automático a la estación siguiente al vencer.
+- Se conservan los tramos inmediatos, el estacionamiento est. XX, la posición
+  TB1 corregida, las ocupaciones, las vías, el zoom/pan vectorial exclusivo de
+  CTC y la navegación contextual.
+- Los triángulos rojos superiores siguen naciendo ocultos y sólo aparecen con
+  retraso cuantificable de +1 o superior.
+- No se muestra +0 ni un falso aviso por un retraso no cuantificable.
+
+BLINDAJE DE CACHÉ
+
+- CSS, JavaScript, manifiesto y JSON usan nombres físicos terminados en
+  -3.41.0. Safari no puede combinar módulos de esta beta con versiones
+  anteriores.
+- index.html apunta exclusivamente a archivos 3.41.0.
+
+INTEGRIDAD DEL CATÁLOGO DE TURNOS
+
+SHA-256 de data/sim-turnos-servicios-3.41.0.json:
+50804e6ee68b838a2a1a05235358ed1be5eb4521d1741677c582c63dcf647af1
+
+INSTALACIÓN
+
+- Copiar todo el contenido del ZIP en la raíz utilizada por SIM+ y sustituir
+  index.html.
+- Los archivos antiguos pueden conservarse: index.html ya no los referencia.
+- No se incluyen fuentes tipográficas. Conservar en la raíz del repositorio
+  las fuentes Canal+ ya utilizadas por las betas anteriores.
