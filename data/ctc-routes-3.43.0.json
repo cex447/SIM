@@ -1,0 +1,351 @@
+{
+  "version": "3.31.0",
+  "purpose": "Catálogo conservador de encaminamientos CTC confirmados durante el diseño. Beta 3.16.0 lo conserva como política/topología de explotación: el motor de movimiento usa sólo geometrías confirmadas o corredores nominales y no dibuja las rutas.",
+  "conventions": {
+    "normal": "recorrido ordinario",
+    "alternative": "recorrido válido por otra vía/crossover",
+    "exceptional": "recorrido de explotación degradada, origen/terminal excepcional o vía poco habitual",
+    "documentationColors": "Los colores dibujados sobre las capturas sirven sólo para documentar rutas; en CTC la ficha del tren usa siempre el color comercial de su línea."
+  },
+  "routes": [
+    {
+      "id": "PC_ASC_PC1_PR1",
+      "zone": "PC",
+      "type": "normal",
+      "direction": "asc",
+      "from": "PC1",
+      "to": "PR1",
+      "circuits": [
+        "PC1",
+        "PCA6",
+        "PCA5",
+        "PCA1",
+        "PC9"
+      ],
+      "continuation": "hasta PR1",
+      "status": "sequence_confirmed"
+    },
+    {
+      "id": "PC_DESC_PR2_PC2",
+      "zone": "PC",
+      "type": "normal",
+      "direction": "desc",
+      "from": "PR2",
+      "to": "PC2",
+      "circuits": [
+        "PC10",
+        "PC8",
+        "PCA2",
+        "PCA4",
+        "PCA9",
+        "PC2"
+      ],
+      "status": "sequence_confirmed"
+    },
+    {
+      "id": "PC_ANY_PLATFORM",
+      "zone": "PC",
+      "type": "alternative",
+      "direction": "both",
+      "from": "PC",
+      "to": "PR",
+      "notes": "Cualquier tren puede acceder a cualquier vía de Plaça Catalunya. El encaminamiento definitivo debe escogerse por la vía real y la matriz de entrada/salida, no sólo por línea o sentido.",
+      "status": "confirmed_rule"
+    },
+    {
+      "id": "SR_DESC_V4",
+      "zone": "SR",
+      "type": "exceptional",
+      "direction": "desc",
+      "platform": 4,
+      "notes": "Una circulación descendente puede utilizar SR4 si SR2 está inoperativa. Puede coincidir con suspensión de L12.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "SR_L12_ORIGIN_V4",
+      "zone": "SR",
+      "type": "normal",
+      "line": "L12",
+      "direction": "both",
+      "platform": 4,
+      "notes": "L12 con origen/estacionamiento en SR utiliza SR20, correspondiente al andén de vía 4, como regla fija ordinaria.",
+      "status": "confirmed_rule",
+      "circuits": [
+        "SR20"
+      ]
+    },
+    {
+      "id": "RE_L12_V1",
+      "zone": "RE",
+      "type": "normal",
+      "line": "L12",
+      "direction": "both",
+      "platform": 1,
+      "notes": "Ruta nominal L12 SR↔RE por RE1 (andén/vía 1). Es el fallback permitido cuando no existe una vía alternativa confirmada.",
+      "status": "confirmed_rule",
+      "circuits": [
+        "RE1"
+      ]
+    },
+    {
+      "id": "RE_L12_V2",
+      "zone": "RE",
+      "type": "alternative",
+      "line": "L12",
+      "direction": "both",
+      "platform": 2,
+      "notes": "RE2 queda documentada únicamente como alternativa; no debe asignarse por defecto ni activarse sin información fiable.",
+      "status": "confirmed_graphic",
+      "circuits": [
+        "RE2"
+      ]
+    },
+    {
+      "id": "BT_ASC_V3",
+      "zone": "BT",
+      "type": "alternative",
+      "direction": "asc",
+      "platform": 3,
+      "notes": "Paso ascendente por BT3, trazado documentado en azul/cian.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "BT_V3_TO_SJ2",
+      "zone": "BT",
+      "type": "exceptional",
+      "direction": "towards_SJ2",
+      "platform": 3,
+      "notes": "Salida desde BT3 hacia SJ2; puede ser incluso inicio excepcional de servicio.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "RB_V0_FROM_V1_OR_V2",
+      "zone": "RB",
+      "type": "exceptional",
+      "direction": "both",
+      "platform": 0,
+      "notes": "RB0 puede utilizarse desde los itinerarios de V1 o V2 en incidencias, entre otros casos por averías de ascensor. VÍA 0 es un valor real y válido.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "CF_ORIGIN_V4",
+      "zone": "CF",
+      "type": "exceptional",
+      "direction": "departure",
+      "platform": 4,
+      "notes": "En casos muy excepcionales pueden salir trenes de CF4.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "PN_ASC_LOW",
+      "zone": "PN",
+      "type": "normal",
+      "direction": "asc",
+      "notes": "Entrada/salida ascendente por la vía baja según trazado verde.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "PN_ASC_HIGH",
+      "zone": "PN",
+      "type": "alternative",
+      "direction": "asc",
+      "notes": "Entrada/salida ascendente a la vía alta mediante agujas, según trazado verde.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "PN_DESC_LOW",
+      "zone": "PN",
+      "type": "alternative",
+      "direction": "desc",
+      "notes": "Entrada/salida descendente por la vía baja según trazado lila.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "PN_DESC_HIGH",
+      "zone": "PN",
+      "type": "normal",
+      "direction": "desc",
+      "notes": "Entrada/salida descendente por la vía alta según trazado lila.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "NA_ASC_LOW",
+      "zone": "NA",
+      "type": "normal",
+      "direction": "asc",
+      "notes": "Entrada/salida ascendente por la vía baja según trazado verde.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "NA_ASC_HIGH",
+      "zone": "NA",
+      "type": "alternative",
+      "direction": "asc",
+      "notes": "Entrada/salida ascendente a la vía alta mediante agujas, según trazado verde.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "NA_DESC_HIGH",
+      "zone": "NA",
+      "type": "normal",
+      "direction": "desc",
+      "notes": "Entrada/salida descendente por la vía alta según trazado lila.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "GR_L7_ASC",
+      "zone": "GR",
+      "type": "normal",
+      "line": "L7",
+      "direction": "asc",
+      "circuits": [
+        "GRA5",
+        "GR11A",
+        "GR11",
+        "PM1",
+        "PM3"
+      ],
+      "platformCircuit": "GR11",
+      "notes": "L7 ascendente: entrada por GRA5, transición a GR11A, estacionamiento en GR11 y salida hacia PM por PM1 y la diagonal inferior hasta PM3.",
+      "status": "confirmed_rule"
+    },
+    {
+      "id": "GR_L7_DESC",
+      "zone": "GR",
+      "type": "normal",
+      "line": "L7",
+      "direction": "desc",
+      "circuits": [
+        "GRA4",
+        "GR20",
+        "GR10",
+        "GR16"
+      ],
+      "notes": "Ejemplo confirmado de L7 descendente: toma la vía superior de GR y sale hacia PM/TB.",
+      "status": "graphic_with_partial_sequence"
+    },
+    {
+      "id": "GR_L7_SHUTTLE_GR3_TB",
+      "zone": "GR",
+      "type": "exceptional",
+      "line": "L7",
+      "direction": "both",
+      "from": "GR3",
+      "to": "TB",
+      "notes": "Servicio lanzadera L7 entre GR3 y TB durante avería/corte. GR3 actúa como terminal temporal.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "GR_SINGLE_TRACK_DEGRADED",
+      "zone": "PR-GR",
+      "type": "alternative",
+      "direction": "both",
+      "notes": "Servicio por una única vía y reencaminamiento mediante la garganta de GR; se han documentado variantes ascendente y descendente.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "MN_BN_SINGLE_TRACK",
+      "zone": "MN-BN",
+      "type": "alternative",
+      "direction": "both",
+      "notes": "Explotación por vía única temporal utilizando crossovers; ascendentes y descendentes pueden circular por la vía normalmente asociada al otro sentido.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "SC_TO_NA",
+      "zone": "SC",
+      "type": "normal",
+      "direction": "both",
+      "notes": "Encaminamiento propio hacia/desde el ramal de NA; distinguirlo del ramal PN.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "SC_TO_PN",
+      "zone": "SC",
+      "type": "normal",
+      "direction": "both",
+      "notes": "Encaminamiento propio hacia/desde el ramal de PN; distinguirlo del ramal NA.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "SC_DEGRADED_VARIANTS",
+      "zone": "SC",
+      "type": "alternative",
+      "direction": "both",
+      "notes": "Se han documentado variantes de entrada/salida por vía contraria y por ambos ramales en explotación degradada.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "LP_DEGRADED_DESC",
+      "zone": "LP",
+      "type": "alternative",
+      "direction": "desc",
+      "notes": "Recorrido descendente por vía alternativa mediante crossover, documentado en rosa.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "LP_ASC",
+      "zone": "LP",
+      "type": "normal",
+      "direction": "asc",
+      "notes": "Recorrido ascendente por vía superior de LP, documentado en verde.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "LF_ASC",
+      "zone": "LF",
+      "type": "normal",
+      "direction": "asc",
+      "notes": "Recorrido ascendente con incorporación a la vía superior de LF, documentado en verde.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "TR_SINGLE_TRACK",
+      "zone": "TR",
+      "type": "alternative",
+      "direction": "both",
+      "notes": "Ejemplos de uso de la vía/andén contrario en explotación degradada por vía única.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "FN_SINGLE_TRACK",
+      "zone": "FN",
+      "type": "alternative",
+      "direction": "both",
+      "notes": "Ejemplos de uso de la vía/andén contrario en explotación degradada por vía única.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "PC_PLATFORM_EXACT",
+      "zone": "PC",
+      "type": "normal",
+      "direction": "both",
+      "notes": "3.20.0: si la vía real está confirmada, estacionamiento, entrada y salida usan el circuito homónimo PC1..PC5 y la geometría completa de agujas correspondiente; no se fuerza PC1/PC2 por sentido.",
+      "status": "confirmed_operational"
+    },
+    {
+      "id": "SR_PLATFORM_EXACT",
+      "zone": "SR",
+      "type": "normal",
+      "direction": "both",
+      "notes": "3.20.0: vía 1=SR5 y vía 2=SR21. Una circulación de vía 2 queda centrada en SR21 y sus trayectorias TT↔SR/PF↔SR terminan/parten allí; SR20 mantiene la regla específica L12: SR20 corresponde a vía 4; en SR no existe vía 3.",
+      "status": "confirmed_operational"
+    },
+    {
+      "id": "SC_VO_ASC",
+      "zone": "SC-VO",
+      "type": "normal",
+      "direction": "asc",
+      "notes": "3.20.0: trazado verde confirmado por el usuario; desde la vía ascendente de SC sigue el corredor inferior y el escape que desemboca en la vía ascendente de VO.",
+      "status": "confirmed_graphic"
+    },
+    {
+      "id": "VO_SC_DESC",
+      "zone": "SC-VO",
+      "type": "normal",
+      "direction": "desc",
+      "notes": "3.20.0: trazado rosa confirmado por el usuario; desde VO sigue el corredor superior y el escape que desemboca en la vía descendente de SC.",
+      "status": "confirmed_graphic"
+    }
+  ]
+}
