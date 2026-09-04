@@ -11,7 +11,7 @@
 <meta content="SIM+" name="apple-mobile-web-app-title"/>
 <meta content="SIM+" name="application-name"/>
 <script>
-/* SIM+ 3.42 · bloqueig immediat del zoom natiu de Safari.
+/* SIM+ 3.43 · bloqueig immediat del zoom natiu de Safari.
    CTC rep igualment els Touch Events i fa el seu zoom intern via viewBox. */
 (()=>{
   if(window.__SIM_NATIVE_PINCH_GUARD__) return;
@@ -30,8 +30,8 @@
 <link href="assets/icons/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
-<link href="site-3.42.0.webmanifest" rel="manifest"/>
-<link href="css/sim-3.42.0.css" rel="stylesheet"/>
+<link href="site-3.43.0.webmanifest" rel="manifest"/>
+<link href="css/sim-3.43.0.css" rel="stylesheet"/>
 </head>
 <body>
 <div id="app">
@@ -46,15 +46,15 @@
 
 <div class="query-bar lit-query-bar" hidden="" id="litQueryBar">
 <button aria-label="Veure la circulació al CTC" class="context-ctc-button" id="litCtcButton" type="button"><span class="plate-label">CTC</span></button>
-<div class="query-input-wrap">
+<div aria-live="polite" class="query-meta lit-query-meta" id="queryMeta">
+<span class="query-turn" hidden="" id="queryTurn"></span>
+<div class="query-input-wrap lit-circulation-input-wrap">
 <input aria-label="Cercar circulació" autocapitalize="characters" autocomplete="off" class="query-code-input circulation-input" id="circulationInput" inputmode="text" maxlength="4" spellcheck="false"/>
 </div>
-<div class="query-meta" hidden="" id="queryMeta">
-<span class="query-status" hidden="" id="queryStatus"></span>
 <span class="query-unit" hidden="" id="queryUnit"></span>
-<span class="query-turn" hidden="" id="queryTurn"></span>
 <span class="query-occupancy occupancy" hidden="" id="queryOccupancy"></span>
 <span class="query-delay" hidden="" id="queryDelay"></span>
+<span class="query-status" hidden="" id="queryStatus"></span>
 </div>
 </div>
 <div class="query-bar isic-query-bar" hidden="" id="isicQueryBar">
@@ -93,15 +93,6 @@
 <div aria-live="polite" class="query-meta torns-query-meta" hidden="" id="tornsQueryMeta">
 <span class="query-status" hidden="" id="tornsQueryStatus"></span>
 <span class="query-unit" hidden="" id="tornsQueryUnit"></span>
-<span class="torns-delay-group" hidden="" id="tornsDelayGroup">
-<span class="torns-delay-count" id="tornsDelayCount"></span>
-<span class="torns-delay-window">
-<span class="torns-delay-track" id="tornsDelayTrack">
-<span class="torns-delay-copy"></span>
-<span aria-hidden="true" class="torns-delay-copy"></span>
-</span>
-</span>
-</span>
 </div>
 </div>
 </header>
@@ -11451,6 +11442,10 @@
 </section><section class="view" id="view-siv">
 <div class="siv-placeholder">SIV</div>
 </section><section class="view" id="view-torns">
+<section class="torns-affectations" hidden="" id="tornsAfectacions">
+<h2 class="direction-title torns-affectations-title"><span>AFECTACIONS</span> <span class="direction-count" id="tornsAfectacionsCount">0 TORNS</span></h2>
+<div class="torns-affectations-list" id="tornsAfectacionsList"></div>
+</section>
 <div class="plastic-directions torns-directions" id="tornsDirections">
 <section class="plastic-direction" id="tornsMatiDirection">
 <h2 class="direction-title"><span>MATÍ</span> <span class="direction-count" id="tornsMatiCount">0 TORNS</span></h2>
@@ -11484,6 +11479,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app-3.42.0.js" type="module"></script>
+<script src="js/app-3.43.0.js" type="module"></script>
 </body>
 </html>
