@@ -30,8 +30,8 @@
 <link href="assets/icons/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
-<link href="site-3.43.0.webmanifest" rel="manifest"/>
-<link href="css/sim-3.43.0.css" rel="stylesheet"/>
+<link href="site-3.44.0.webmanifest" rel="manifest"/>
+<link href="css/sim-3.44.0.css" rel="stylesheet"/>
 </head>
 <body>
 <div id="app">
@@ -64,10 +64,12 @@
 </div>
 <div aria-label="Accessos ràpids iSIC" class="ctc-quick-stations isic-quick-stations">
 <button class="ctc-quick-button" data-isic-station="PC" type="button"><span class="plate-label">PC</span></button>
+<button class="ctc-quick-button" data-isic-station="GR" type="button"><span class="plate-label">GR</span></button>
+<button class="ctc-quick-button" data-isic-station="TB" type="button"><span class="plate-label">TB</span></button>
 <button class="ctc-quick-button" data-isic-station="SR" type="button"><span class="plate-label">SR</span></button>
 <button class="ctc-quick-button" data-isic-station="SC" type="button"><span class="plate-label">SC</span></button>
-<button class="ctc-quick-button" data-isic-station="EN" type="button"><span class="plate-label">EN</span></button>
 <button class="ctc-quick-button" data-isic-station="NA" type="button"><span class="plate-label">NA</span></button>
+<button class="ctc-quick-button" data-isic-station="PN" type="button"><span class="plate-label">PN</span></button>
 </div>
 </div>
 <div class="query-bar ctc-query-bar" hidden="" id="ctcQueryBar">
@@ -76,10 +78,12 @@
 </div>
 <div aria-label="Accessos ràpids CTC" class="ctc-quick-stations">
 <button class="ctc-quick-button" data-ctc-focus-station="PC" type="button"><span class="plate-label">PC</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="GR" type="button"><span class="plate-label">GR</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="TB" type="button"><span class="plate-label">TB</span></button>
 <button class="ctc-quick-button" data-ctc-focus-station="SR" type="button"><span class="plate-label">SR</span></button>
 <button class="ctc-quick-button" data-ctc-focus-station="SC" type="button"><span class="plate-label">SC</span></button>
-<button class="ctc-quick-button" data-ctc-focus-station="EN" type="button"><span class="plate-label">EN</span></button>
 <button class="ctc-quick-button" data-ctc-focus-station="NA" type="button"><span class="plate-label">NA</span></button>
+<button class="ctc-quick-button" data-ctc-focus-station="PN" type="button"><span class="plate-label">PN</span></button>
 </div>
 </div>
 <div class="torns-filters" hidden="" id="tornsFiltersBar">
@@ -11438,6 +11442,7 @@
 <div aria-hidden="true" class="ctc-train-layer" id="ctcTrainLayer"></div>
 </div>
 </section><section class="view" id="view-lit">
+<div aria-live="polite" class="plastic-status lit-delay-status" id="litDelayStatus"></div>
 <div class="lit-route" id="litRoute"></div>
 </section><section class="view" id="view-siv">
 <div class="siv-placeholder">SIV</div>
@@ -11479,6 +11484,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app-3.43.0.js" type="module"></script>
+<script src="js/app-3.44.0.js" type="module"></script>
 </body>
 </html>
