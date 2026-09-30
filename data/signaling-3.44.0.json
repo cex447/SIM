@@ -1,0 +1,46 @@
+{
+  "version": "3.44.0",
+  "description": "Senyalització per interestació i sentit operacional (odd=ascendent, even=descendent)",
+  "segments": [
+    { "from": "PC", "to": "PR", "odd": "SS  S:4    SSc  Sc:1", "even": "SS  S:4    Sc:1" },
+    { "from": "PR", "to": "GR", "odd": "SS  S:2    Sc:1", "even": "SS  S:2    SSc" },
+    { "from": "GR", "to": "PM", "odd": "SS  S:2    SSc  Sc:1    BAB", "even": "SS  S:2    SSc  Sc:2    BAB" },
+    { "from": "PM", "to": "PD", "odd": "SS    SSc", "even": "SS    SSc" },
+    { "from": "PD", "to": "EP", "odd": "", "even": "" },
+    { "from": "EP", "to": "TB", "odd": "SS    Sc:1", "even": "SS" },
+
+    { "from": "GR", "to": "SG", "odd": "SS  S:1    SSc", "even": "SS  S:2    Sc:1" },
+    { "from": "SG", "to": "MN", "odd": "SS  S:1", "even": "SS  S:1" },
+    { "from": "MN", "to": "BN", "odd": "SS  S:1    SSc", "even": "SS  S:1    SSc" },
+    { "from": "BN", "to": "TT", "odd": "SS  S:1    SSc    BABv2", "even": "SS  S:1    BABv2" },
+    { "from": "TT", "to": "SR", "odd": "SS  S:1    SSc    BABv2", "even": "SS    SSc    BABv2" },
+    { "from": "SR", "to": "RE", "odd": "SS  S:1    BAB", "even": "SS  S:1    BAB" },
+
+    { "from": "SR", "to": "PF", "odd": "SS  S:2    SSc  Sc:1", "even": "SS  S:3    Sc:1" },
+    { "from": "PF", "to": "VL", "odd": "SS  S:1", "even": "SS  S:1" },
+    { "from": "VL", "to": "LP", "odd": "SS    Sc:1", "even": "SS    SSc  Sc:1" },
+    { "from": "LP", "to": "LF", "odd": "SS  S:2    SSc  Sc:2", "even": "SS  S:2    SSc  Sc:1" },
+    { "from": "LF", "to": "VD", "odd": "SS  S:1    SSc", "even": "SS  S:1" },
+    { "from": "VD", "to": "SC", "odd": "SS  S:2    Sc:1", "even": "SS  S:1    SSc" },
+
+    { "from": "SC", "to": "MS", "odd": "SS  S:1    SSc  Sc:1", "even": "SS  S:3    Sc:1" },
+    { "from": "MS", "to": "HG", "odd": "SS", "even": "SS" },
+    { "from": "HG", "to": "RB", "odd": "SS  S:2    SSc  Sc:1", "even": "SS  S:1    SSc  Sc:1" },
+    { "from": "RB", "to": "FN", "odd": "SS  S:2    SSc  Sc:1", "even": "SS  S:4    SSc  Sc:2" },
+    { "from": "FN", "to": "TR", "odd": "SS  S:2    SSc  Sc:2", "even": "SS  S:2    SSc  Sc:1" },
+    { "from": "TR", "to": "VP", "odd": "SS  S:1    SSc  Sc:1", "even": "SS  S:2    SSc  Sc:3" },
+    { "from": "VP", "to": "EN", "odd": "SS    SSc", "even": "SS  S:1    SSc  Sc:1" },
+    { "from": "EN", "to": "NA", "odd": "SS  S:2    SSc  Sc:1", "even": "SS  S:1    SSc  Sc:1" },
+
+    { "from": "SC", "to": "VO", "odd": "SS  S:3    SSc  Sc:1", "even": "SS  S:3    SSc  Sc:1" },
+    { "from": "VO", "to": "SJ", "odd": "SS    SSc", "even": "SS  S:1    SSc  Sc:1" },
+    { "from": "SJ", "to": "BT", "odd": "SS  S:1    Sc:1", "even": "SS    SSc" },
+    { "from": "BT", "to": "UN", "odd": "SS  S:1    SSc  BABv2", "even": "SS    SSc    BABv2" },
+    { "from": "UN", "to": "SQ", "odd": "SS  S:1    SSc  Sc:1", "even": "SS  S:1    SSc  Sc:1" },
+    { "from": "SQ", "to": "CF", "odd": "SS  S:1    SSc  Sc:2    BAB", "even": "SS  S:2    SSc  Sc:2    BAB" },
+    { "from": "CF", "to": "PJ", "odd": "SS  S:1    SSc  Sc:1  BAB", "even": "SS  S:2    SSc  Sc:1    BAB" },
+    { "from": "PJ", "to": "CT", "odd": "SS  SSc BAB", "even": "SS  SSc    BAB" },
+    { "from": "CT", "to": "NO", "odd": "SS  S:1    SSc  Sc:1    BAB", "even": "SS    SSc    BAB" },
+    { "from": "NO", "to": "PN", "odd": "SS  S:2    SSc  Sc:2    BAB", "even": "SS  S:1    SSc  Sc:1    BAB" }
+  ]
+}
