@@ -1,0 +1,174 @@
+/*
+ * SIM+ · ocupación por coche
+ *
+ * Regla visual vigente:
+ * - UT 112 / 113 / 115: 4 coches (M1, MI, RI, M2).
+ * - UT 114: 3 coches (M1, coche central, M2). Para la 114, MI y RI se
+ *   condensan en el coche central para conservar la información disponible.
+ *
+ * El número de cuadros depende SIEMPRE de la serie, aunque no exista dato de
+ * ocupación: en ese caso se dibujan los cuadros vacíos con su contorno.
+ */
+
+const FOUR_CAR_DISPLAY = Object.freeze([
+  ["m1", "M1"],
+  ["mi", "MI"],
+  ["ri", "RI"],
+  ["m2", "M2"]
+]);
+
+const THREE_CAR_DISPLAY = Object.freeze([
+  ["m1", "M1"],
+  ["middle", "CENTRE"],
+  ["m2", "M2"]
+]);
+
+function unitSeries(unit) {
+  const match = String(unit || "").match(/^(112|113|114|115)(?:\.|$)/);
+  return match?.[1] || null;
+}
+
+function displayCars(unit) {
+  return unitSeries(unit) === "114" ? THREE_CAR_DISPLAY : FOUR_CAR_DISPLAY;
+}
+
+const railwayDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone:"Europe/Madrid", year:"numeric", month:"2-digit", day:"2-digit",
+  hour:"2-digit", hourCycle:"h23"
+});
+
+export function railwayDayForPantograph(now = new Date()) {
+  const parts = Object.fromEntries(railwayDateFormatter.formatToParts(now)
+    .filter(part => part.type !== "literal").map(part => [part.type, part.value]));
+  const date = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  if (Number(parts.hour) < 3) date.setUTCDate(date.getUTCDate() - 1);
+  return date;
+}
+
+export function pantographSideFor(unit, now = new Date()) {
+  const series = unitSeries(unit);
+  if (["112", "113", "114"].includes(series)) return "both";
+  if (series !== "115") return "none";
+  return railwayDayForPantograph(now).getUTCDate() % 2 ? "left" : "right";
+}
+
+let lastPantographDay = "";
+export function refreshOccupancyPantographs(now = new Date()) {
+  const day = railwayDayForPantograph(now).toISOString().slice(0, 10);
+  if (day === lastPantographDay) return;
+  lastPantographDay = day;
+  document.querySelectorAll(".occupancy[data-series]").forEach(container => {
+    container.dataset.pantograph = pantographSideFor(container.dataset.series, now);
+  });
+}
+
+function level(percent) {
+  if (percent === null || percent === undefined || Number.isNaN(Number(percent))) {
+    return "unknown";
+  }
+
+  const value = Number(percent);
+  if (value < 25) return "low";
+  if (value < 50) return "medium";
+  if (value < 75) return "high";
+  return "critical";
+}
+
+function meanAvailable(...values) {
+  const valid = values
+    .filter(value => value !== null && value !== undefined && Number.isFinite(Number(value)))
+    .map(Number);
+
+  if (!valid.length) return null;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+export function readOccupancy(raw = {}) {
+  const read = key => {
+    const value = raw[`ocupacio_${key}_percent`];
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  };
+
+  const mi = read("mi");
+  const ri = read("ri");
+
+  return {
+    m1: read("m1"),
+    mi,
+    ri,
+    middle: meanAvailable(mi, ri),
+    m2: read("m2")
+  };
+}
+
+export function occupancyFingerprint(occupancy) {
+  return ["m1", "mi", "ri", "middle", "m2"]
+    .map(key => occupancy?.[key] ?? "x")
+    .join("|");
+}
+
+export function updateOccupancy(
+  container,
+  occupancy,
+  { compact = false, delayed = false, unit = "" } = {}
+) {
+  if (!container) return;
+
+  const cars = displayCars(unit);
+  const series = unitSeries(unit) || "unknown";
+
+  container.classList.toggle("occupancy-compact", compact);
+  container.classList.toggle("delayed", delayed);
+  const allUnknown = cars.every(([key]) => level(occupancy?.[key]) === "unknown");
+  container.classList.toggle("all-unknown", allUnknown);
+  // Fija también el color normal en cada actualización (incluida la cabecera
+  // LIT): no conserva el rojo al recibir ocupación conocida o dejar el retraso.
+  container.style.setProperty("--pantograph-color",
+    delayed && allUnknown ? "var(--red)" : "var(--fg)");
+  container.dataset.series = series;
+  container.dataset.pantograph = pantographSideFor(unit);
+
+  const currentLabels = [...container.children]
+    .map(child => child.dataset.car || "")
+    .join("|");
+  const wantedLabels = cars.map(([, label]) => label).join("|");
+
+  if (container.children.length !== cars.length || currentLabels !== wantedLabels) {
+    container.replaceChildren();
+
+    for (const [, label] of cars) {
+      const car = document.createElement("span");
+      car.className = "occ-car occ-unknown";
+      car.dataset.car = label;
+      car.setAttribute("aria-hidden", "true");
+      const body = document.createElement("span");
+      body.className = "occ-body";
+      car.appendChild(body);
+      container.appendChild(car);
+    }
+  }
+
+  const parts = [];
+
+  cars.forEach(([key, label], index) => {
+    const percent = occupancy?.[key] ?? null;
+    const car = container.children[index];
+    const edgeClass = index === 0
+      ? " occ-first"
+      : index === cars.length - 1
+        ? " occ-last"
+        : "";
+    car.className = `occ-car occ-${level(percent)}${edgeClass}`;
+    car.dataset.value = percent === null ? "" : String(percent);
+
+    parts.push(
+      percent === null
+        ? `${label}: sense dada`
+        : `${label}: ${Math.round(percent)}%`
+    );
+  });
+
+  container.setAttribute("aria-label", `Ocupació. ${parts.join(", ")}`);
+}
