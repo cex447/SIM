@@ -1,0 +1,14 @@
+{
+  "formato": "simplus.torns.indice",
+  "version_esquema": "1.0.0",
+  "master": "os2022104BV(3).json",
+  "master_sha256": "ac3f27fafbc3f84ec351e9db6004a00ecaea798babe20261e3938d954ebabab6",
+  "modificaciones": [
+    "os2022106BV(1).json",
+    "os2022104-01BV(2).json",
+    "os2023036BV(1).json",
+    "os2022104-02BV(2).json"
+  ],
+  "retirada": "Una circular ausente (HTTP 404) no se aplica; el resolver reconstruye siempre desde el máster.",
+  "alta": "Añadir el nombre del nuevo JSON a esta lista o proporcionar al consumidor un listado de archivos del servidor; nunca editar el máster."
+}
