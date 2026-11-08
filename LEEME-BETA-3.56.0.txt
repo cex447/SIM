@@ -1,0 +1,41 @@
+SIM+ Beta 3.56.0 · Rejillas PLASTIC/LIT/TORNS y posición CICLES
+
+Base funcional preservada: SIM+ Beta 3.55.0.
+
+CAMBIOS DE ESTA VERSIÓN
+
+1. PLASTIC y LIT
+- PLASTIC reparte de manera uniforme turno, circulación, UT, ciclo, ocupación,
+  posición, vía y cronometría. Una cronometría completa h:mm:ss conserva sólo
+  el espacio común de separación respecto a Vn.
+- En LIT el turno ocupa el espacio inmediatamente posterior al botón CTC; a
+  continuación quedan el campo editable, UT, ciclo y ocupación con separaciones
+  propias. El tamaño y la posición del botón CTC no cambian.
+
+2. CICLES
+- El movimiento actual prioriza la circulación observada por Dades Obertes.
+- Si no existe una observación en directo, se mantiene el último movimiento
+  reconocido y nunca se adelanta el triángulo a una circulación futura.
+- Los movimientos se ordenan por la hora de inicio documentada, incluyendo las
+  maniobras que no disponen de minuto_operativo.
+
+3. TORNS
+- La vista general utiliza una rejilla estable para turno, línea, circulación,
+  UT, ciclo, ocupación, ruta y horario.
+- La ruta se muestra en una única columna estática; la flecha animada deja de
+  superponerse a otros datos.
+- Todas las circulaciones comerciales muestran siempre hora de inicio y fin.
+- DESCANS, TOMA, DEJE y TAXI quedan centrados en la misma columna que VIATGER.
+- Las maniobras pares de Sarrià documentadas en un único minuto se muestran
+  como un intervalo completo; por ejemplo, 17:14–17:15.
+
+SE CONSERVA
+- Los JSON de ciclos y turnos permanecen idénticos y no se modifican.
+- Se mantienen el refresco de 5 segundos, el corte ferroviario de las 03:00,
+  CTC, iSIC, ocupaciones, pantógrafos, señalización y cronometrias.
+
+INSTALACIÓN
+- Si ya está instalada la Beta 3.55.0, basta con cargar index.html y los cinco
+  archivos 3.56.0 incluidos en css/ y js/. El resto de archivos 3.55.0 se
+  conserva y continúa siendo utilizado.
+- El ZIP completo también permite sustituir toda la instalación.
