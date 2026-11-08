@@ -1,0 +1,40 @@
+SIM+ Beta 3.55.0 · Ajuste visual de CICLES y TORNS
+
+Base funcional preservada: SIM+ Beta 3.54.0.
+
+CAMBIOS DE ESTA VERSIÓN
+
+1. PLASTIC y LIT
+- Se redistribuyen las columnas de PLASTIC sin reducir ningún texto.
+- La cabecera LIT conserva el botón CTC y el campo editable en su posición.
+- Turno, circulación, UT, ciclo y ocupación disponen de una separación más clara.
+
+2. CICLES
+- El resumen muestra: ciclo, línea, UT, circulación, turno y ocupación.
+- El detalle elimina las etiquetas COMERCIAL, VACÍO y ENTRADA/SALIDA.
+- La columna derecha contiene exclusivamente el horario documentado y reserva
+  espacio completo hasta 22:20–22:22.
+- Un triángulo identifica el movimiento actual. La fila y el triángulo se
+  muestran en rojo cuando la circulación actual lleva retraso.
+
+3. TORNS
+- Pulsar una fila abre de nuevo la ficha completa del turno.
+- La ficha muestra primero qué hace el turno, mantiene el botón LIT para la
+  circulación actual y presenta debajo todo su contenido en formato LIT.
+- En la columna de actividad sólo aparecen TOMA, DEJE, DESCANS con dependencia,
+  TAXI o VIATGER. Conducciones, vacíos y maniobras dejan esa columna libre.
+- Las franjas horarias disponen de ancho suficiente y quedan alineadas.
+- Los turnos QxSx (por ejemplo QRS0 y QRS2) se asignan a SR, también para el
+  cálculo de TOMA, DEJE y DESCANS.
+
+SE CONSERVA
+- El máster os2022104BV(3).json permanece inmutable y las circulares siguen
+  aplicándose como capas superpuestas mientras existan.
+- No se modifica ningún ciclo de material.
+- Se mantienen refresco de 5 segundos, cambio horario ferroviario de las 03:00,
+  CTC, iSIC, ocupaciones, pantógrafos, señalización y cronometrias.
+
+INSTALACIÓN
+- Sustituir el contenido de la instalación por el contenido de este ZIP.
+- index.html referencia exclusivamente los archivos físicos 3.55.0.
+- Conservar las fuentes Canal+ externas utilizadas por las versiones anteriores.
