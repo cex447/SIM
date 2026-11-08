@@ -1,0 +1,53 @@
+SIM+ Beta 3.54.0 · TORNS íntegro y CICLES
+
+Base funcional preservada: SIM+ Beta 3.53.0.
+
+NOVEDADES
+
+1. Ciclos de material
+- Se integran, sin modificar, los ciclos BV07 de los servicios 0, 100, 200,
+  300, 400, 500, 800 y 900.
+- Cada circulación muestra su ciclo de cinco caracteres entre UT y ocupación.
+- El carrusel de retrasos muestra turno, circulación, UT, ciclo y retraso.
+- La asignación diaria ciclo-UT se aprende de Dades Obertes y se conserva en
+  el dispositivo hasta el cambio de jornada ferroviaria de las 03:00.
+- Una nueva observación prevalece ante una sustitución de material. Si una UT
+  aún no ha sido observada, no se inventa su asignación.
+
+2. CICLES
+- SIV pasa a denominarse CICLES.
+- Muestra todos los ciclos del servicio vigente, ordenados alfabéticamente,
+  aunque no sean visibles en Dades Obertes.
+- Al seleccionar un ciclo se muestra su secuencia completa de circulaciones,
+  vacíos y maniobras, con turno, UT conocida y horario documentado.
+- La vista se desplaza automáticamente al movimiento actual o siguiente.
+
+3. TORNS
+- El máster os2022104BV(3).json permanece inmutable. Las circulares se cargan
+  como capas retirables; un JSON ausente deja de aplicarse.
+- TORNS muestra todos los turnos que están de servicio en la hora consultada,
+  aunque no estén realizando una circulación comercial visible.
+- Se muestran conducciones, vacíos, maniobras, viajes como viajero,
+  acompañamientos y taxis según el contenido íntegro del turno.
+- Los intervalos internos de más de 15 minutos se muestran como DESCANS.
+- Los intervalos menores no generan una fila.
+- Se aplican los límites de toma/deje acordados para RC, NA y PN.
+- La consulta Qxxx admite cualquier turno del catálogo del servicio. Debajo se
+  muestra su secuencia completa y se centra automáticamente la actividad actual.
+- El acceso LIT abre la circulación correspondiente a la actividad seleccionada.
+- Los servicios especiales 6xx/7xx conservan su cuadro fechado anterior.
+
+4. Lectura y espacio
+- VÍA n se abrevia como Vn.
+- Se mantienen los tamaños tipográficos, el refresco de 5 segundos, el CTC,
+  PLASTIC, iSIC, LIT, ocupaciones, pantógrafos, señalización y cronometrias.
+
+DATOS INTEGRADOS
+- 271 ciclos oficiales y 7.631 circulaciones comerciales documentadas.
+- Ocho servicios completos de ciclos.
+- Máster TORNS y cuatro circulares superpuestas.
+
+INSTALACIÓN
+- Sustituir el contenido de la instalación por el contenido de este ZIP.
+- index.html referencia exclusivamente los archivos físicos 3.54.0.
+- Conservar las fuentes Canal+ externas utilizadas por las versiones anteriores.

@@ -11,7 +11,7 @@
 <meta content="SIM+" name="apple-mobile-web-app-title"/>
 <meta content="SIM+" name="application-name"/>
 <script>
-/* SIM+ 3.51 · bloqueig immediat del zoom natiu de Safari.
+/* SIM+ 3.52 · bloqueig immediat del zoom natiu de Safari.
    CTC rep igualment els Touch Events i fa el seu zoom intern via viewBox. */
 (()=>{
   if(window.__SIM_NATIVE_PINCH_GUARD__) return;
@@ -30,8 +30,8 @@
 <link href="assets/icons/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
-<link href="site-3.51.0.webmanifest" rel="manifest"/>
-<link href="css/sim-3.51.0.css" rel="stylesheet"/>
+<link href="site-3.54.0.webmanifest" rel="manifest"/>
+<link href="css/sim-3.54.0.css" rel="stylesheet"/>
 </head>
 <body>
 <div id="app">
@@ -52,6 +52,7 @@
 <input aria-label="Cercar circulació" autocapitalize="characters" autocomplete="off" class="query-code-input circulation-input" id="circulationInput" inputmode="text" maxlength="4" spellcheck="false"/>
 </div>
 <span class="query-unit" hidden="" id="queryUnit"></span>
+<span class="query-cycle" hidden="" id="queryCycle"></span>
 <span class="query-occupancy occupancy" hidden="" id="queryOccupancy"></span>
 <span class="query-delay" hidden="" id="queryDelay"></span>
 <span class="query-status" hidden="" id="queryStatus"></span>
@@ -11444,8 +11445,16 @@
 </section><section class="view" id="view-lit">
 <div aria-live="polite" class="plastic-status lit-delay-status" id="litDelayStatus"></div>
 <div class="lit-route" id="litRoute"></div>
-</section><section class="view" id="view-siv">
-<div class="siv-placeholder">SIV</div>
+</section><section class="view" id="view-cycles">
+<div class="cycles-overview" id="cyclesOverview">
+<h2 class="direction-title"><span>CICLES</span> <span class="direction-count" id="cyclesCount">0 CICLES</span></h2>
+<div id="cyclesList"></div>
+</div>
+<div class="cycles-detail" hidden="" id="cyclesDetail">
+<button class="cycles-back" id="cyclesBack" type="button"><span class="plate-label">CICLES</span></button>
+<h2 class="direction-title"><span id="cyclesDetailTitle"></span></h2>
+<div class="schedule-list" id="cyclesDetailList"></div>
+</div>
 </section><section class="view" id="view-torns">
 <section class="torns-affectations" hidden="" id="tornsAfectacions">
 <h2 class="direction-title torns-affectations-title"><span>AFECTACIONS</span> <span class="direction-count" id="tornsAfectacionsCount">0 TORNS</span></h2>
@@ -11463,16 +11472,17 @@
 <div class="empty" hidden="" id="tornsTardaEmpty"></div>
 </section>
 </div>
-<div class="torns-lit-action" hidden="" id="tornsLitAction">
-<button aria-label="Veure la circulació del torn al LIT" class="torns-lit-button" id="tornsLitButton" type="button"><span class="plate-label">LIT</span></button>
-</div>
+<section class="torns-detail" hidden="" id="tornsDetail">
+<div class="torns-lit-action"><button class="torns-lit-button" id="tornsLitButton" type="button"><span class="plate-label">LIT</span></button></div>
+<div class="schedule-list" id="tornsDetailList"></div>
+</section>
 </section></main>
 <nav aria-label="Mòduls SIM+" class="tabs tabs-global">
 <button class="tab active" data-view="plastic" type="button"><span class="plate-label">PLASTIC</span></button>
 <button class="tab" data-view="isic" type="button"><span class="plate-label">iSIC</span></button>
 <button class="tab" data-view="ctc" type="button"><span class="plate-label">CTC</span></button>
 <button class="tab" data-view="lit" type="button"><span class="plate-label">LIT</span></button>
-<button class="tab" data-view="siv" type="button"><span class="plate-label">SIV</span></button>
+<button class="tab" data-view="cycles" type="button"><span class="plate-label">CICLES</span></button>
 <button class="tab" data-view="torns" type="button"><span class="plate-label">TORNS</span></button>
 </nav>
 <button aria-label="Diagnòstic" id="diagHotspot" type="button"></button>
@@ -11484,6 +11494,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app-3.51.0.js" type="module"></script>
+<script src="js/app-3.54.0.js" type="module"></script>
 </body>
 </html>
