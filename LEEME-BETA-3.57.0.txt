@@ -1,0 +1,38 @@
+SIM+ Beta 3.57.0 · Alineación horaria y cabecera LIT
+
+Base funcional preservada: SIM+ Beta 3.56.0.
+
+CAMBIOS DE ESTA VERSIÓN
+
+1. PLASTIC e iSIC
+- Las cronometrias quedan justificadas al borde derecho de su columna.
+- La posición ya no cambia según se muestre m:ss o h:mm:ss.
+
+2. LIT
+- El botón CTC y el campo editable de circulación conservan su posición.
+- El turno ocupa la columna entre CTC y el campo editable.
+- UT y ciclo se distribuyen en columnas propias.
+- La ocupación queda anclada al extremo derecho de la cabecera.
+
+3. TORNS
+- DESCANS, TOMA, DEJE y TAXI comienzan en la misma columna que los códigos
+  de circulación.
+- Inicio y fin se muestran en subcolumnas fijas HH:MM–HH:MM, con cifras
+  tabulares y alineación independiente para ambos bloques horarios.
+- Las maniobras pares de Sarrià conservan su intervalo completo de un minuto.
+
+4. CICLES
+- El recorrido se resume en una única columna estable.
+- La cronometría queda contenida y alineada al borde derecho de la fila, sin
+  rebasar la línea gris.
+
+SE CONSERVA
+- No se modifica ningún JSON de ciclos, turnos ni datos operacionales.
+- Se conservan CTC, LIT, ocupaciones, pantógrafos, señalización, refresco de
+  5 segundos y corte ferroviario de las 03:00.
+
+INSTALACIÓN INCREMENTAL DESDE 3.56.0
+- Sustituir index.html.
+- Añadir css/sim-3.57.0.css.
+- Añadir js/app-3.57.0.js, js/cycles-view-3.57.0.js y js/torns-3.57.0.js.
+- Conservar todos los archivos 3.55.0 y 3.56.0 ya instalados.
