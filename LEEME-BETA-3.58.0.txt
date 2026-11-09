@@ -1,0 +1,36 @@
+SIM+ Beta 3.58.0 · Cabecera LIT y separación de ocupaciones
+
+Base funcional preservada: SIM+ Beta 3.57.0.
+
+CAMBIOS DE ESTA VERSIÓN
+
+1. LIT
+- La cabecera sigue la distribución de referencia: turno, circulación, UT,
+  ciclo y ocupación.
+- El ciclo se muestra ligeramente más pequeño.
+- La ocupación dispone del ancho real de cuatro coches y queda anclada al
+  extremo derecho, sin desplazarse ni invadir el ciclo.
+- El campo editable de circulación y el botón CTC conservan su funcionamiento.
+
+2. PLASTIC e iSIC
+- Las cronometrias quedan ancladas al borde derecho físico de cada fila.
+- 0:00, m:ss y h:mm:ss terminan siempre en la misma posición.
+- La última columna permanece reservada para evitar que la cronometría invada
+  estación, vía o recorrido.
+
+3. Ocupaciones en listados
+- Los gráficos de ocupación se reducen un 8 % en PLASTIC, iSIC, TORNS y CICLES.
+- La reducción incluye coches y pantógrafos y evita superposiciones con ciclos
+  de cinco caracteres.
+- La ocupación de la cabecera LIT mantiene su tamaño original.
+
+SE CONSERVA
+- No se modifica ningún JSON de ciclos, turnos ni datos operacionales.
+- Se conservan todas las reglas de pantógrafos, ocupación, retrasos, CTC,
+  señalización, refresco de 5 segundos y corte ferroviario de las 03:00.
+
+INSTALACIÓN INCREMENTAL DESDE 3.57.0
+- Sustituir index.html.
+- Añadir css/sim-3.58.0.css.
+- Añadir js/app-3.58.0.js.
+- Conservar todos los archivos 3.55.0, 3.56.0 y 3.57.0 ya instalados.
