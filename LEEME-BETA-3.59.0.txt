@@ -1,0 +1,40 @@
+SIM+ Beta 3.59.0 · Ajuste final de LIT, CICLES y TORNS
+
+Base funcional preservada: SIM+ Beta 3.58.0.
+
+CAMBIOS DE ESTA VERSIÓN
+
+1. Cabecera LIT
+- Turno, circulación, UT, ciclo y ocupación se distribuyen por proporciones
+  estables siguiendo el montaje de referencia.
+- El ciclo conserva un tamaño ligeramente menor.
+- La ocupación mantiene su tamaño completo y queda centrada en la reserva
+  derecha, sin invadir el ciclo.
+- El botón CTC y el campo editable de circulación conservan su posición y
+  funcionamiento.
+
+2. CICLES
+- La ocupación se centra visualmente dentro de su columna sin cambiar el tamaño
+  reducido de los gráficos de los listados.
+
+3. Detalle de TORNS
+- La fila correspondiente a la franja horaria actual muestra el triángulo tanto
+  para circulaciones como para DESCANS, TOMA, DEJE y TAXI.
+- Se corrige la comparación de la franja actual para que el indicador siga la
+  actividad real mostrada.
+- DESCANS, TOMA, DEJE y TAXI disponen de una columna suficientemente ancha y no
+  quedan recortados.
+- Las horas permanecen alineadas a la derecha.
+
+SE CONSERVA
+- No se modifica ningún JSON de ciclos, turnos ni datos operacionales.
+- Se conservan los ciclos de material y todas las reglas de TORNS.
+- Se conservan pantógrafos, ocupación, retrasos, CTC, señalización, refresco de
+  5 segundos y corte ferroviario de las 03:00.
+
+INSTALACIÓN INCREMENTAL DESDE 3.58.0
+- Sustituir index.html.
+- Añadir css/sim-3.59.0.css.
+- Añadir js/app-3.59.0.js.
+- Añadir js/torns-3.59.0.js.
+- Conservar todos los demás archivos ya instalados.
