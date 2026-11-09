@@ -1,0 +1,23 @@
+SIM+ Beta 3.61.0 · Cabecera LIT fijada a la simulación
+
+Base funcional preservada: SIM+ Beta 3.60.0.
+
+CAMBIO DE ESTA VERSIÓN
+
+- Turno, circulación, UT, ciclo y ocupación se fijan en las mismas posiciones
+  horizontales que la simulación de referencia.
+- El cálculo compensa el margen lateral real de la cabecera de SIM+.
+- La distribución deja de depender de una rejilla comprimible de Safari.
+- La regla crítica se incluye también en index.html para impedir que una hoja
+  de estilo anterior o su caché mantengan la geometría antigua.
+
+SE CONSERVA
+- No se modifica ningún otro elemento visual o funcional.
+- TORNS, CICLES, PLASTIC, iSIC, CTC y el contenido del LIT permanecen intactos.
+- No se modifica ningún JSON de ciclos, turnos ni datos operacionales.
+
+INSTALACIÓN INCREMENTAL DESDE 3.60.0
+- Sustituir index.html.
+- Añadir css/sim-3.61.0.css.
+- Añadir js/app-3.61.0.js.
+- Conservar todos los demás archivos ya instalados.
