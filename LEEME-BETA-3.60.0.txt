@@ -1,0 +1,23 @@
+SIM+ Beta 3.60.0 · Ajuste exclusivo de la cabecera LIT
+
+Base funcional preservada: SIM+ Beta 3.59.0.
+
+CAMBIO DE ESTA VERSIÓN
+
+- La cabecera LIT utiliza el ancho real de turno, circulación, UT y ciclo.
+- El espacio sobrante queda reservado para centrar la ocupación en el mismo
+  lugar que la imagen de referencia.
+- Se elimina la compresión que provocaba solapamientos en pantallas estrechas.
+- Se conservan el tamaño menor del ciclo, el tamaño completo de la ocupación,
+  el botón CTC y el campo editable.
+
+SE CONSERVA
+- No se modifica TORNS, CICLES, PLASTIC, iSIC, CTC ni el contenido del LIT.
+- No se modifica ningún JSON de ciclos, turnos ni datos operacionales.
+- Se conservan todas las reglas y funciones de SIM+ Beta 3.59.0.
+
+INSTALACIÓN INCREMENTAL DESDE 3.59.0
+- Sustituir index.html.
+- Añadir css/sim-3.60.0.css.
+- Añadir js/app-3.60.0.js.
+- Conservar todos los demás archivos ya instalados.
