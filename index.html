@@ -31,12 +31,12 @@
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
 <link href="site-3.55.0.webmanifest" rel="manifest"/>
-<link href="css/sim-3.61.0.css" rel="stylesheet"/>
-<style id="lit-header-layout-3-61">
-/* Regla crítica duplicada aquí para evitar que Safari reutilice una geometría anterior. */
-.lit-query-meta{position:relative;display:block;width:100%;height:var(--query-row-h);min-height:var(--query-row-h);padding:0;overflow:visible}
-.lit-query-meta .query-turn,.lit-query-meta .lit-circulation-input-wrap,.lit-query-meta .query-unit,.lit-query-meta .query-cycle,.lit-query-meta .query-occupancy,.lit-query-meta .query-delay,.lit-query-meta .query-status{position:absolute;top:50%;margin:0;min-width:0;max-width:none;transform:translate(-50%,-50%)}
-.lit-query-meta .query-turn{left:19.9%;width:max-content}.lit-query-meta .lit-circulation-input-wrap{left:35.6%;width:4.3ch}.lit-query-meta .query-unit{left:53.4%;width:max-content}.lit-query-meta .query-cycle{left:71.2%;width:max-content}.lit-query-meta .query-occupancy{left:90.3%;width:max-content;justify-content:center}.lit-query-meta .query-delay{left:81%;width:max-content}.lit-query-meta .query-status{left:53.4%;right:auto;width:56%;text-align:center}
+<link href="css/sim-3.62.0.css" rel="stylesheet"/>
+<style id="lit-header-layout-3-62">
+/* Cabecera LIT: geometría crítica, independiente de la caché y de la rejilla. */
+.lit-query-meta{position:relative!important;display:block!important;width:100%!important;height:var(--query-row-h)!important;min-height:var(--query-row-h)!important;padding:0!important;overflow:visible!important}
+.lit-query-meta .query-turn,.lit-query-meta .lit-circulation-input-wrap,.lit-query-meta .query-unit,.lit-query-meta .query-cycle,.lit-query-meta .query-occupancy,.lit-query-meta .query-delay,.lit-query-meta .query-status{position:absolute!important;top:50%!important;margin:0!important;min-width:0!important;max-width:none!important;transform:translate(-50%,-50%)!important}
+.lit-query-meta .query-turn{left:16.8%!important;width:max-content!important}.lit-query-meta .lit-circulation-input-wrap{left:34.4%!important;width:4.3ch!important}.lit-query-meta .query-unit{left:53.4%!important;width:max-content!important}.lit-query-meta .query-cycle{left:71.4%!important;width:max-content!important}.lit-query-meta .query-occupancy{left:90.3%!important;width:max-content!important;justify-content:center!important}.lit-query-meta .query-delay{left:81%!important;width:max-content!important}.lit-query-meta .query-status{left:53.4%!important;right:auto!important;width:56%!important;text-align:center!important}
 </style>
 </head>
 <body>
@@ -52,16 +52,16 @@
 
 <div class="query-bar lit-query-bar" hidden="" id="litQueryBar">
 <button aria-label="Veure la circulació al CTC" class="context-ctc-button" id="litCtcButton" type="button"><span class="plate-label">CTC</span></button>
-<div aria-live="polite" class="query-meta lit-query-meta" id="queryMeta">
-<span class="query-turn" hidden="" id="queryTurn"></span>
-<div class="query-input-wrap lit-circulation-input-wrap">
+<div aria-live="polite" class="query-meta lit-query-meta" data-layout-version="3.62.0" id="queryMeta" style="position:relative!important;display:block!important;width:100%!important;height:var(--query-row-h)!important;min-height:var(--query-row-h)!important;padding:0!important;overflow:visible!important">
+<span class="query-turn" hidden="" id="queryTurn" style="position:absolute!important;left:16.8%!important;top:50%!important;width:max-content!important;margin:0!important;transform:translate(-50%,-50%)!important"></span>
+<div class="query-input-wrap lit-circulation-input-wrap" style="position:absolute!important;left:34.4%!important;top:50%!important;width:4.3ch!important;margin:0!important;transform:translate(-50%,-50%)!important">
 <input aria-label="Cercar circulació" autocapitalize="characters" autocomplete="off" class="query-code-input circulation-input" id="circulationInput" inputmode="text" maxlength="4" spellcheck="false"/>
 </div>
-<span class="query-unit" hidden="" id="queryUnit"></span>
-<span class="query-cycle" hidden="" id="queryCycle"></span>
-<span class="query-occupancy occupancy" hidden="" id="queryOccupancy"></span>
-<span class="query-delay" hidden="" id="queryDelay"></span>
-<span class="query-status" hidden="" id="queryStatus"></span>
+<span class="query-unit" hidden="" id="queryUnit" style="position:absolute!important;left:53.4%!important;top:50%!important;width:max-content!important;margin:0!important;transform:translate(-50%,-50%)!important"></span>
+<span class="query-cycle" hidden="" id="queryCycle" style="position:absolute!important;left:71.4%!important;top:50%!important;width:max-content!important;margin:0!important;transform:translate(-50%,-50%)!important"></span>
+<span class="query-occupancy occupancy" hidden="" id="queryOccupancy" style="position:absolute!important;left:90.3%!important;top:50%!important;width:max-content!important;margin:0!important;transform:translate(-50%,-50%)!important"></span>
+<span class="query-delay" hidden="" id="queryDelay" style="position:absolute!important;left:81%!important;top:50%!important;width:max-content!important;margin:0!important;transform:translate(-50%,-50%)!important"></span>
+<span class="query-status" hidden="" id="queryStatus" style="position:absolute!important;left:53.4%!important;right:auto!important;top:50%!important;width:56%!important;margin:0!important;transform:translate(-50%,-50%)!important;text-align:center!important"></span>
 </div>
 </div>
 <div class="query-bar isic-query-bar" hidden="" id="isicQueryBar">
@@ -11501,6 +11501,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app-3.61.0.js" type="module"></script>
+<script src="js/app-3.62.0.js" type="module"></script>
 </body>
 </html>

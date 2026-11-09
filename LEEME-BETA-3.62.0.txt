@@ -1,0 +1,22 @@
+SIM+ Beta 3.62.0 · Cabecera superior de LIT corregida
+
+Base funcional preservada: SIM+ Beta 3.61.0.
+
+CAMBIO DE ESTA VERSIÓN
+
+- La cabecera superior de LIT reproduce la referencia: turno, circulación, UT,
+  ciclo y ocupación quedan separados y centrados en posiciones fijas.
+- La posición se aplica directamente a cada campo con prioridad explícita,
+  evitando que Safari o reglas anteriores vuelvan a apilar los elementos.
+- El ciclo mantiene su tamaño reducido y la ocupación conserva el tamaño de LIT.
+
+SE CONSERVA
+- No se modifica ningún otro elemento visual o funcional.
+- TORNS, CICLES, PLASTIC, iSIC, CTC y el contenido del LIT permanecen intactos.
+- No se modifica ningún JSON de ciclos, turnos ni datos operacionales.
+
+INSTALACIÓN INCREMENTAL DESDE 3.61.0
+- Es imprescindible sustituir index.html.
+- Añadir css/sim-3.62.0.css.
+- Añadir js/app-3.62.0.js.
+- Conservar todos los demás archivos ya instalados.
