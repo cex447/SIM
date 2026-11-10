@@ -1,0 +1,23 @@
+SIM+ Beta 3.63.0 · Recuperación de itinerarios LIT
+
+Base funcional preservada: SIM+ Beta 3.62.0.
+
+CAMBIO DE ESTA VERSIÓN
+
+- LIT vuelve a cargar las paradas de las circulaciones activas aunque FGC haya
+  cambiado el prefijo del identificador en el posicionamiento en tiempo real.
+- La circulación se relaciona por su identificador estable y, cuando existen
+  varias versiones, se escoge la correspondiente al servicio ferroviario del
+  calendario de SIM+.
+- La misma resolución protege los cálculos horarios ya existentes en PLASTIC,
+  iSIC y CTC frente al cambio de prefijo de FGC.
+
+SE CONSERVA
+- No se modifica la cabecera visual corregida en 3.62.0.
+- No se modifica ningún JSON, ciclo de material, turno ni dato operacional.
+- No se modifica el refresco de cinco segundos ni el resto de la interfaz.
+
+INSTALACIÓN INCREMENTAL DESDE 3.62.0
+- Sustituir index.html.
+- Añadir los seis archivos 3.63.0 incluidos en la carpeta js.
+- Conservar todos los demás archivos ya instalados.
