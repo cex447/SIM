@@ -1,0 +1,44 @@
+SIM+ Beta 3.64.0 · Continuidad operativa entre LIT, CICLES y TORNS
+
+Base funcional preservada: SIM+ Beta 3.63.0.
+
+CAMBIOS
+
+- LIT reorganiza la cabecera superior: turno, circulación, UT y retraso
+  conservan una fila principal; la ocupación queda a la derecha y el ciclo se
+  muestra debajo de ella, exista o no retraso.
+- El retraso dispone de una reserva propia y se muestra en rojo sin teñir los
+  demás identificadores de la cabecera.
+- PLASTIC, iSIC, CICLES y TORNS sustituyen la flecha animada de los recorridos
+  por el separador fijo «-», evitando que se oculten los códigos contiguos.
+- Al abrir un ciclo, CICLES mantiene fija la información del movimiento actual:
+  ciclo, turno, circulación, UT, retraso y ocupación.
+- Al abrir un turno, TORNS mantiene fija la actividad actual y ofrece los
+  accesos LIT, CICLE y CTC.
+- Al final de cada itinerario LIT aparece PROPERA CIRCULACIÓ. El bloque enlaza
+  la siguiente circulación del ciclo de material y la siguiente circulación
+  del turno, mostrando también sus referencias cruzadas cuando están
+  disponibles.
+
+ARCHIVOS MODIFICADOS O NUEVOS
+
+- index.html
+- css/sim-3.64.0.css
+- js/app-3.64.0.js
+- js/plastic-3.64.0.js
+- js/isic-view-3.64.0.js
+- js/lit-3.64.0.js
+- js/cycles-view-3.64.0.js
+- js/torns-3.64.0.js
+- LEEME-BETA-3.64.0.txt
+- SHA256SUMS.txt
+
+INSTALACIÓN INCREMENTAL DESDE 3.63.0
+
+1. Sustituir index.html.
+2. Añadir css/sim-3.64.0.css.
+3. Añadir los seis archivos 3.64.0 incluidos en la carpeta js.
+4. Sustituir SHA256SUMS.txt y añadir este LEEME.
+5. Recargar SIM+ sin caché o cerrar y volver a abrir la web instalada.
+
+No es necesario volver a cargar las carpetas assets ni data.
