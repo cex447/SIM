@@ -1,0 +1,47 @@
+SIM+ Beta 3.65.0 · Información operacional ampliada en CTC
+
+Base funcional: SIM+ Beta 3.64.1.
+
+CAMBIOS
+
+CTC
+
+- Cada matrícula de circulación muestra ahora, dentro de la misma placa:
+  - turno en la esquina superior izquierda;
+  - UT en la esquina superior derecha;
+  - circulación centrada y destacada;
+  - ciclo centrado en la parte inferior.
+- Los datos proceden de las asignaciones vivas de turnos, UT y ciclos de SIM+.
+  Cuando un dato todavía no está disponible se muestra Q? o —, sin inventarlo.
+- La altura de la placa queda limitada a 14,25 unidades frente a las 16 unidades
+  de separación mínima entre vías paralelas del sinóptico. Así pueden verse a la
+  vez trenes de vías distintas sin que sus matrículas se tapen.
+- Si dos trenes quedan excepcionalmente más próximos, SIM+ reduce sus placas de
+  forma uniforme y resuelve cualquier coincidencia residual en horizontal.
+- Se mantiene el bloque rojo de retraso y la apertura de LIT al tocar un tren.
+
+LIT
+
+- Se conservan los ajustes de 3.64.1:
+  - PROPERA CIRCULACIÓ tiene el mismo tamaño que los nombres de estación;
+  - las líneas inferiores de turno y UT se muestran completas;
+  - hay mayor separación entre circulación y UT en la cabecera.
+
+ARCHIVOS MODIFICADOS O NUEVOS
+
+- index.html
+- css/sim-3.65.0.css
+- js/app-3.65.0.js
+- js/ctc-3.65.0.js
+- LEEME-BETA-3.65.0.txt
+- SHA256SUMS.txt
+
+INSTALACIÓN INCREMENTAL DESDE 3.64.1
+
+1. Sustituir index.html y SHA256SUMS.txt.
+2. Añadir css/sim-3.65.0.css.
+3. Añadir js/app-3.65.0.js y js/ctc-3.65.0.js.
+4. Añadir este LEEME.
+5. Recargar SIM+ sin caché o cerrar y volver a abrir la web instalada.
+
+No se modifican las carpetas assets ni data.
