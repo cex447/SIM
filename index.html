@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html data-view="plastic" lang="ca">
+<html data-sim-build="3.65.1" data-view="plastic" lang="ca">
 <head>
 <meta charset="utf-8"/>
 <meta content="no-cache, no-store, must-revalidate" http-equiv="Cache-Control"/>
@@ -10,6 +10,19 @@
 <meta content="#000000" name="theme-color"/>
 <meta content="SIM+" name="apple-mobile-web-app-title"/>
 <meta content="SIM+" name="application-name"/>
+<script>
+/* SIM+ 3.65.1 · cada publicació s'obre amb una URL pròpia per evitar
+   que iOS reutilitzi l'HTML d'una versió anterior de l'app instal·lada. */
+(()=>{
+  const build="3.65.1";
+  window.__SIM_PLUS_BUILD__=build;
+  const url=new URL(window.location.href);
+  if(url.searchParams.get("sim")!==build){
+    url.searchParams.set("sim",build);
+    window.location.replace(url.href);
+  }
+})();
+</script>
 <script>
 /* SIM+ 3.52 · bloqueig immediat del zoom natiu de Safari.
    CTC rep igualment els Touch Events i fa el seu zoom intern via viewBox. */
@@ -30,8 +43,8 @@
 <link href="assets/icons/favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
 <link href="assets/icons/favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
 <link href="assets/icons/apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
-<link href="site-3.55.0.webmanifest" rel="manifest"/>
-<link href="css/sim-3.65.0.css" rel="stylesheet"/>
+<link href="site-3.65.1.webmanifest?v=3.65.1" rel="manifest"/>
+<link href="css/sim-3.65.1.css?v=3.65.1" rel="stylesheet"/>
 <style id="lit-header-layout-3-64-1">
 /* Cabecera LIT 3.64.1: fila principal y ciclo fijo bajo la ocupación. */
 .lit-query-bar{min-height:calc(var(--query-row-h) + 10px)!important;overflow:visible!important}
@@ -53,7 +66,7 @@
 
 <div class="query-bar lit-query-bar" hidden="" id="litQueryBar">
 <button aria-label="Veure la circulació al CTC" class="context-ctc-button" id="litCtcButton" type="button"><span class="plate-label">CTC</span></button>
-<div aria-live="polite" class="query-meta lit-query-meta" data-layout-version="3.65.0" id="queryMeta">
+<div aria-live="polite" class="query-meta lit-query-meta" data-layout-version="3.65.1" id="queryMeta">
 <span class="query-turn" hidden="" id="queryTurn"></span>
 <div class="query-input-wrap lit-circulation-input-wrap">
 <input aria-label="Cercar circulació" autocapitalize="characters" autocomplete="off" class="query-code-input circulation-input" id="circulationInput" inputmode="text" maxlength="4" spellcheck="false"/>
@@ -11524,6 +11537,6 @@
 <pre id="diagText"></pre>
 </dialog>
 </div>
-<script src="js/app-3.65.0.js" type="module"></script>
+<script src="js/app-3.65.1.js?v=3.65.1" type="module"></script>
 </body>
 </html>

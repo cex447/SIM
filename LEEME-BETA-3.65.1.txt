@@ -1,0 +1,42 @@
+SIM+ Beta 3.65.1 · Corrección del arranque y de la caché de la app instalada
+
+Base funcional: SIM+ Beta 3.65.0.
+
+PROBLEMA CORREGIDO
+
+- La publicación 3.65.0 contenía las mejoras de LIT y las matrículas ampliadas
+  de CTC, pero el manifiesto seguía iniciando SIM+ con la URL de la versión
+  3.55.0. En iOS esto podía volver a abrir una copia anterior y hacer que todos
+  los cambios parecieran ausentes.
+
+CAMBIOS
+
+- El punto de entrada de la aplicación instalada pasa a
+  index.html?sim=3.65.1.
+- Si SIM+ se abre desde una URL de versión anterior, la propia página conserva
+  el resto de parámetros y cambia una sola vez a sim=3.65.1.
+- CSS, aplicación y módulo CTC tienen nombres y parámetros de versión propios,
+  por lo que no pueden confundirse con recursos guardados anteriormente.
+- El diagnóstico y el documento HTML exponen la compilación 3.65.1 para poder
+  comprobar qué versión está realmente cargada.
+- Se conservan sin cambios funcionales las mejoras ya incluidas en 3.65.0:
+  cabecera y navegación inferior de LIT, y turno/UT/circulación/ciclo en CTC.
+
+ARCHIVOS MODIFICADOS O NUEVOS
+
+- index.html
+- site-3.55.0.webmanifest
+- site-3.65.1.webmanifest
+- css/sim-3.65.1.css
+- js/app-3.65.1.js
+- js/ctc-3.65.1.js
+- LEEME-BETA-3.65.1.txt
+- SHA256SUMS.txt
+
+COMPROBACIÓN TRAS PUBLICAR
+
+1. Abrir una vez index.html?sim=3.65.1 desde Safari.
+2. Si se utiliza el icono de la pantalla de inicio y todavía abre la copia
+   anterior, eliminar únicamente ese icono y volver a añadir SIM+ desde Safari.
+   Los archivos y datos del repositorio no se eliminan con esta operación.
+
